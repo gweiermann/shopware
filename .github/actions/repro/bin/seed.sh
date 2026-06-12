@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Seed exactly the entities a repro needs, via the admin sync API. NO demodata.
 #
-# Reads the plan's sync payload (entities the Analyze agent derived), resolves the
+# Reads the plan's sync payload (entities the Build Repro phase produced), resolves the
 # install-specific placeholders ({{SC}}/{{NAV_CAT}}/{{TAX}}/{{CURRENCY}}) against the
 # running shop, and POSTs /api/_action/sync. Idempotent upsert.
 #

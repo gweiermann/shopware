@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# `http` executor (v2). Reads the plan (analysis.json), runs the request — or a
+# `http` executor (v2). Reads the plan (repro-plan.json), runs the request — or a
 # request SEQUENCE — against the running shop, and asserts on the FINAL response.
 #
 # Supports:
@@ -17,10 +17,10 @@
 #
 # expect = HEALTHY value: actual != expect => reproduced; actual == expect => not_reproduced.
 #
-# Env: ANALYSIS, OUT, APP_URL (req), TARGET (req), SW_ACCESS_KEY, ADMIN_USER, ADMIN_PASS
+# Env: REPRO_PLAN/ANALYSIS, OUT, APP_URL (req), TARGET (req), SW_ACCESS_KEY, ADMIN_USER, ADMIN_PASS
 set -euo pipefail
 
-ANALYSIS=${ANALYSIS:-analysis.json}
+ANALYSIS=${REPRO_PLAN:-${ANALYSIS:-repro-plan.json}}
 OUT=${OUT:-result.json}
 : "${APP_URL:?APP_URL is required}"
 : "${TARGET:?TARGET is required}"

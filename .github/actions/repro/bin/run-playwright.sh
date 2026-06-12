@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Real `playwright` executor. Runs the spec Analyze generated ONCE (repro.spec.ts,
+# Real `playwright` executor. Runs the spec Build Repro generated ONCE (repro.spec.ts,
 # reused by both legs) against the leg's APP_URL, then maps the result to a verdict.
 #
 # expect = healthy: the spec asserts the FIXED behaviour, so it FAILS on the buggy
@@ -9,14 +9,14 @@
 # are written under test-results/ and uploaded by the workflow.
 #
 # Env:
-#   ANALYSIS     analysis.json                         (default: analysis.json)
+#   REPRO_PLAN   repro-plan.json                       (default; ANALYSIS fallback)
 #   OUT          result.json                           (default: result.json)
 #   APP_URL      base URL of the running shop          (required)
 #   TARGET       reported | trunk                      (required)
 #   PW_REPORT    parse this existing JSON report instead of running (testing hook)
 set -euo pipefail
 
-ANALYSIS=${ANALYSIS:-analysis.json}
+ANALYSIS=${REPRO_PLAN:-${ANALYSIS:-repro-plan.json}}
 OUT=${OUT:-result.json}
 : "${APP_URL:?APP_URL is required}"
 : "${TARGET:?TARGET is required}"

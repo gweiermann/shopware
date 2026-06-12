@@ -5,7 +5,7 @@ Use when the bug can't fire faithfully through store-api (`http`) or the UI (`pl
 symptom is typically a computed value or a service behaviour, not an HTTP/DOM surface.
 
 ## What you author
-Generate `ReproTest.php` (set `script_path: "ReproTest.php"`):
+Generate `ReproTest.php` and set `script_path: "ReproTest.php"` in `repro-plan.json`:
 - namespace `Shopware\Tests\Integration\Repro`
 - `class ReproTest extends TestCase` using `IntegrationTestBehaviour` (which pulls in
   `KernelTestBehaviour`); resolve services via `$this->getContainer()`.
@@ -14,7 +14,7 @@ Generate `ReproTest.php` (set `script_path: "ReproTest.php"`):
 - A single test method that ASSERTS THE HEALTHY (fixed) behaviour, so it FAILS on the buggy
   version and PASSES when healthy.
 - **When the SYMPTOM is a thrown exception** (the buggy version throws — e.g. a DB error
-  during indexing), ALSO set `assertion.symptom_pattern` in analysis.json — a distinctive
+  during indexing), ALSO set `assertion.symptom_pattern` in `repro-plan.json` — a distinctive
   extended-regex for the exception text (e.g. `"1116 Too many tables"`). If the test ERRORS
   and the output matches this pattern, the executor classifies it `reproduced` even when the
   throw escaped your try/catch (DAL writes run indexers synchronously, so the symptom often

@@ -1,16 +1,14 @@
 # Bug-reproduction pipeline
 
 Automatically reproduces a reported bug issue **on the reported version and on trunk in
-parallel**, then posts the verdict + evidence back to the issue. The agent owns only the
-thin slices (read the issue → derive a repro plan → write the report); provisioning,
-building and running are deterministic CI jobs. The guiding principle is **derive, don't
-discover**: the repro is derived from the linked fix PR's regression test, not searched
-for by trial and error.
+parallel**, then posts the verdict + evidence back to the issue. Analyze is cheap and
+config-only; Build Repro creates the executable fixture/test bundle on one live instance
+and self-verifies it before the deterministic reported/trunk comparison runs.
 
 ## How to enable
 
-1. Add a `QUALITY_INITIATIVE_ANTHROPIC_API_KEY` repository secret (used only by the
-   Analyze job); `ANTHROPIC_API_KEY` is accepted as a fallback. Without either the
+1. Add a `QUALITY_INITIATIVE_ANTHROPIC_API_KEY` repository secret (used by the
+   Analyze and Build Repro jobs); `ANTHROPIC_API_KEY` is accepted as a fallback. Without either the
    workflow **hard-fails** rather than fabricating a plan.
 2. Trigger a run by either:
    - applying the `ci:reproduce` label to an issue, **or**
@@ -21,15 +19,18 @@ for by trial and error.
 ## Phases
 
 ```
-gate ─▶ analyze ─▶ reproduce (matrix: reported ‖ trunk) ─▶ verdict ─▶ report
+gate ─▶ analyze ─▶ build-repro ─▶ reproduce (matrix: reported ‖ trunk) ─▶ verdict ─▶ report
 ```
 
 - **gate** — deterministic checks (a real "How to reproduce" / "Steps to reproduce" section
   must exist) before any agent runs; cheap rejection of under-specified issues.
-- **analyze** — the only AI step. Emits `analysis.json`: the cheapest faithful `layer`,
-  minimal `build_profile`, `fixtures`, and an `assertion` derived from the fix PR's
-  regression test. Pinned to a bounded turn budget.
-- **reproduce** — one parallel leg per target version. The `executor` is chosen by layer.
+- **analyze** — AI, but config-only. Emits `analysis.json`: likely `layer`, `executor`,
+  `version`, minimal `build_profile`, scenario, and confidence. No fixtures or tests.
+- **build-repro** — AI with one live Shopware instance. Emits `repro-plan.json` plus
+  optional `fixtures.json`, `repro.spec.ts`, or `ReproTest.php`, then verifies the bundle
+  through the deterministic executor as `builder`.
+- **reproduce** — one parallel deterministic leg per target version. The `executor` is
+  chosen by `repro-plan.json`.
 - **verdict / report** — deterministic merge + verdict map, then the issue comment.
 
 ## Executors (cheapest faithful layer first)
@@ -58,7 +59,7 @@ buggy version** (`reproduced`) and **passes when healthy** (`not_reproduced`).
 ## Cost discipline
 
 - **Match env to surface** — `direct`/`http` legs build neither storefront nor theme.
-- **Confidence bands** — a plan the analyzer doesn't trust (`< 0.4`) is **not run**; it
+- **Confidence bands** — an analysis the analyzer doesn't trust (`< 0.4`) is **not run**; it
   asks a human to confirm the draft first, rather than provisioning two installs to test
   a guess. `0.4–0.7` runs but routes to `needs_human_review`.
 - **Fail fast, never yield mid-build** — one-shot provision, poll until READY.
@@ -69,7 +70,7 @@ for the full JSON contracts.
 ## Layout
 
 ```
-.github/workflows/reproduce.yml        orchestrator (gate→analyze→reproduce→verdict→report)
+.github/workflows/reproduce.yml        orchestrator (gate→analyze→build-repro→reproduce→verdict→report)
 .github/workflows/reproduce-eval.yml   skillgrade eval for the Analyze phase
 .github/actions/repro/provision/       setup-shopware + server-ready poll
 .github/actions/repro/bin/run-http.sh        http executor

@@ -15,7 +15,9 @@ case "$MODE" in
   *) echo "::error::unknown MODE '$MODE'"; exit 1 ;;
 esac
 AF="$ART/repro-$A/result.json"; BF="$ART/repro-$B/result.json"
-AN="$ART/analysis/analysis.json"; ATTR="$ART/attribution/attribution.json"
+AN="$ART/repro-plan/repro-plan.json"
+[ -f "$AN" ] || AN="$ART/analysis/analysis.json"
+ATTR="$ART/attribution/attribution.json"
 LAYER=$(jq -r .layer "$AN" 2>/dev/null || echo unknown)
 have_a=0; [ -f "$AF" ] && have_a=1
 have_b=0; [ -f "$BF" ] && have_b=1

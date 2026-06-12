@@ -5,8 +5,8 @@
 
 End-to-end evals for the `.claude/skills/reproduce` skill's **Analyze** phase,
 built on [skillgrade](https://github.com/mgechev/skillgrade). They check that
-Analyze **derives** a correct, schema-valid repro plan from a bug report + the
-fix PR's regression test — the "derive, don't discover" contract.
+Analyze derives a correct, schema-valid config from a bug report + the fix PR's
+regression test. Build Repro owns executable fixtures and tests.
 
 ## Layout
 
@@ -47,6 +47,6 @@ branch — runs the same thing in CI (needs `CLAUDE_CODE_OAUTH_TOKEN`).
 ## Grading
 
 Each `grader.sh` sources `_lib.sh`, asserts the produced `output.json` against the
-plan's `SCHEMA.md` shape (`check_schema_analysis`) plus task-specific predicates
-(right layer/executor, verbatim request, **healthy** assertion value, minimal
-fixtures, `derived_from` the test). Score is `passed/total`; threshold `0.8`.
+config's `SCHEMA.md` shape (`check_schema_analysis`) plus task-specific predicates
+(right layer/executor, version, minimal build profile, scenario, and `derived_from`
+the test). Score is `passed/total`; threshold `0.8`.

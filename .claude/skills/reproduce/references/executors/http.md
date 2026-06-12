@@ -4,7 +4,7 @@ Use when the symptom surfaces on a store-api or admin-api **response**. Cheapest
 layer for most API bugs. Builds neither storefront nor theme.
 
 ## What you author
-Put the request(s) in `analysis.json` — there is **no** separate script file (the executor
+Put the request(s) in `repro-plan.json` — there is **no** separate script file (the executor
 generates `repro.sh` from the plan and runs it). Use:
 
 - `request` — a single object: `{ method, path, headers, body }`, OR

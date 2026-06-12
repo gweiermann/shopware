@@ -34,7 +34,7 @@ check() {
     fi
 }
 
-# analysis.json (the repro plan) shape per references/SCHEMA.md.
+# analysis.json (config-only analyzer output) shape per references/SCHEMA.md.
 check_schema_analysis() {
     check "schema-version-1" '.schema_version == "1"'
     check "layer-valid"      '.layer as $l | ["service","store-api","admin-api","storefront-ui","admin-ui"] | index($l) != null'
@@ -46,7 +46,10 @@ check_schema_analysis() {
           or (.executor == "http" and $api)
           or (.executor == "direct" and .layer == "service")'
     check "build-profile-object" '(.build_profile | type) == "object"'
-    check "targets-valid"    '(.targets // []) | (type == "array") and (all(.[]; . == "reported" or . == "trunk"))'
+    check "scenario-array"   '(.scenario // []) | type == "array"'
+    check "no-fixtures"      'has("fixtures") | not'
+    check "no-assertion"     'has("assertion") | not'
+    check "no-script-path"   'has("script_path") | not'
 }
 
 emit_result() {

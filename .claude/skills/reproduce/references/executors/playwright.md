@@ -4,7 +4,7 @@ Use ONLY for a genuine UI bug (rendered state, interaction). The most expensive 
 escalate here only when neither `http` nor `direct` can fire the symptom.
 
 ## What you author
-Generate `repro.spec.ts` (set `script_path: "repro.spec.ts"`). It asserts the HEALTHY
+Generate `repro.spec.ts` and set `script_path: "repro.spec.ts"` in `repro-plan.json`. It asserts the HEALTHY
 behaviour, is generated ONCE, and the SAME spec runs on BOTH the reported and trunk
 versions — so it must tolerate cross-version UI drift. Use relative paths (`baseURL` is
 injected). Comment every step.

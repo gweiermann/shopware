@@ -22,7 +22,7 @@ comment () { [ "$POST" = "true" ] && gh issue comment "$ISSUE" --repo "$REPO" --
 # Degrade gracefully (visible comment + clean skip) instead of an opaque red run.
 if [ ! -f "$ANALYSIS" ]; then
   echo "::warning::analyze produced no $ANALYSIS (agent error or exceeded turn budget)"
-  comment "## Reproduction — could not analyze"$'\n\n'"The analyzer did not produce a repro plan within its turn budget (likely an over-exploring UI/playwright analysis). No reproduction was run. A human can review the issue, or re-trigger to retry."
+  comment "## Reproduction — could not analyze"$'\n\n'"The analyzer did not produce analysis.json within its turn budget. No reproduction was run. A human can review the issue, or re-trigger to retry."
   out targets "[]"
   exit 0
 fi

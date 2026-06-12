@@ -4,12 +4,12 @@
 # public comment for it.
 #
 # Env: TARGET (req, leg role/name), FAILED (provision|seed; default provision),
-#      ANALYSIS (default analysis.json), OUT (default result.json).
+#      REPRO_PLAN (default repro-plan.json; ANALYSIS fallback), OUT (default result.json).
 set -euo pipefail
 
 : "${TARGET:?TARGET is required}"
 FAILED=${FAILED:-provision}
-ANALYSIS=${ANALYSIS:-analysis.json}
+ANALYSIS=${REPRO_PLAN:-${ANALYSIS:-repro-plan.json}}
 OUT=${OUT:-result.json}
 
 # Carry the seed step's API validation detail when it exists — an invalid fixture payload

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deterministic verdict from two leg results + the analyze plan's confidence. No agent.
+# Deterministic verdict from two leg results + the repro plan's confidence. No agent.
 # Shared by the reproduce and fix-verify workflows; MODE selects the leg names + verdict map.
 #
 #   MODE=reproduce   legs: reported (A) , trunk (B)
@@ -43,7 +43,8 @@ a="null"; b="null"
 out "$A_NAME" "$a"
 out "$B_NAME" "$b"
 
-AN="$ART/analysis/analysis.json"
+AN="$ART/repro-plan/repro-plan.json"
+[ -f "$AN" ] || AN="$ART/analysis/analysis.json"
 CONF=$(jq -r '.confidence // 1' "$AN" 2>/dev/null || echo 1)
 BLOCKED=$(jq -r '.blocked_reason // ""' "$AN" 2>/dev/null || echo "")
 DERIVED=$(jq -r '.derived_from // ""' "$AN" 2>/dev/null || echo "")

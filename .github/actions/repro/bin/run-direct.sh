@@ -8,11 +8,11 @@
 # ERRORS (can't bootstrap/compile — e.g. the reported version lacks an API the test
 # uses) => inconclusive (cross-version mismatch), never a bogus reproduced.
 #
-# Env: ANALYSIS, OUT, TARGET (req), SHOP_DIR (default shop),
+# Env: REPRO_PLAN/ANALYSIS, OUT, TARGET (req), SHOP_DIR (default shop),
 #      PHPUNIT_REPORT (advanced/testing: parse this report instead of running phpunit)
 set -euo pipefail
 
-ANALYSIS=${ANALYSIS:-analysis.json}
+ANALYSIS=${REPRO_PLAN:-${ANALYSIS:-repro-plan.json}}
 OUT=${OUT:-result.json}
 : "${TARGET:?TARGET is required}"
 SHOP=${SHOP_DIR:-shop}
