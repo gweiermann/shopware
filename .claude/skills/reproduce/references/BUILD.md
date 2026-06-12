@@ -27,19 +27,41 @@ deterministic executor can run and classify the result.
    - Direct: `script_path: "ReproTest.php"` and the PHPUnit file.
    - Fixtures: `fixtures.sync_payload_path: "fixtures.json"` and `fixtures.json`
      when seeded entities are needed.
-5. Run the deterministic executor via:
-   `TARGET=builder REPRO_PLAN=repro-plan.json OUT=builder-result.json bash .github/actions/repro/bin/run-leg.sh`
-6. If fixtures are needed, seed them before the executor with:
-   `APP_URL="$APP_URL" PAYLOAD=fixtures.json bash .github/actions/repro/bin/seed.sh`
-7. Refine the bundle only when the executor reports `blocked` or `inconclusive` for
-   a fixable harness/setup reason. Stop after a bounded number of attempts.
+5. Self-verify inside this agent turn. The exact loop is:
+   - If `fixtures.json` exists, seed it first with
+     `APP_URL="$APP_URL" PAYLOAD=fixtures.json bash .github/actions/repro/bin/seed.sh`.
+   - Then run the deterministic executor with
+     `TARGET=builder REPRO_PLAN=repro-plan.json OUT=builder-result.json bash .github/actions/repro/bin/run-leg.sh`.
+   - Read `builder-result.json` and decide whether the result proves the repro bundle's
+     assumption:
+     - `reproduced`: the generated healthy assertion fails on the builder instance, so
+       the bundle can detect the reported symptom on that version.
+     - `not_reproduced`: the generated healthy assertion passes on the builder instance,
+       so the bundle is runnable and classifies the builder version as healthy.
+     - `blocked` or `inconclusive`: the bundle is not verified. Inspect the reason and
+       refine fixtures/test code only if the failure is a fixable harness/setup problem.
+6. You may run this seed + executor loop multiple times while building. Keep each
+   attempt idempotent:
+   - Prefer deterministic 32-char IDs and sync `upsert` fixtures so reseeding updates
+     the same entities instead of accumulating duplicates.
+   - If an attempted fixture/test created bad state, reset by overwriting those same IDs
+     or by issuing a targeted cleanup through the Admin API/sync API before the next
+     attempt.
+   - Do not depend on a database transaction rollback around the full attempt: the
+     generic workflow does not provide one for HTTP/Playwright/admin sync side effects.
+     Treat fixture rollback as explicit cleanup or idempotent overwrite.
+   - Limit retries to a small bounded number; repeated `blocked`/`inconclusive` for the
+     same reason must become the final `builder-result.json`.
 
 ## Success Criteria
 
-Build Repro succeeds only when all required files exist and `builder-result.json`
-status is `reproduced` or `not_reproduced`. The status only proves the bundle is
-runnable and classifiable on the builder instance; reported/trunk verdicts still come
-from the deterministic matrix.
+Build Repro succeeds only when the agent has seeded any required fixtures, run the
+deterministic executor itself, read `builder-result.json`, and concluded that the result
+supports the bundle assumption. The final `builder-result.json` must have status
+`reproduced` or `not_reproduced`. The workflow validates the files afterward, but it does
+not seed or run the executor again. The status only proves the bundle is runnable and
+classifiable on the builder instance; reported/trunk verdicts still come from the
+deterministic matrix.
 
 If the bundle cannot be made runnable, write `builder-result.json` with `blocked` or
 `inconclusive` and a specific `blocked_reason`. The workflow must stop before spending

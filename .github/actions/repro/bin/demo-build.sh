@@ -37,4 +37,20 @@ case "$DEMO_LAYER" in
   *) echo "::error::unknown demo_layer '$DEMO_LAYER'"; exit 1 ;;
 esac
 
+jq -n \
+  --argjson issue "$(jq -r '.issue' repro-plan.json)" \
+  --arg version "$(jq -r '.version' repro-plan.json)" \
+  --arg executor "$(jq -r '.executor' repro-plan.json)" '{
+    schema_version:"1",
+    issue:$issue,
+    target:"builder",
+    version:$version,
+    executor:$executor,
+    status:"not_reproduced",
+    assertion:{expect:"demo bundle is runnable",actual:"demo dry-run",matched:true},
+    duration_s:0,
+    evidence:{script:"",script_lang:"sh",reporter_output:"DEMO dry-run builder result",http:[],artifacts:[],truncated:false},
+    blocked_reason:null
+  }' > builder-result.json
+
 cat repro-plan.json

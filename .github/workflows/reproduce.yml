@@ -374,12 +374,15 @@ jobs:
             Outputs:
             - Write `repro-plan.json`.
             - Write `fixtures.json`, `repro.spec.ts`, or `ReproTest.php` only when needed.
-            - Self-verify with the deterministic executor and write `builder-result.json`.
-            The final workflow step will run the deterministic self-verification again; do
-            not stop with an unverified bundle.
+            - Self-verify inside this agent run: seed `fixtures.json` if it exists, run
+              the deterministic executor, read `builder-result.json`, and only leave a
+              `reproduced`/`not_reproduced` result when it proves the bundle is runnable
+              and classifiable.
+            The workflow will only validate the files you produced; it will NOT seed or
+            run the executor again in a separate step. Do not stop with an unverified bundle.
           claude_args: >-
             --model claude-sonnet-4-6 --max-turns ${{ github.event.inputs.max_turns || '40' }}
-            --allowedTools "Read,Glob,Grep,Write,Bash(rg:*),Bash(git log:*),Bash(git show:*),Bash(git diff:*),Bash(git blame:*),Bash(cat:*),Bash(ls:*),Bash(find:*),Bash(jq:*),Bash(grep:*),Bash(head:*),Bash(tail:*),Bash(sed:*),Bash(wc:*),Bash(bash .github/actions/repro/bin/seed.sh:*),Bash(bash .github/actions/repro/bin/run-leg.sh:*),Bash(cp:*),Bash(mkdir:*)"
+            --allowedTools "Read,Glob,Grep,Write,Bash(rg:*),Bash(git log:*),Bash(git show:*),Bash(git diff:*),Bash(git blame:*),Bash(cat:*),Bash(ls:*),Bash(find:*),Bash(jq:*),Bash(grep:*),Bash(head:*),Bash(tail:*),Bash(sed:*),Bash(wc:*),Bash(bash .github/actions/repro/bin/seed.sh:*),Bash(bash .github/actions/repro/bin/run-leg.sh:*),Bash(npm:*),Bash(npx playwright install:*),Bash(cp:*),Bash(mkdir:*)"
         env:
           APP_URL: ${{ steps.provision.outputs.app_url }}
           SW_ACCESS_KEY: ${{ steps.provision.outputs.access_key }}
@@ -391,41 +394,6 @@ jobs:
         env:
           DEMO_LAYER: ${{ github.event.inputs.demo_layer || 'http' }}
         run: bash .github/actions/repro/bin/demo-build.sh
-
-      - name: Seed builder fixtures
-        id: builder_seed
-        continue-on-error: true
-        env:
-          APP_URL: ${{ steps.provision.outputs.app_url }}
-        run: PAYLOAD=fixtures.json bash .github/actions/repro/bin/seed.sh
-
-      - name: Install Playwright for final builder plan
-        if: steps.builder_seed.outcome == 'success' && hashFiles('repro-plan.json') != '' && steps.buildplan.outputs.executor != 'playwright'
-        run: |
-          if [ "$(jq -r '.executor' repro-plan.json)" = "playwright" ]; then
-            npm init -y >/dev/null
-            npm i -D @playwright/test
-            npx playwright install --with-deps chromium
-          fi
-
-      - name: Self-verify built repro bundle
-        if: steps.builder_seed.outcome == 'success'
-        env:
-          TARGET: builder
-          REPRO_PLAN: repro-plan.json
-          OUT: builder-result.json
-          APP_URL: ${{ steps.provision.outputs.app_url }}
-          SW_ACCESS_KEY: ${{ steps.provision.outputs.access_key }}
-        run: bash .github/actions/repro/bin/run-leg.sh
-
-      - name: Mark builder blocked
-        if: steps.builder_seed.outcome == 'failure'
-        env:
-          TARGET: builder
-          FAILED: seed
-          REPRO_PLAN: repro-plan.json
-          OUT: builder-result.json
-        run: bash .github/actions/repro/bin/leg-blocked.sh
 
       - name: Check built repro bundle
         run: bash .github/actions/repro/bin/build-check.sh

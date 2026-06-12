@@ -163,9 +163,12 @@ Rules:
   distinctive extended-regex for a symptom exception. When PHPUnit errors and the
   output matches, the leg is classified `reproduced`.
 - The generated script or request comments every step (what it does + asserts).
-- Build Repro MUST self-verify by running the selected deterministic executor once on
-  its live shop and writing `builder-result.json`. `blocked` or `inconclusive`
-  builder results stop the pipeline before reported/trunk reproduction.
+- Build Repro MUST self-verify inside the agent turn: seed `fixtures.json` when present,
+  run the selected deterministic executor on the live shop, read `builder-result.json`,
+  and conclude whether the result supports the generated bundle. The workflow only
+  validates the output files afterward; it does not rerun seed/executor for the builder.
+  `blocked` or `inconclusive` builder results stop the pipeline before reported/trunk
+  reproduction.
 
 ## Repro Result (`result.json`)
 
