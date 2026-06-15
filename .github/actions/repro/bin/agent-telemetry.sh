@@ -52,14 +52,12 @@ endmode=$(jq -r 'last(.[]|select(.type=="result")|.subtype // empty) // "unknown
   echo "| ${turns:-0} | ${out_tok:-0} | ${cache_r:-0} | ${cost:-?} | ${denials:-0} | ${endmode} |"
   echo
   if [ -n "$why" ]; then
-    echo "<details><summary><b>${PHASE} — agent's final message</b></summary>"
+    echo "**${PHASE} — agent's final message**"
     echo
     echo '```'
     printf '%s\n' "$why" | head -c 4000
     echo
     echo '```'
-    echo
-    echo "</details>"
     echo
   fi
 } >> "${GITHUB_STEP_SUMMARY:-/dev/stdout}"
