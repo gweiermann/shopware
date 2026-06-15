@@ -392,15 +392,16 @@ jobs:
             the fix PR. READ IT FIRST (one Read); it lists any attached screenshots by exact
             path — Read those directly (do not glob). Do NOT read BUILD.md/SCHEMA.md/the
             executor contract separately — they are already inlined there.
-            ALLOWED COMMANDS — everything else is auto-DENIED by the sandbox and only wastes a
-            turn: file tools (Read/Write/Edit/Glob/Grep); `bash .github/actions/repro/bin/build-verify.sh`;
-            `bash .github/actions/repro/bin/shop-get.sh ...`; and plain read-only shell
-            (cat/ls/find/jq/grep/head/tail/sed/wc/rg/git log|show|diff|blame). Do NOT use
-            python3, node, raw curl/wget, inline scripts/here-docs, or any `VAR=value`-prefixed
-            command — they will be blocked. There is no other way in; if you can't proceed
-            within these, STOP and explain in plain text. For ANY JSON (read a field, filter,
-            transform fixtures.json / builder-result.json / shop-get output) use `jq` — it is
-            available; do NOT use python3 or grep to parse JSON.
+            ALLOWED COMMANDS — everything else is auto-DENIED and only wastes a turn:
+            file tools (Read/Write/Edit on your own files + fixpr.diff + known paths);
+            `bash .github/actions/repro/bin/build-verify.sh`; `bash .github/actions/repro/bin/shop-get.sh ...`;
+            WebSearch + WebFetch(developer.shopware.com); and plain read-only shell
+            (cat/ls/jq/head/tail/sed/wc/git log|show|diff|blame). There is deliberately NO file
+            search (Glob/Grep/rg/grep/find are disabled) and NO sub-agents (Task/Agent) — you
+            REPRODUCE, you do not explore the codebase; use shop-get + the dev docs + fixpr.diff
+            instead. Do NOT use python3, node, raw curl/wget, inline scripts/here-docs, or any
+            `VAR=value`-prefixed command — they are blocked. If you can't proceed within these,
+            STOP and explain in plain text. For ANY JSON use `jq` (do NOT reach for python3).
             To INSPECT live-shop state (entity ids, fields, whether a fixture took), use the
             getter — it is your ONLY way to query the API, never hand-roll curl/python/OAuth:
                 bash .github/actions/repro/bin/shop-get.sh <entity> <id>
@@ -443,9 +444,17 @@ jobs:
             around it — STOP immediately. Do NOT hack around it. End your turn with a plain
             explanation in the chat (NOT a JSON file) of exactly which command failed and how,
             so a human can fix the harness. A clear stop beats a clever workaround.
+          # NO source-discovery tools: three runs proved the agent rabbit-holes through src/**
+          # (and even spawned a Task subagent that source-dived) instead of authoring from
+          # shop-get + docs + fixpr.diff. Glob/Grep are dropped from allow AND disallowed
+          # (the action grants them — and Task — by default, so disallow is what removes them);
+          # the Bash search commands (rg/grep/find) are dropped too, else `bash rg` is the same
+          # capability. The agent keeps Read (its own files, fixpr.diff, build-context, known
+          # paths), shop-get for live state, and WebSearch+WebFetch(dev docs) for structure.
           claude_args: >-
             --model claude-sonnet-4-6 --max-turns ${{ github.event.inputs.max_turns || '30' }}
-            --allowedTools "Read,Glob,Grep,Write,WebSearch,WebFetch(domain:developer.shopware.com),Bash(rg:*),Bash(git log:*),Bash(git show:*),Bash(git diff:*),Bash(git blame:*),Bash(cat:*),Bash(ls:*),Bash(find:*),Bash(jq:*),Bash(grep:*),Bash(head:*),Bash(tail:*),Bash(sed:*),Bash(wc:*),Bash(bash .github/actions/repro/bin/build-verify.sh:*),Bash(bash .github/actions/repro/bin/shop-get.sh:*),Bash(npm init:*),Bash(npm i:*),Bash(npm install:*),Bash(npx playwright install:*),Bash(cp:*),Bash(mkdir:*)"
+            --disallowedTools "Task,Agent,Glob,Grep"
+            --allowedTools "Read,Write,WebSearch,WebFetch(domain:developer.shopware.com),Bash(git log:*),Bash(git show:*),Bash(git diff:*),Bash(git blame:*),Bash(cat:*),Bash(ls:*),Bash(jq:*),Bash(head:*),Bash(tail:*),Bash(sed:*),Bash(wc:*),Bash(bash .github/actions/repro/bin/build-verify.sh:*),Bash(bash .github/actions/repro/bin/shop-get.sh:*),Bash(npm init:*),Bash(npm i:*),Bash(npm install:*),Bash(npx playwright install:*),Bash(cp:*),Bash(mkdir:*)"
         env:
           APP_URL: ${{ steps.provision.outputs.app_url }}
           SW_ACCESS_KEY: ${{ steps.provision.outputs.access_key }}
