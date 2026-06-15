@@ -81,7 +81,8 @@ jobs:
       skip_reported: ${{ steps.decide.outputs.skip_reported }}
       needs_info: ${{ steps.decide.outputs.needs_info }}
     steps:
-      - id: decide
+      - name: Decide run / authz / issue
+        id: decide
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
@@ -165,12 +166,14 @@ jobs:
       targets: ${{ steps.matrix.outputs.targets }}
     steps:
       # Codebase available so the agent can read the DAL schema + the fix PR's test.
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
 
       # Decide the mode ONCE. Never silently fabricate: missing key + not dry-run = fail.
-      - id: mode
+      - name: Select mode (dry-run / real / fail)
+        id: mode
         env:
           DRY_RUN: ${{ github.event.inputs.dry_run }}
           HAS_KEY: ${{ secrets.QUALITY_INITIATIVE_ANTHROPIC_API_KEY != '' || secrets.ANTHROPIC_API_KEY != '' }}
@@ -270,7 +273,8 @@ jobs:
       # Compute the target matrix from the produced analysis (dedup + not-on-manual-rerun).
       # Leg matrix + the three graceful pre-provision exits (missing plan / needs_info /
       # < 0.4 low confidence) — see bin/matrix.sh.
-      - id: matrix
+      - name: Compute target matrix
+        id: matrix
         env:
           SKIP_REPORTED: ${{ needs.gate.outputs.skip_reported }}
           BRANCH: ${{ github.event.inputs.branch || 'trunk' }}
@@ -281,7 +285,8 @@ jobs:
       # Gate on the file existing: matrix.sh deliberately turns "no analysis.json" into a
       # graceful empty-matrix skip (agent error / turn budget), so the upload must NOT
       # re-redden that run with if-no-files-found: error.
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - name: Upload analysis
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: hashFiles('analysis.json') != ''
         with:
           name: analysis
@@ -304,14 +309,17 @@ jobs:
       issues: read
       id-token: write
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - name: Download analysis
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: analysis
 
-      - id: buildplan
+      - name: Read build plan from analysis
+        id: buildplan
         run: |
           set -euo pipefail
           version=$(jq -r '.version' analysis.json)
@@ -320,14 +328,16 @@ jobs:
           echo "admin_build=$(jq -r '.build_profile.admin_build' analysis.json)" >> "$GITHUB_OUTPUT"
           echo "storefront_build=$(jq -r '.build_profile.storefront_build' analysis.json)" >> "$GITHUB_OUTPUT"
 
-      - id: provision
+      - name: Provision builder shop
+        id: provision
         uses: ./.github/actions/repro/provision
         with:
           version: ${{ steps.buildplan.outputs.version }}
           admin-build: ${{ steps.buildplan.outputs.admin_build }}
           storefront-build: ${{ steps.buildplan.outputs.storefront_build }}
 
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: 22
       - name: Install Playwright
@@ -337,7 +347,8 @@ jobs:
           npm i -D @playwright/test
           npx playwright install --with-deps chromium
 
-      - id: mode
+      - name: Select mode (dry-run / real / fail)
+        id: mode
         env:
           DRY_RUN: ${{ github.event.inputs.dry_run }}
           HAS_KEY: ${{ secrets.QUALITY_INITIATIVE_ANTHROPIC_API_KEY != '' || secrets.ANTHROPIC_API_KEY != '' }}
@@ -451,7 +462,8 @@ jobs:
       - name: Check built repro bundle
         run: bash .github/actions/repro/bin/build-check.sh
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - name: Upload repro bundle
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: repro-plan
@@ -490,13 +502,16 @@ jobs:
     steps:
       # repro tooling (this workflow's repo) at root; the shop is installed under ./shop
       # so setup-shopware's checkout never clobbers repro-plan.json or the scripts.
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - name: Download repro bundle
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: repro-plan
-      - id: plan
+      - name: Derive leg parameters
+        id: plan
         env:
           LEG_VERSION: ${{ matrix.version }}
           BRANCH: ${{ github.event.inputs.branch || 'trunk' }}
@@ -505,7 +520,8 @@ jobs:
       # All three executors need a provisioned shop: http/playwright hit it over HTTP, direct
       # runs PHPUnit against the installed kernel + DB. Build only the surface the layer needs.
       # continue-on-error: a dead env blocks THIS leg, it must not kill the run (the other leg + report still go).
-      - id: provision
+      - name: Provision shop
+        id: provision
         if: steps.plan.outputs.executor == 'http' || steps.plan.outputs.executor == 'playwright' || steps.plan.outputs.executor == 'direct'
         continue-on-error: true
         uses: ./.github/actions/repro/provision
@@ -525,7 +541,8 @@ jobs:
         run: PAYLOAD=fixtures.json bash .github/actions/repro/bin/seed.sh
 
       # Playwright legs need node + the browser (gated; http/direct skip this cost).
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         if: steps.plan.outputs.executor == 'playwright' && steps.provision.outcome == 'success' && steps.seed.outcome == 'success'
         with:
           node-version: 22
@@ -554,7 +571,8 @@ jobs:
           APP_URL: ${{ steps.provision.outputs.app_url }}
           SW_ACCESS_KEY: ${{ steps.provision.outputs.access_key }}
         run: bash .github/actions/repro/bin/run-leg.sh
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - name: Upload leg evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always() # capture evidence even when a leg fails
         with:
           name: repro-${{ steps.plan.outputs.role }}
@@ -585,15 +603,18 @@ jobs:
       fix_candidate: ${{ steps.v.outputs.fix_candidate }}
       unsure_reason: ${{ steps.v.outputs.unsure_reason }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - name: Download all artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           path: artifacts
       # Shared, mode-parameterized verdict map (see bin/verdict.sh). Emits has_results,
       # reported, trunk, verdict, fix_candidate, unsure_reason to the step outputs.
-      - id: v
+      - name: Compute verdict
+        id: v
         run: MODE=reproduce ART=artifacts bash .github/actions/repro/bin/verdict.sh
 
   # --------------------------------------------------------------------------
@@ -614,14 +635,17 @@ jobs:
       issues: read
       id-token: write
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
           fetch-depth: 0 # need v<reported>..trunk history + tags
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - name: Download repro bundle
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: repro-plan
-      - id: mode
+      - name: Detect API key
+        id: mode
         env:
           HAS_KEY: ${{ secrets.QUALITY_INITIATIVE_ANTHROPIC_API_KEY != '' || secrets.ANTHROPIC_API_KEY != '' }}
         run: echo "real=$HAS_KEY" >> "$GITHUB_OUTPUT"
@@ -658,7 +682,8 @@ jobs:
             echo "::warning::attribution.json failed validation (kind/likely_commit) — dropping it (enrichment only)."
             rm -f attribution.json
           fi
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - name: Upload attribution
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: hashFiles('attribution.json') != ''
         with:
           name: attribution
@@ -678,15 +703,18 @@ jobs:
       issues: write # post the comment
       contents: write # push inline evidence (gated by vars.REPRO_EVIDENCE_BRANCH)
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - name: Download all artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           path: artifacts
       # Shared, mode-parameterized renderer (see bin/report.sh): writes comment.md and the
       # collapsible job summary, with the script dedup + playwright HTML-report pointer.
-      - id: render
+      - name: Render comment + summary
+        id: render
         env:
           MODE: reproduce
           ISSUE: ${{ needs.gate.outputs.issue }}
