@@ -17,6 +17,17 @@ EXECUTOR=$(jq -r '.executor // "http"' analysis.json 2>/dev/null || echo http)
 CONTRACT="$SKILL/executors/${EXECUTOR}.md"
 [ -f "$CONTRACT" ] || CONTRACT="$SKILL/executors/http.md"
 
+# Enumerate the prefetched screenshots so the agent Reads the exact paths directly instead
+# of spending a turn globbing issue-assets/ (which the prefetch already populated).
+list_screenshots () {
+  if [ -d issue-assets ] && [ -n "$(ls -A issue-assets 2>/dev/null)" ]; then
+    echo "- Screenshots attached to the issue — Read these image files DIRECTLY (do not glob):"
+    for f in issue-assets/*; do [ -f "$f" ] && echo "    - \`$f\`"; done
+  else
+    echo "- No screenshots attached to the issue — do not look for any."
+  fi
+}
+
 {
   echo "# Build Repro context — read THIS, then author + self-verify the bundle"
   echo
@@ -46,8 +57,14 @@ CONTRACT="$SKILL/executors/${EXECUTOR}.md"
   echo
   echo "  e.g. \`shop-get.sh category --filter type=page\`, \`shop-get.sh sales-channel\`. It"
   echo "  handles auth and returns FLAT JSON (no JSON:API \`.attributes\` nesting). Read-only."
+  echo "  IMPORTANT: shop-get is for inspecting SHAPE/values. Do NOT copy a pre-existing install"
+  echo "  entity's id (tax, currency, sales channel, country, salutation, language, nav category)"
+  echo "  into fixtures.json — reference it with its {{PLACEHOLDER}} ({{TAX}}, {{CURRENCY}}, {{SC}},"
+  echo "  {{NAV_CAT}}, {{COUNTRY}}, {{SALUTATION}}, {{LANGUAGE}}). Each provisioned instance has"
+  echo "  DIFFERENT UUIDs, so a literal id seeds on this shop but FK-fails on the reported/trunk legs."
   echo "- Iterate by editing your OWN files (\`repro-plan.json\`, \`fixtures.json\`,"
   echo "  \`repro.spec.ts\`/\`ReproTest.php\`) and re-running build-verify.sh (≈3 cycles max)."
+  list_screenshots
   echo
   echo "---"
   echo

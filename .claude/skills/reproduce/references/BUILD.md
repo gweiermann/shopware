@@ -38,6 +38,11 @@ Your job is to make the symptom *occur and be detected* — not to explain *why*
   bash .github/actions/repro/bin/shop-get.sh <entity> --filter field=value
   ```
   e.g. `shop-get.sh category --filter type=page`, `shop-get.sh sales-channel`. Read-only.
+  **Use it to inspect shape/values, NOT to copy ids.** A pre-existing install entity's id
+  (tax, currency, sales channel, country, salutation, language, nav category) must be
+  referenced by its `{{PLACEHOLDER}}` in fixtures — never the literal id you read here. Every
+  provisioned instance has different UUIDs, so a literal id seeds on the builder but
+  FK-fails on the reported/trunk legs (`seed.sh` rejects hardcoded install ids for this reason).
 
 ## Procedure
 

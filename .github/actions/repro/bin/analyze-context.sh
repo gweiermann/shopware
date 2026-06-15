@@ -15,12 +15,29 @@ set -euo pipefail
 SKILL=${SKILL:-.claude/skills/reproduce/references}
 OUT=${OUT:-analyze-context.md}
 
+# Enumerate the prefetched screenshots so the agent Reads the exact paths directly instead
+# of spending a turn globbing issue-assets/ (which the prefetch already populated).
+list_screenshots () {
+  if [ -d issue-assets ] && [ -n "$(ls -A issue-assets 2>/dev/null)" ]; then
+    echo "## Screenshots attached to the issue"
+    echo
+    echo "Read these image files DIRECTLY (do not glob/search for them):"
+    echo
+    for f in issue-assets/*; do [ -f "$f" ] && echo "- \`$f\`"; done
+    echo
+  else
+    echo "## No screenshots attached to the issue — do not look for any."
+    echo
+  fi
+}
+
 {
   echo "# Analyze context — everything you need is in THIS file"
   echo
-  echo "Read this file (and any images under \`issue-assets/\`), then WRITE \`analysis.json\`."
+  echo "Read this file, Read any screenshots listed below, then WRITE \`analysis.json\`."
   echo "Do NOT read, grep, or explore anything else — you have no tools for it."
   echo
+  list_screenshots
   echo "---"
   echo
   echo "# RUNBOOK (references/ANALYZE.md)"

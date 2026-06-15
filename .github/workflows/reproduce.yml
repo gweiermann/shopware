@@ -227,8 +227,8 @@ jobs:
             You are running the `reproduce` skill's Analyze phase for issue
             #${{ needs.gate.outputs.issue }}.
             Everything you need is in `./analyze-context.md` (the runbook + output contract +
-            the issue + any linked fix PR). Read it, and Read any images under `issue-assets/`
-            when the bug is visual, then WRITE a complete `analysis.json` to the workspace root.
+            the issue + any linked fix PR). Read it; it lists any attached screenshots by exact
+            path — Read those directly (do not glob). Then WRITE a complete `analysis.json`.
             You have NO search/exploration tools — do not attempt to read code or run commands.
             A worse-but-written plan beats an unwritten perfect one: when uncertain, emit the
             plan with lower `confidence` (or the `needs_info` object), never silence.
@@ -389,9 +389,9 @@ jobs:
             #${{ needs.gate.outputs.issue }}.
             Everything you need is in `./build-context.md` — the runbook, the output
             contracts, the executor contract, `analysis.json`, the issue, and (when found)
-            the fix PR. READ IT FIRST (one Read), and Read any `issue-assets/` images when the
-            bug is visual. Do NOT read BUILD.md/SCHEMA.md/the executor contract separately —
-            they are already inlined there.
+            the fix PR. READ IT FIRST (one Read); it lists any attached screenshots by exact
+            path — Read those directly (do not glob). Do NOT read BUILD.md/SCHEMA.md/the
+            executor contract separately — they are already inlined there.
             To INSPECT live-shop state (entity ids, fields, whether a fixture took), use the
             pre-approved getter — never hand-roll curl/python/OAuth:
                 bash .github/actions/repro/bin/shop-get.sh <entity> <id>
@@ -592,6 +592,7 @@ jobs:
           name: repro-${{ steps.plan.outputs.role }}
           path: |
             result.json
+            seed-error.txt
             repro.sh
             repro.spec.ts
             ReproTest.php
@@ -600,6 +601,17 @@ jobs:
             playwright-report/
           if-no-files-found: ignore # script + phpunit-output.txt + test-results/ + playwright-report/ vary by executor
           retention-days: 7
+
+      # A seed failure is a PLAN defect (fixtures invalid on a freshly-provisioned instance —
+      # e.g. a hardcoded install id), NOT env flakiness, so surface it as a RED run rather than
+      # a silent blocked-but-green. Runs LAST so the blocked result.json + seed-error evidence
+      # were already written + uploaded above (and any cleanup ran). Provision failures stay
+      # degraded (blocked, not red) — those are env, not the bundle.
+      - name: Fail leg if seeding failed
+        if: steps.seed.outcome == 'failure'
+        run: |
+          echo "::error::Seeding failed for the ${{ steps.plan.outputs.role }} leg — the repro bundle's fixtures are not valid on a freshly-provisioned instance (see the 'Seed fixtures' step / the seed-error in the repro-${{ steps.plan.outputs.role }} artifact)."
+          exit 1
 
   # --------------------------------------------------------------------------
   # Verdict: deterministic decision from leg statuses + Analyze confidence. No agent.

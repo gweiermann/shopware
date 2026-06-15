@@ -65,6 +65,18 @@ if PAYLOAD=fixtures.json bash "$BIN/seed.sh" >seed.log 2>&1; then ok "seed.sh up
 SEEDED_PN=$(bash "$BIN/shop-get.sh" product "$PID" | jq -r '.data.productNumber // empty')
 check "seeded product reads back (placeholders resolved + synced)" "REPRO-IT-1" "$SEEDED_PN"
 
+# Negative: a HARDCODED install id (literal tax id instead of {{TAX}}) must be REJECTED —
+# this is the guard against the FK-1452 failure that only surfaces on a fresh matrix instance.
+cat > bad-fixtures.json <<JSON
+{ "product": { "entity": "product", "action": "upsert", "payload": [
+  { "id": "0192fa11ce5170008000000000000002", "productNumber": "REPRO-IT-2", "name": "Bad",
+    "stock": 1, "taxId": "$TAX",
+    "price": [{ "currencyId": "{{CURRENCY}}", "gross": 1, "net": 1, "linked": true }] } ] } }
+JSON
+if PAYLOAD=bad-fixtures.json bash "$BIN/seed.sh" >bad.log 2>&1; then bad "seed.sh accepted a hardcoded install id (should reject)"; else
+  grep -q "hardcodes an install-specific id" bad.log && ok "seed.sh rejects a hardcoded install id" || bad "seed.sh failed but not with the hardcoded-id error: $(tail -1 bad.log)"
+fi
+
 # ── run-http.sh: store-api auth ─────────────────────────────────────────────
 echo "run-http.sh (store-api):"
 cat > plan-store.json <<'JSON'
@@ -86,6 +98,9 @@ TARGET=builder REPRO_PLAN=plan-admin.json OUT=res-admin.json bash "$BIN/run-http
 check "admin GET /api/tax/{{TAX}} → not_reproduced (auth + resolve OK)" not_reproduced "$(jq -r .status res-admin.json 2>/dev/null)"
 # The generated script must show the placeholder RESOLVED to a real id, never a literal {{TAX}}.
 if jq -r '.evidence.script' res-admin.json 2>/dev/null | grep -q '{{TAX}}'; then bad "placeholder left unresolved in evidence"; else ok "placeholder resolved in the request"; fi
+
+# Cleanup: delete the product the seed test created (keeps the dev instance tidy).
+curl -s -o /dev/null -X DELETE "$APP_URL/api/product/$PID" -H "Authorization: Bearer $(admin_token)" || true
 
 echo
 echo "PASS: $pass  FAIL: $fail"

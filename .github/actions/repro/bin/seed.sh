@@ -37,6 +37,21 @@ TOKEN=$(admin_token) || { echo "::error::admin token request failed"; exit 1; }
 AUTH=(-H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -H 'Accept: application/json')
 resolve_ids || { echo "::error::could not resolve install ids"; exit 1; }
 
+# Guard: reject HARDCODED install-specific ids. Pre-existing install entities (tax, currency,
+# sales channel, country, salutation, language, nav category) MUST be referenced via the
+# {{PLACEHOLDER}}, never by a literal id read off one instance — every provisioned shop
+# generates different UUIDs, so a literal id seeds fine on the builder but FK-fails (SQL 1452)
+# on the freshly-provisioned reported/trunk legs (a real failure we hit). This runs on the
+# builder too (where the ids match), so build-verify catches it before the matrix ever runs.
+for kv in "SC:$SC" "NAV_CAT:$NAV_CAT" "TAX:$TAX" "CURRENCY:$CURRENCY" "COUNTRY:$COUNTRY" "SALUTATION:$SALUTATION" "SALUTATION2:$SALUTATION2" "LANGUAGE:$LANGUAGE"; do
+  k=${kv%%:*}; v=${kv#*:}
+  if [ -n "$v" ] && grep -qF "$v" "$PAYLOAD"; then
+    echo "::error::fixtures.json hardcodes an install-specific id ($v) — reference it with the {{$k}} placeholder instead. Each provisioned instance generates different UUIDs, so a literal id seeds on the builder but FK-fails on the reported/trunk legs."
+    { printf 'fixtures hardcode the install {{%s}} id (%s); use the placeholder' "$k" "$v"; } > seed-error.txt
+    exit 1
+  fi
+done
+
 # Fail loud if a referenced placeholder resolved to EMPTY (else we'd POST an empty UUID).
 for kv in "SC:$SC" "NAV_CAT:$NAV_CAT" "TAX:$TAX" "CURRENCY:$CURRENCY" "COUNTRY:$COUNTRY" "SALUTATION:$SALUTATION" "SALUTATION2:$SALUTATION2" "LANGUAGE:$LANGUAGE"; do
   k=${kv%%:*}; v=${kv#*:}
