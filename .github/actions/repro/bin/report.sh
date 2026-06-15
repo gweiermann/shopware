@@ -76,6 +76,7 @@ leg_section () { # <leg name>
     test_does_not_guard) echo "> ⚠️ **Test does not guard the bug**: the repro passes even on \`base\` (without the fix), so it would NOT catch a regression. Strengthen the test, or the symptom isn't actually being exercised." ;;
     introduces_symptom)  echo "> ❌ **Introduces the symptom**: \`head\` reproduces a symptom that \`base\` does not." ;;
     regression)          echo "> ⚠️ **Regression**: not reproduced on the reported version but reproduced on trunk. Confirm the reported leg actually exercised the symptom (a missing fixture can cause a false negative)." ;;
+    not_reproducible)    [ "$MODE" = reproduce ] && echo "> ℹ️ **Not reproducible**: the generated repro ran cleanly but observed the symptom on NEITHER version — including the reported (buggy) one. Most often that means the repro does not faithfully exercise the reported scenario (wrong surface, an absent precondition, or too-loose an assertion), not that the bug is absent. Confirm the steps below before closing." ;;
     needs_human_review)  echo "> 🟡 **Needs human review**: the verdict is not trusted automatically${UNSURE:+ — ${UNSURE}}. The leg evidence below is informative but unconfirmed; confirm against the steps before acting." ;;
   esac
   if [ -f "$ATTR" ]; then KIND=$(jq -r .kind "$ATTR"); CMT=$(jq -r .likely_commit "$ATTR"); RSN=$(jq -r .reasoning "$ATTR"); echo "**Likely ${KIND} commit:** \`${CMT}\` — ${RSN}"; fi

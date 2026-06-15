@@ -53,8 +53,10 @@ Rules:
   cannot plausibly fire the symptom.
 - `executor` follows `layer`: `service` -> `direct`, `*-api` -> `http`, `*-ui` ->
   `playwright`.
-- `build_profile` enables only the surface the candidate `layer` needs.
-  `storefront_build` / `theme_build` are `true` only for `storefront-ui`.
+- `build_profile` enables the surface the candidate `layer` needs.
+  `storefront_build` / `theme_build` are `true` only for `storefront-ui`. Bias toward
+  building when uncertain: a wrong-LOW profile blocks the whole pipeline (the executor
+  can't run), a wrong-HIGH profile only costs a few minutes of build.
 - The analyzer does NOT choose which versions to run. The workflow computes targets
   from `version`: normally reported + trunk, or trunk only when explicitly requested
   / reported equals trunk.

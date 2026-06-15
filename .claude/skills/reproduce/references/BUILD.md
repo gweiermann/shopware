@@ -14,9 +14,19 @@ deterministic executor can run and classify the result.
 
 ## Procedure
 
+> **Batch reads.** Pull the fixed inputs in ONE turn (`analysis.json`, `issue.md`,
+> `SCHEMA.md`, and — once you have picked the executor — its one contract file). Reading
+> them one per turn just burns budget.
+
 1. Read `analysis.json`, `references/SCHEMA.md`, and the issue context.
 2. Choose the final executor. Start from `analysis.executor`, but change it if the
-   live shop proves the candidate layer cannot exercise the symptom.
+   live shop proves the candidate layer cannot exercise the symptom. **Switching executor
+   is a real switch:** read the new contract, rewrite `layer`/`executor`/`build_profile`
+   together, and remember this shop was provisioned for `analysis.build_profile` — if you
+   escalate to a surface that needs assets this instance did not build (e.g. `http` →
+   `playwright` with no storefront/admin build), self-verification will "prove" a broken
+   bundle. That is a `blocked` builder-result (profile escalation needed), NOT something to
+   paper over with a weaker assertion.
 3. Read only the matching executor contract:
    - `references/executors/http.md`
    - `references/executors/playwright.md`
@@ -62,6 +72,24 @@ supports the bundle assumption. The final `builder-result.json` must have status
 not seed or run the executor again. The status only proves the bundle is runnable and
 classifiable on the builder instance; reported/trunk verdicts still come from the
 deterministic matrix.
+
+### The builder runs the REPORTED (buggy) version — so `reproduced` is the expected result
+
+The builder instance is provisioned on the version the reporter says is broken. A
+`not_reproduced` here is therefore a RED FLAG, not a clean pass: by far the likeliest
+explanation is that the bundle does not actually exercise the symptom (wrong surface, a
+silently-absent precondition, an assertion too loose to detect the defect) — not that the
+reporter is wrong. Before you accept a `not_reproduced` builder result:
+
+1. Re-check faithfulness ONCE — does the scenario truly hit the reported code path? Is
+   every precondition present (not skipped/absent)? Is the healthy assertion strict enough
+   that the buggy behaviour would fail it?
+2. If it still does not reproduce, you MAY accept it, but you must lower `confidence` and
+   record the faithfulness obstacle in `confidence_reason` (so the verdict is routed to a
+   human rather than posted as a confident `not_reproducible`).
+
+Keep the seed+run loop to a small bounded number of cycles (≈3). Do not grind: repeated
+`blocked`/`inconclusive` for the same reason becomes the final `builder-result.json`.
 
 If the bundle cannot be made runnable, write `builder-result.json` with `blocked` or
 `inconclusive` and a specific `blocked_reason`. The workflow must stop before spending

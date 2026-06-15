@@ -3,6 +3,21 @@
 Use ONLY for a genuine UI bug (rendered state, interaction). The most expensive layer —
 escalate here only when neither `http` nor `direct` can fire the symptom.
 
+## Hard rules (the rest of this file is the WHY)
+1. **Semantic locators only** — `getByRole`/`getByLabel`/`getByText`/`getByPlaceholder`
+   with anchored, role-pinned names. NEVER CSS / data-test / attribute selectors, not even
+   as a fallback.
+2. **admin-ui specs START AUTHENTICATED** — the harness logs in. Do NOT author login steps.
+3. **Preconditions** wait via `locator.waitFor({state:'visible',timeout})` and throw
+   `PRECONDITION_NOT_FOUND: <what>` on miss. NEVER gate them on `isVisible()`/`isHidden()`
+   or on `expect()`.
+4. **Exactly ONE `await expect(...)`** — the symptom, asserting the HEALTHY behaviour. It is
+   the only failure allowed to mean `reproduced`.
+5. **Make the precondition actually hold** — force a viewport for overflow/cut-off bugs;
+   scroll like a user (`mouse.wheel`), never `scrollIntoViewIfNeeded()`.
+6. For hidden/off-canvas symptoms assert explicit state (`not.toBeInViewport()` /
+   `toHaveAttribute(...)`), NOT `not.toBeVisible()`.
+
 ## What you author
 Generate `repro.spec.ts` and set `script_path: "repro.spec.ts"` in `repro-plan.json`. It asserts the HEALTHY
 behaviour, is generated ONCE, and the SAME spec runs on BOTH the reported and trunk
@@ -74,6 +89,26 @@ timeout. This is the ONLY failure that may mean `reproduced`.
 - When the target is one of many same-role items (rows, options), scope by each item's own
   visible text (`getByRole('row', {name:/module.?filter/i})`) before `.first()`/`.last()` —
   a bare role can match unrelated tables elsewhere on the page.
+
+## Worked example — admin-ui spec (starts authenticated)
+A bug where the CMS module's "Create layout" button is missing. Note: no login steps, one
+`expect`, precondition via `waitFor` + `PRECONDITION_NOT_FOUND`.
+
+```ts
+import { test, expect } from '@playwright/test';
+
+test('CMS layout list shows the "Create layout" action', async ({ page }) => {
+  // Precondition: reach the CMS module and wait for its list to render (NOT isVisible/expect).
+  await page.goto('/admin#/sw/cms/index');
+  const toolbar = page.getByRole('toolbar');
+  await toolbar.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: CMS toolbar never rendered'); });
+
+  // Symptom: a healthy admin shows the create action; the buggy one omits it.
+  // This is the ONLY expect() — its failure is the reproduction.
+  await expect(toolbar.getByRole('button', { name: /create layout/i })).toBeVisible({ timeout: 15_000 });
+});
+```
 
 ## How `run-playwright.sh` classifies the result
 - genuine `expect()` assertion failure → `reproduced`

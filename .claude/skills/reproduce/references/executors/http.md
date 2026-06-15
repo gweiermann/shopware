@@ -33,10 +33,47 @@ Entities you create yourself go in `fixtures.json` with known 32-char hex UUIDs.
 - `assertion.locator` is a human reference to the endpoint.
 - Send `Accept: application/json` when you need the flat (non-JSON:API) response shape.
 
+## Request ordering (multi-step)
+`requests` run **in array order**. Every request except the LAST is **setup** and must
+return 2xx (a non-2xx setup request → `blocked`). The `assertion` always runs on the
+**final** response — so the call that surfaces the symptom must be **last**. Putting the
+asserted call in the middle is the most common authoring error: its result is discarded and
+a later setup response gets asserted instead.
+
+## Worked example — multi-step store-api flow
+A cart-total bug: create a context, add two products, read the cart; assert the healthy
+total on the final response.
+
+```json
+{
+  "requests": [
+    {
+      "// 1 (setup): open a store-api context; the executor captures sw-context-token from the response and carries it.": "",
+      "method": "POST", "path": "/store-api/context", "headers": { "Accept": "application/json" }, "body": "{}"
+    },
+    {
+      "// 2 (setup): add product A to the cart (id seeded in fixtures.json).": "",
+      "method": "POST", "path": "/store-api/checkout/cart/line-item", "headers": { "Accept": "application/json" },
+      "body": "{\"items\":[{\"type\":\"product\",\"referencedId\":\"0192f3c4a5b67890abcdef0123456789\",\"quantity\":2}]}"
+    },
+    {
+      "// 3 (FINAL, asserted): read the cart — a healthy shop returns price.totalPrice 23.80.": "",
+      "method": "GET", "path": "/store-api/checkout/cart", "headers": { "Accept": "application/json" }
+    }
+  ],
+  "assertion": { "kind": "response_field", "field": ".price.totalPrice", "expect": "23.8", "locator": "/store-api/checkout/cart" }
+}
+```
+
+Note: no `sw-access-key`, `Authorization`, or `sw-context-token` anywhere — the executor
+injects auth by path and carries the context token. `expect` is the HEALTHY total, so a
+buggy shop returning a different total scores `reproduced`.
+
 ## Failure semantics (no false positives)
 - A non-2xx on a **non-final** request → `blocked` (setup broke; body shown).
 - A **missing field** on a non-2xx **final** response → `inconclusive`, never a bogus
   `reproduced` (the symptom couldn't be evaluated).
 
 ## Comment every step
-Comment each request explaining what it does and what the final assertion checks.
+Comment each request explaining what it does and what the final assertion checks. (Inline
+`"// ...": ""` keys like the example above are a convenient JSON-safe way to do this.)

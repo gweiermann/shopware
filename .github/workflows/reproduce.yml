@@ -47,7 +47,7 @@ on:
         default: "trunk"
         type: string
       max_turns:
-        description: "Cap on the Analyze agent's turns (cost control; default 40)"
+        description: "Cap on the Build Repro agent's turns (cost control; default 40). Analyze is fixed-low (6, classification only)."
         required: false
         default: "40"
         type: string
@@ -159,7 +159,7 @@ jobs:
     timeout-minutes: 15 # the agent reads the issue + fix-PR test + schema
     permissions:
       contents: read # checkout
-      issues: write # agent reads the issue + posts a clarifying question when info is missing
+      issues: write # the matrix step (bin/matrix.sh) posts needs_info / low-confidence comments; the agent only reads
       id-token: write # claude-code-action fetches a GitHub token via OIDC
     outputs:
       targets: ${{ steps.matrix.outputs.targets }}
@@ -192,13 +192,16 @@ jobs:
 
       # Real Analyze agent. Emits config-only analysis.json per references/SCHEMA.md.
       # Prefetch the issue + (best-effort) the linked fix PR's diff with cheap gh calls,
-      # so the agent reads them directly instead of spending turns searching/fetching.
+      # then concatenate the runbook + schema + issue into ONE analyze-context.md so the
+      # agent reads ONE file instead of spending turns ($) fetching/exploring.
       - name: Prefetch context
         if: steps.mode.outputs.mode == 'real'
         env:
           ISSUE: ${{ needs.gate.outputs.issue }}
           GH_TOKEN: ${{ github.token }}
-        run: bash .github/actions/repro/bin/prefetch.sh
+        run: |
+          bash .github/actions/repro/bin/prefetch.sh
+          bash .github/actions/repro/bin/analyze-context.sh
 
       - name: Analyze (agent)
         id: analyze
@@ -213,31 +216,26 @@ jobs:
           # Use the default token so the action skips the Claude GitHub App token
           # exchange (the App is installed on shopware/shopware, but not everywhere).
           github_token: ${{ github.token }}
+          # Analyze is a CLASSIFICATION, not an exploration. All context is in one file and
+          # the toolset below is Read+Write ONLY — so the agent literally cannot explore; it
+          # reads the context (+ any screenshots), then writes the plan. This is the cost
+          # collapse: ~1 Read + 1 Write instead of a 40-turn search.
           prompt: |
-            Run the `reproduce` skill's Analyze phase for issue
-            #${{ needs.gate.outputs.issue }} in repository ${{ github.repository }}.
-            Follow the runbook at `.claude/skills/reproduce/references/ANALYZE.md` — it
-            defines the decision protocol, economy budget, confidence rules, and outputs.
-            HARD BUDGET (repeated here because it gates everything): your FIRST actions are
-            (1) read the runbook, (2) read ./issue.md, then (3) WRITE a complete best-effort
-            analysis.json IMMEDIATELY — within your first ~6 tool calls, before ANY code
-            exploration. Refine afterwards only if turns remain.
-            NEVER end the session without analysis.json on disk: a worse-but-written plan
-            beats an unwritten perfect one (lower `confidence` is the escape valve, not
-            more exploration).
-            Run parameters for THIS run:
-            - inputs: the issue is prefetched to `./issue.md`; the linked fix PR's
-              description + diff (when found) to `./fixpr.diff`.
-            - outputs: write only `analysis.json` to the workspace root. Do not write
-              fixtures, requests, assertions, `repro.spec.ts`, or `ReproTest.php`.
-          # Pin Sonnet (bounded task) + cap turns. --max-turns is a CEILING, not a quota:
-          # the agent writes analysis.json early and stops, so the cheaper layers (http)
-          # finish well under it — size it for the heaviest derivation (direct reads the DAL
-          # schema; playwright derives selectors). Widen the READ-ONLY allowlist so the agent
-          # stops thrashing on denied tools (denials burn turns -> $). Matches triage's pins.
+            You are running the `reproduce` skill's Analyze phase for issue
+            #${{ needs.gate.outputs.issue }}.
+            Everything you need is in `./analyze-context.md` (the runbook + output contract +
+            the issue + any linked fix PR). Read it, and Read any images under `issue-assets/`
+            when the bug is visual, then WRITE a complete `analysis.json` to the workspace root.
+            You have NO search/exploration tools — do not attempt to read code or run commands.
+            A worse-but-written plan beats an unwritten perfect one: when uncertain, emit the
+            plan with lower `confidence` (or the `needs_info` object), never silence.
+            Write ONLY `analysis.json` — no fixtures, requests, assertions, specs, or tests.
+          # Sonnet (bounded task). Hard-cap turns LOW: there is nothing to explore, so this is
+          # a ceiling for read-context + read-images + write, not a search budget. Read+Write
+          # only — no Bash/Grep/Glob means exploration is impossible, not merely discouraged.
           claude_args: >-
-            --model claude-sonnet-4-6 --max-turns ${{ github.event.inputs.max_turns || '40' }}
-            --allowedTools "Read,Glob,Grep,Write,Bash(gh issue view:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh pr diff:*),Bash(gh search:*),Bash(rg:*),Bash(git log:*),Bash(git show:*),Bash(git diff:*),Bash(git blame:*),Bash(cat:*),Bash(ls:*),Bash(find:*),Bash(jq:*),Bash(grep:*),Bash(head:*),Bash(tail:*),Bash(sed:*),Bash(wc:*)"
+            --model claude-sonnet-4-6 --max-turns 6
+            --allowedTools "Read,Write"
 
       # DEMO only: canned plan, reached solely via dry_run=true.
       # DEMO: a canned plan per layer so the WHOLE pipeline (provision → executor → verdict
@@ -262,6 +260,13 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      - name: Agent cost telemetry
+        if: always() && steps.analyze.outputs.execution_file != ''
+        env:
+          EXEC_FILE: ${{ steps.analyze.outputs.execution_file }}
+          PHASE: analyze
+        run: bash .github/actions/repro/bin/agent-telemetry.sh
+
       # Compute the target matrix from the produced analysis (dedup + not-on-manual-rerun).
       # Leg matrix + the three graceful pre-provision exits (missing plan / needs_info /
       # < 0.4 low confidence) — see bin/matrix.sh.
@@ -273,7 +278,11 @@ jobs:
           POST: ${{ needs.gate.outputs.post }}
           GH_TOKEN: ${{ github.token }}
         run: bash .github/actions/repro/bin/matrix.sh
+      # Gate on the file existing: matrix.sh deliberately turns "no analysis.json" into a
+      # graceful empty-matrix skip (agent error / turn budget), so the upload must NOT
+      # re-redden that run with if-no-files-found: error.
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: hashFiles('analysis.json') != ''
         with:
           name: analysis
           path: analysis.json
@@ -367,6 +376,9 @@ jobs:
             #${{ needs.gate.outputs.issue }} in repository ${{ github.repository }}.
             Follow `.claude/skills/reproduce/references/BUILD.md` and
             `.claude/skills/reproduce/references/SCHEMA.md`.
+            BATCH independent reads/commands into a single message to save turns ($) — e.g.
+            read `analysis.json`, `issue.md`, SCHEMA.md and the one executor contract you need
+            in ONE turn, not four.
             Inputs:
             - `analysis.json` is present and is config-only.
             - `issue.md` and optional `fixpr.diff` are prefetched by this job.
@@ -378,16 +390,39 @@ jobs:
               the deterministic executor, read `builder-result.json`, and only leave a
               `reproduced`/`not_reproduced` result when it proves the bundle is runnable
               and classifiable.
+            This builder shop runs the REPORTED (buggy) version, so the EXPECTED self-verify
+            outcome is `reproduced`. A `not_reproduced` here usually means your bundle does
+            not actually exercise the symptom — re-check faithfulness ONCE (right surface?
+            precondition truly present? assertion strict enough?) before accepting it, and if
+            you still accept it, lower `confidence` and say why in `confidence_reason`.
+            Keep the seed+run loop to a SMALL bounded number of cycles (≈3). Repeated
+            blocked/inconclusive for the same reason → write that as the final builder-result.
             The workflow will only validate the files you produced; it will NOT seed or
             run the executor again in a separate step. Do not stop with an unverified bundle.
           claude_args: >-
             --model claude-sonnet-4-6 --max-turns ${{ github.event.inputs.max_turns || '40' }}
-            --allowedTools "Read,Glob,Grep,Write,Bash(rg:*),Bash(git log:*),Bash(git show:*),Bash(git diff:*),Bash(git blame:*),Bash(cat:*),Bash(ls:*),Bash(find:*),Bash(jq:*),Bash(grep:*),Bash(head:*),Bash(tail:*),Bash(sed:*),Bash(wc:*),Bash(bash .github/actions/repro/bin/seed.sh:*),Bash(bash .github/actions/repro/bin/run-leg.sh:*),Bash(npm:*),Bash(npx playwright install:*),Bash(cp:*),Bash(mkdir:*)"
+            --allowedTools "Read,Glob,Grep,Write,Bash(rg:*),Bash(git log:*),Bash(git show:*),Bash(git diff:*),Bash(git blame:*),Bash(cat:*),Bash(ls:*),Bash(find:*),Bash(jq:*),Bash(grep:*),Bash(head:*),Bash(tail:*),Bash(sed:*),Bash(wc:*),Bash(bash .github/actions/repro/bin/seed.sh:*),Bash(bash .github/actions/repro/bin/run-leg.sh:*),Bash(npm init:*),Bash(npm i:*),Bash(npm install:*),Bash(npx playwright install:*),Bash(cp:*),Bash(mkdir:*)"
         env:
           APP_URL: ${{ steps.provision.outputs.app_url }}
           SW_ACCESS_KEY: ${{ steps.provision.outputs.access_key }}
           ADMIN_USER: admin
           ADMIN_PASS: shopware
+
+      - name: Upload build agent transcript (debug)
+        if: always() && steps.build_agent.outputs.execution_file != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: build-repro-transcript
+          path: ${{ steps.build_agent.outputs.execution_file }}
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Agent cost telemetry
+        if: always() && steps.build_agent.outputs.execution_file != ''
+        env:
+          EXEC_FILE: ${{ steps.build_agent.outputs.execution_file }}
+          PHASE: build-repro
+        run: bash .github/actions/repro/bin/agent-telemetry.sh
 
       - name: Build Repro (dry-run demo)
         if: steps.mode.outputs.mode == 'dry_run'
@@ -449,7 +484,8 @@ jobs:
           BRANCH: ${{ github.event.inputs.branch || 'trunk' }}
         run: REPRO_PLAN=repro-plan.json bash .github/actions/repro/bin/leg-plan.sh
 
-      # Provision only when an executor needs a live shop (http/playwright). Build only the surface.
+      # All three executors need a provisioned shop: http/playwright hit it over HTTP, direct
+      # runs PHPUnit against the installed kernel + DB. Build only the surface the layer needs.
       # continue-on-error: a dead env blocks THIS leg, it must not kill the run (the other leg + report still go).
       - id: provision
         if: steps.plan.outputs.executor == 'http' || steps.plan.outputs.executor == 'playwright' || steps.plan.outputs.executor == 'direct'
@@ -593,6 +629,17 @@ jobs:
       - name: Skipped (no key)
         if: steps.mode.outputs.real != 'true'
         run: echo "::warning::No API key — skipping commit attribution (enrichment only)."
+      # report.sh renders attribution.likely_commit into the PUBLIC comment. Validate the
+      # shape first (kind + a real 7–40 hex sha) and DROP the file if the agent produced
+      # junk/hallucinated it — a missing file degrades cleanly (report just omits the line),
+      # a malformed one would post a confident wrong sha.
+      - name: Validate attribution
+        if: hashFiles('attribution.json') != ''
+        run: |
+          if ! jq -e '(.kind|test("^(regression|fix)$")) and (.likely_commit|test("^[0-9a-f]{7,40}$"))' attribution.json >/dev/null 2>&1; then
+            echo "::warning::attribution.json failed validation (kind/likely_commit) — dropping it (enrichment only)."
+            rm -f attribution.json
+          fi
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: hashFiles('attribution.json') != ''
         with:

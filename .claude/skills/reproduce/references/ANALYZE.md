@@ -32,7 +32,11 @@ credentials into `analysis.json`.
    `service` < `store-api` / `admin-api` < `storefront-ui` / `admin-ui`.
 3. Set `executor` from `layer`: `service` -> `direct`, `*-api` -> `http`, `*-ui` ->
    `playwright`.
-4. Set the minimal `build_profile` implied by the candidate layer.
+4. Set the `build_profile` implied by the candidate layer. Default to MINIMAL, but when
+   you are genuinely unsure whether the admin or storefront surface is needed, set that
+   build flag `true`. The asymmetry is deliberate: a wrong-LOW profile makes the executor
+   unable to run and BLOCKS the whole pipeline (a human must re-trigger), whereas a
+   wrong-HIGH profile only costs a few minutes of JS build. When uncertain, build.
 5. Write the scenario as plain-English Given/When/Then steps. This is the build
    handoff, not a generated test.
 

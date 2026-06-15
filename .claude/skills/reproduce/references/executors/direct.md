@@ -45,6 +45,43 @@ Generate `ReproTest.php` and set `script_path: "ReproTest.php"` in `repro-plan.j
 `run-direct.sh` drops the file under the shop's `tests/integration/Repro/` (PSR-4
 autoload) and runs `vendor/bin/phpunit`.
 
+## Worked example — service assertion (healthy value)
+A tax-rounding bug in a calculator service. The test asserts the HEALTHY result, so it
+FAILS on the buggy version (`reproduced`) and PASSES when fixed (`not_reproduced`).
+
+```php
+<?php declare(strict_types=1);
+
+namespace Shopware\Tests\Integration\Repro;
+
+use PHPUnit\Framework\TestCase;
+use Shopware\Core\Framework\Test\TestCaseBase\IntegrationTestBehaviour;
+use Shopware\Core\Checkout\Cart\Price\GrossPriceCalculator; // illustrative
+
+class ReproTest extends TestCase
+{
+    use IntegrationTestBehaviour; // pulls in KernelTestBehaviour → getContainer()
+
+    public function testGrossPriceRoundsToTwoDecimals(): void
+    {
+        // Setup: resolve the service under test from the container.
+        $calculator = $this->getContainer()->get(GrossPriceCalculator::class);
+
+        // Action: the calculation the issue describes.
+        $price = $calculator->calculate(/* … inputs from the issue … */);
+
+        // Symptom assertion: a healthy shop rounds to 19.99; the bug yields 19.990000001.
+        // This single healthy assertion fails on the buggy version.
+        static::assertSame(19.99, $price->getTotalPrice());
+    }
+}
+```
+
+For an **exception** symptom (the buggy version throws), wrap the triggering action in
+try/catch and `static::fail(...)` in the catch — and ALSO set `assertion.symptom_pattern`
+in `repro-plan.json` (see below), because synchronous indexers can throw outside your
+try/catch.
+
 ## Cross-version faithfulness
 Prefer STABLE service/DAL APIs so the SAME test also compiles + runs on the reported
 version. If it can only compile on trunk, that is fine — the reported leg reports
