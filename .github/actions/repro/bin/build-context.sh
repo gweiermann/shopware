@@ -36,6 +36,16 @@ CONTRACT="$SKILL/executors/${EXECUTOR}.md"
   echo "  Do NOT prefix it with env vars, do NOT call seed.sh / run-leg.sh yourself, and do"
   echo "  NOT edit anything under \`.github/actions/repro/\` — that path is the harness; a"
   echo "  \`VAR=value …\` prefix is what triggers the approval prompt this run cannot grant."
+  echo "- To INSPECT live-shop state (entity ids, fields, whether a fixture took), use the"
+  echo "  pre-approved getter — NEVER hand-roll curl / python / OAuth:"
+  echo
+  echo '  ```'
+  echo '  bash .github/actions/repro/bin/shop-get.sh <entity> <id>'
+  echo '  bash .github/actions/repro/bin/shop-get.sh <entity> --filter field=value'
+  echo '  ```'
+  echo
+  echo "  e.g. \`shop-get.sh category --filter type=page\`, \`shop-get.sh sales-channel\`. It"
+  echo "  handles auth and returns FLAT JSON (no JSON:API \`.attributes\` nesting). Read-only."
   echo "- Iterate by editing your OWN files (\`repro-plan.json\`, \`fixtures.json\`,"
   echo "  \`repro.spec.ts\`/\`ReproTest.php\`) and re-running build-verify.sh (≈3 cycles max)."
   echo

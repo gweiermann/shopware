@@ -11,6 +11,14 @@ deterministic executor can run and classify the result.
 - Live shop coordinates in the environment: `APP_URL`, and when available
   `SW_ACCESS_KEY`, `ADMIN_USER`, `ADMIN_PASS`.
 - The working directory contains the reproduce helper scripts and executor contracts.
+- To INSPECT live-shop state (entity ids, fields, whether a fixture took), use the
+  pre-approved getter — never hand-roll curl/python/OAuth (it handles auth and returns flat
+  JSON, no JSON:API `.attributes` nesting):
+  ```
+  bash .github/actions/repro/bin/shop-get.sh <entity> <id>            # GET by id
+  bash .github/actions/repro/bin/shop-get.sh <entity> --filter field=value
+  ```
+  e.g. `shop-get.sh category --filter type=page`, `shop-get.sh sales-channel`. Read-only.
 
 ## Procedure
 
@@ -49,7 +57,8 @@ deterministic executor can run and classify the result.
    the approval prompt this unattended run cannot grant (it wastes the whole budget).
 
    **Stop, don't hack.** If a command keeps needing approval or won't run, do NOT try to work
-   around it — no wrapper scripts, no env-var prefixes, no editing anything under
+   around it — no wrapper scripts, no env-var prefixes, no hand-rolled curl/python to hit the
+   API (use `shop-get.sh` to inspect state), no editing anything under
    `.github/actions/repro/`. STOP and end your turn with a plain-text explanation in the chat
    (not a JSON file) of which command failed and how, so a human can fix the harness. A clear
    stop beats a clever workaround. Then:
