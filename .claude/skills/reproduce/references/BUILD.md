@@ -4,6 +4,24 @@ You author a runnable repro bundle against a LIVE Shopware shop, then self-verif
 This document, plus the contracts / executor / issue that follow it, is your COMPLETE context —
 read it; do not go looking for other files.
 
+## Work order — author FIRST, let the verify drive the rest
+
+Do these in sequence. The single biggest budget-killer is researching the codebase *before*
+authoring — a real run spent 34 of its 40 turns reading resolvers/processors/routes, reached
+its first verify on the last turn, and iterated zero times. Don't.
+
+1. **Author now.** Before reading ANY `src/**`, write your best-effort bundle from the issue,
+   the screenshots, the fix PR, your Shopware knowledge, `shop-get` (for an existing entity's
+   shape), and — if truly needed — the dev docs. A wrong guess you can verify beats source you
+   study. **Do NOT read product source before your first verify.**
+2. **Verify** with `bash .github/actions/repro/bin/build-verify.sh`. Its result is precise — an
+   HTTP code, an FK error, "element not found", a wrong value — and THAT is your research
+   signal, far sharper than reading code.
+3. **Fix once.** If not `reproduced`, make ONE targeted change. Only now may you look up ONE
+   specific thing (an exact selector or field name) the failure pointed at — never to learn how
+   the feature works internally. Re-verify.
+4. Repeat step 3 at most twice, then STOP — keep the bundle, lower `confidence`, note why.
+
 ## Environment — already set, do NOT probe
 
 A live shop on the **reported (buggy) version** is running. These are exported in your shell:
@@ -30,13 +48,10 @@ allowed set, **STOP** and explain in plain text (not a JSON file) — never hand
 ## Scope & discipline
 
 - **Reproduce, don't root-cause.** Make the symptom *occur and be detected*; do not explain
-  *why* it happens.
-- **Targeted lookups: yes. Investigation: no.** Finding one exact selector/field/config shape
-  (e.g. grep the Twig that renders the symptom) is fine — 1–3 lookups. Reading the
-  resolver/service chain to understand *why*, or spelunking the entity graph with `shop-get`,
-  is the spiral that burns the budget. A failed verify is NOT a cue to investigate.
-- **Author in ONE pass, verify ONCE.** After a non-`reproduced` result: at most ONE targeted
-  fix + one re-verify, then accept or STOP. Never loop.
+  *why* it happens. Reading the resolver/service chain to understand the mechanism — or
+  spelunking the entity graph with `shop-get` — is the spiral the Work order exists to prevent.
+- **A failed verify is a research signal, not a cue to investigate.** It tells you the one thing
+  to fix; resolve that, don't go read how the feature works.
 - **A plausible bundle beats a never-finished one.** If you stop unverified, keep the files,
   lower `confidence`, and say why in `confidence_reason` — the reported/trunk legs re-seed and
   re-run it, so they are the real check.
