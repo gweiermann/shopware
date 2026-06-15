@@ -34,7 +34,7 @@ check() {
     fi
 }
 
-# analysis.json (config-only analyzer output) shape per references/SCHEMA.analysis.md.
+# analysis.json (config-only analyzer output) shape per references/ANALYZE.md.
 check_schema_analysis() {
     check "schema-version-1" '.schema_version == "1"'
     check "layer-valid"      '.layer as $l | ["service","store-api","admin-api","storefront-ui","admin-ui"] | index($l) != null'

@@ -86,8 +86,8 @@ leg_section () { # <leg name>
 } > "$OUT"
 
 # Deterministic secret redaction — the comment is public and parts of it (scenario, scripts,
-# reporter output) originate from agent output over untrusted input. SCHEMA already mandates
-# agent-side redaction; this is the belt that doesn't rely on the agent.
+# reporter output) originate from agent output over untrusted input. This deterministic pass is
+# the belt that doesn't rely on the agent having redacted anything.
 # NB: no \b — BSD sed lacks it and silent non-redaction is worse than over-redaction.
 sed -E -i.bak \
   -e 's/sk-ant-[A-Za-z0-9_-]{8,}/[REDACTED_KEY]/g' \

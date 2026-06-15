@@ -7,7 +7,7 @@ name: Reproduce Issue
 # Status: analyze = config-only claude-code-action agent; build-repro = live-instance
 # agent that creates + self-verifies the executable bundle; reproduce = real provision
 # + deterministic executor for all three layers (http / playwright / direct). All JSON conforms to
-# the .claude/skills/reproduce/references/SCHEMA.*.md contracts.
+# the JSON contracts in .claude/skills/reproduce/references/ (ANALYZE.md, BUILD.md).
 
 on:
   issues:
@@ -193,7 +193,7 @@ jobs:
           echo "::error::Set the secret, or dispatch with dry_run=true for a clearly-labelled demo."
           exit 1
 
-      # Real Analyze agent. Emits config-only analysis.json per references/SCHEMA.analysis.md.
+      # Real Analyze agent. Emits config-only analysis.json per references/ANALYZE.md.
       # Prefetch the issue + (best-effort) the linked fix PR's diff with cheap gh calls,
       # then concatenate the runbook + schema + issue into ONE analyze-context.md so the
       # agent reads ONE file instead of spending turns ($) fetching/exploring.

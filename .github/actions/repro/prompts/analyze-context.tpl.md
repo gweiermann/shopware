@@ -13,15 +13,9 @@ fixtures, requests, assertions, specs, or tests.
 
 ---
 
-# RUNBOOK (references/ANALYZE.md)
+# RUNBOOK (references/ANALYZE.md) — includes the analysis.json output contract
 
 {{ANALYZE_MD}}
-
----
-
-# OUTPUT CONTRACT — the analysis.json shape + rules (references/SCHEMA.analysis.md)
-
-{{SCHEMA_ANALYSIS}}
 
 ---
 

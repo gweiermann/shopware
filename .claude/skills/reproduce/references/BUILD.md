@@ -68,7 +68,33 @@ allowed set, **STOP** and explain in plain text (not a JSON file) — never hand
      renders empty". CMS model + JSON examples (WebFetch for details):
      <https://developer.shopware.com/docs/concepts/commerce/content/shopping-experiences-cms.html>
    - No protected/computed fields (`autoIncrement`, `createdAt`/`updatedAt`, `versionId`, …).
-4. **Self-verify:** run `bash .github/actions/repro/bin/build-verify.sh`, then Read
+   - The sync payload is a MAP of operations — each key an `{entity, action, payload:[…]}`
+     envelope, NOT a bare entity→array:
+     ```json
+     { "product": { "entity": "product", "action": "upsert", "payload": [{ "id": "0192f3c4a5b67890abcdef0123456789", "name": "Repro" }] } }
+     ```
+4. **`repro-plan.json` shape** (you emit this; it inherits `issue`/`version`/`scenario`/confidence
+   and the candidate `layer`/`build_profile` from `analysis.json` — adjust those if you switched):
+   ```json
+   {
+       "schema_version": "1", "issue": 16638, "layer": "store-api", "executor": "http",
+       "version": "6.6.10.0",
+       "build_profile": { "admin_build": false, "storefront_build": false, "theme_build": false },
+       "fixtures": { "demodata": false, "sync_payload_path": "fixtures.json" },
+       "scenario": ["Given …", "When …", "Then …"],
+       "request": { "method": "POST", "path": "/store-api/checkout/cart", "headers": {}, "body": "{}" },
+       "script_path": "repro.spec.ts",
+       "assertion": { "kind": "http_status | response_field | exception | ui_state", "expect": "400", "field": ".errors[0].code", "locator": "/store-api/checkout/cart" },
+       "confidence": 0.82, "confidence_reason": null, "blocked_reason": null
+   }
+   ```
+   - `assertion.expect` is the HEALTHY value: a leg is `reproduced` when `actual != expect`,
+     `not_reproduced` when `actual == expect`.
+   - `assertion.symptom_pattern` (optional; `direct` + `kind: exception`) — a distinctive
+     extended-regex; if PHPUnit errors and the output matches, the leg counts as `reproduced`.
+   - `script_path` names the spec/test for `playwright`/`direct`; omit for `http`.
+   - Comment every generated request/step (what it does + what it asserts).
+5. **Self-verify:** run `bash .github/actions/repro/bin/build-verify.sh`, then Read
    `builder-result.json`:
    - `reproduced` → the bundle detects the symptom on this (buggy) version. **Expected — see below.**
    - `not_reproduced` → runnable, classifies this version healthy.

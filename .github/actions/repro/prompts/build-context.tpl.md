@@ -13,15 +13,9 @@ is needed); self-verify with `bash .github/actions/repro/bin/build-verify.sh`, t
 
 ---
 
-# RUNBOOK — operating brief + methodology (references/BUILD.md)
+# RUNBOOK — operating brief + methodology + the repro-plan.json contract (references/BUILD.md)
 
 {{BUILD_MD}}
-
----
-
-# OUTPUT CONTRACTS — the bundle + leg-result shapes (references/SCHEMA.repro.md)
-
-{{SCHEMA_REPRO}}
 
 ---
 

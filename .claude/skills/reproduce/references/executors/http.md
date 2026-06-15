@@ -20,7 +20,7 @@ the right credential for the surface and drops any you add. Just give the correc
 
 ## Install-specific ids → placeholders
 Reference pre-existing install ids via the placeholders the executor resolves against the
-running shop (see SCHEMA.repro.md "fixtures" for the full catalog):
+running shop (see BUILD.md "Fixtures rules" for the full catalog):
 `{{SC}} {{NAV_CAT}} {{COUNTRY}} {{SALUTATION}} {{SALUTATION2}} {{TAX}} {{CURRENCY}}
 {{LANGUAGE}} {{STOREFRONT_URL}}` — also valid inside `assertion.expect`.
 Entities you create yourself go in `fixtures.json` with known 32-char hex UUIDs.

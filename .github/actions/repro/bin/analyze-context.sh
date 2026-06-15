@@ -28,7 +28,6 @@ sed -e "s/{{ISSUE}}/$ISSUE/g" "$TPL" | while IFS= read -r line; do
   case "$line" in
     '{{SCREENSHOTS}}')     list_screenshots ;;
     '{{ANALYZE_MD}}')      cat "$SKILL/ANALYZE.md" ;;
-    '{{SCHEMA_ANALYSIS}}') cat "$SKILL/SCHEMA.analysis.md" ;;
     '{{ISSUE_MD}}')        cat issue.md ;;
     '{{FIXPR}}')           fixpr_section ;;
     *)                     printf '%s\n' "$line" ;;

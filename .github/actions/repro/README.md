@@ -64,10 +64,11 @@ buggy version** (`reproduced`) and **passes when healthy** (`not_reproduced`).
   a guess. `0.4–0.7` runs but routes to `needs_human_review`.
 - **Fail fast, never yield mid-build** — one-shot provision, poll until READY.
 
-See the JSON contracts in `.claude/skills/reproduce/references/`:
-[`SCHEMA.analysis.md`](../../../.claude/skills/reproduce/references/SCHEMA.analysis.md) (analysis.json),
-[`SCHEMA.repro.md`](../../../.claude/skills/reproduce/references/SCHEMA.repro.md) (repro-plan.json + result.json),
-[`SCHEMA.report.md`](../../../.claude/skills/reproduce/references/SCHEMA.report.md) (repro-output.json + verdict map).
+The agent-facing JSON contracts live in the runbooks:
+[`ANALYZE.md`](../../../.claude/skills/reproduce/references/ANALYZE.md) (`analysis.json`) and
+[`BUILD.md`](../../../.claude/skills/reproduce/references/BUILD.md) (`repro-plan.json`). The
+deterministic outputs (`result.json`, the verdict map) are documented in the scripts that emit
+them (`bin/run-*.sh`, `bin/verdict.sh`).
 
 ## Layout
 

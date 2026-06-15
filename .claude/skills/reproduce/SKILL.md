@@ -24,7 +24,7 @@ This skill drives the **interactive** path (Claude Code / opencode / Codex CLI i
 repo). The **unattended CI path** is a hand-written multi-job workflow at
 `.github/workflows/reproduce.yml` — Analyze and Build Repro agent jobs followed by a
 parallel reported‖trunk deterministic matrix. Both surfaces share this rubric and
-the `references/SCHEMA.*.md` contracts so they cannot drift.
+the `references/` runbooks (which carry the JSON contracts) so they cannot drift.
 
 ## Phases
 
@@ -36,7 +36,7 @@ Analyze stays cheap and non-executable. Build Repro is the only agentic phase th
 creates fixtures/scripts/requests because it has a live Shopware instance and must
 self-verify the bundle before the deterministic version comparison runs.
 
-1. **Analyze** — emit config-only `analysis.json` (see `references/SCHEMA.analysis.md`). Pick
+1. **Analyze** — emit config-only `analysis.json` (see `references/ANALYZE.md`). Pick
    the likely cheapest faithful `layer`, minimal `build_profile`, and scenario. Do not
    create fixtures or tests.
 2. **Build Repro** — provision one shop, create `repro-plan.json` plus fixtures/scripts
@@ -61,15 +61,15 @@ self-verify the bundle before the deterministic version comparison runs.
 
 ## Reference files
 
-- `references/ANALYZE.md` — the Analyze-phase runbook (inputs, needs_info protocol,
-  economy budget, confidence rules, outputs).
-- `references/BUILD.md` — the Build Repro runbook (live-instance artifact creation and
-  self-verification).
-- `references/SCHEMA.analysis.md` — the `analysis.json` contract (Analyze).
-- `references/SCHEMA.repro.md` — the `repro-plan.json` + `result.json` contracts (Build Repro).
-- `references/SCHEMA.report.md` — the `repro-output.json` contract + verdict map (report/verdict; not loaded by an agent).
+- `references/ANALYZE.md` — the Analyze-phase runbook, including the `analysis.json` output
+  contract (inputs, needs_info protocol, economy budget, confidence rules, the JSON shape).
+- `references/BUILD.md` — the Build Repro runbook, including the `repro-plan.json` output
+  contract (live-instance artifact creation, fixtures rules, self-verification, the JSON shape).
 - `references/executors/{http,playwright,direct}.md` — the per-executor authoring
   contract. After choosing the `layer`, read ONLY the file for its executor.
+
+The deterministic output contracts (`result.json`, the verdict map) are documented in the
+scripts that own them (`bin/run-*.sh`, `bin/verdict.sh`) — no agent reads them.
 
 ## Output format
 
