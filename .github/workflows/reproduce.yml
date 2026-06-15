@@ -411,6 +411,15 @@ jobs:
             `reproduced`. A `not_reproduced` usually means the bundle does not actually
             exercise the symptom — re-check faithfulness ONCE before accepting it, and if you
             still accept it, lower `confidence` and explain in `confidence_reason`.
+            SCOPE — you REPRODUCE, you do not root-cause or fix. Do NOT read product source
+            under `src/**` to understand WHY the symptom happens (the resolver/service/template
+            chain) — that is debugging-to-fix and burns the whole budget. Derive the scenario
+            from the issue, `fixpr.diff`, and `shop-get.sh`. When build-verify is not
+            `reproduced`, you have two moves only: ONE targeted empirical fix and re-run, or
+            STOP with a blocked/inconclusive result + a plain-text explanation. Never pivot to
+            reading the codebase to theorize. Don't over-build fixtures: if a faithful repro
+            needs a huge interdependent fixture graph that keeps failing, the layer is too
+            expensive — stop rather than grind.
             Iterate ≈3 cycles max (edit your files → re-run build-verify.sh → read the result).
             The workflow validates only the files you produced; it will NOT seed or run the
             executor again. Do not stop with an unverified bundle.

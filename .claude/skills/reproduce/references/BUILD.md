@@ -4,6 +4,25 @@ Build Repro turns `analysis.json` into a verified executable repro bundle. This 
 has a live Shopware instance, so it may iterate on fixtures and test code until the
 deterministic executor can run and classify the result.
 
+## Scope: you REPRODUCE, you do not root-cause or fix
+
+Your job is to make the symptom *occur and be detected* — not to explain *why* it occurs.
+
+- **Do NOT read product source under `src/**` to understand the bug's mechanism.** Reading
+  the resolver/service/template chain to figure out why something renders wrong is
+  debugging-to-fix; it is out of scope and burns the whole budget. Derive the scenario from
+  the issue, the fix-PR diff (`fixpr.diff`), and live-shop observation (`shop-get.sh`).
+  The only acceptable peek at source is to copy an exact fixture shape or API signature you
+  can't get from the fix PR — bounded, never a mechanism investigation.
+- **When `build-verify` does not return `reproduced`, you have exactly two moves:** (a) make
+  ONE targeted empirical fix (a fixture field, a visibility entry, a locator, a precondition)
+  and re-run, or (b) STOP and write a `blocked`/`inconclusive` builder-result with a
+  plain-text explanation. Never pivot to reading the codebase to theorize.
+- **Don't over-build fixtures.** If a faithful repro needs a large interdependent fixture
+  graph (e.g. CMS page + element + category link + variant + sales-channel visibility) and it
+  keeps failing silently, that is a signal the layer is too expensive — reconsider a cheaper
+  layer that shows the same symptom, or stop. Do not grind the setup.
+
 ## Inputs
 
 - `analysis.json` — config-only output from Analyze.
