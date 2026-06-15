@@ -384,6 +384,7 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.QUALITY_INITIATIVE_ANTHROPIC_API_KEY || secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ github.token }}
+          track_progress: true
           prompt: |
             You are running the `reproduce` skill's Build Repro phase for issue
             #${{ needs.gate.outputs.issue }}.
