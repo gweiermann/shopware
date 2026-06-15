@@ -31,6 +31,27 @@ list_screenshots () {
 {
   echo "# Build Repro context — read THIS, then author + self-verify the bundle"
   echo
+  echo "## Allowed commands — EVERYTHING ELSE IS BLOCKED"
+  echo
+  echo "You are in a locked-down sandbox. ONLY the commands below run. Anything else —"
+  echo "\`python3\`/\`python\`, \`node\`, a raw \`curl\`/\`wget\`, an inline script or here-doc, a"
+  echo "pipeline you compose yourself, or ANY command prefixed with \`VAR=value\` — is"
+  echo "auto-DENIED. It will NOT run; it only wastes a turn. Do not attempt these, ever."
+  echo
+  echo "- **File tools:** Read, Write, Edit, Glob, Grep."
+  echo "- **Self-verify:** \`bash .github/actions/repro/bin/build-verify.sh\` (seed + run executor)."
+  echo "- **Inspect shop / API / data:** \`bash .github/actions/repro/bin/shop-get.sh <entity> [<id>|--filter field=value]\`."
+  echo "  This is your ONLY way to query the shop — use it instead of curl/python for ANY API question."
+  echo "- **Plain read-only shell:** \`cat\` \`ls\` \`find\` \`jq\` \`grep\` \`head\` \`tail\` \`sed\` \`wc\` \`rg\` \`git log/show/diff/blame\`."
+  echo
+  echo "**For ANYTHING involving JSON** — reading a field, filtering, transforming"
+  echo "\`fixtures.json\`/\`builder-result.json\`/\`shop-get\` output — use \`jq\` (it is available)."
+  echo "Do NOT reach for \`python3\` or \`grep\` to parse JSON; \`jq\` is the tool and it works."
+  echo
+  echo "If something seems to need a tool outside this list, it does not — re-read above. If"
+  echo "you genuinely cannot proceed within these, STOP and explain in plain text (not JSON)"
+  echo "what you needed; never hand-roll a workaround."
+  echo
   echo "## Your environment is already set up — do NOT probe it"
   echo
   echo "- A live Shopware shop (the REPORTED, buggy version) is running. Its coordinates are"

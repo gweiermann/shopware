@@ -392,8 +392,17 @@ jobs:
             the fix PR. READ IT FIRST (one Read); it lists any attached screenshots by exact
             path — Read those directly (do not glob). Do NOT read BUILD.md/SCHEMA.md/the
             executor contract separately — they are already inlined there.
+            ALLOWED COMMANDS — everything else is auto-DENIED by the sandbox and only wastes a
+            turn: file tools (Read/Write/Edit/Glob/Grep); `bash .github/actions/repro/bin/build-verify.sh`;
+            `bash .github/actions/repro/bin/shop-get.sh ...`; and plain read-only shell
+            (cat/ls/find/jq/grep/head/tail/sed/wc/rg/git log|show|diff|blame). Do NOT use
+            python3, node, raw curl/wget, inline scripts/here-docs, or any `VAR=value`-prefixed
+            command — they will be blocked. There is no other way in; if you can't proceed
+            within these, STOP and explain in plain text. For ANY JSON (read a field, filter,
+            transform fixtures.json / builder-result.json / shop-get output) use `jq` — it is
+            available; do NOT use python3 or grep to parse JSON.
             To INSPECT live-shop state (entity ids, fields, whether a fixture took), use the
-            pre-approved getter — never hand-roll curl/python/OAuth:
+            getter — it is your ONLY way to query the API, never hand-roll curl/python/OAuth:
                 bash .github/actions/repro/bin/shop-get.sh <entity> <id>
                 bash .github/actions/repro/bin/shop-get.sh <entity> --filter field=value
             (e.g. `shop-get.sh category --filter type=page`). It returns flat JSON.
