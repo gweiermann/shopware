@@ -24,9 +24,8 @@ fi
 shift
 
 : "${APP_URL:?APP_URL is not set (the build step exports it)}"
-BASE=${APP_URL%/}
-USER=${ADMIN_USER:-admin}
-PASS=${ADMIN_PASS:-shopware}
+# shellcheck source=lib-admin-api.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib-admin-api.sh"
 
 # Parse args: a bare token = entity id (GET by id); --filter field=value (repeatable); --limit N.
 ID=""; LIMIT=10; FILTERS="[]"
@@ -43,18 +42,10 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-# Admin OAuth (first-party password grant; works on a default install).
-TOKEN=$(curl -sS --max-time 30 -X POST "$BASE/api/oauth/token" -H 'Content-Type: application/json' \
-  -d "{\"grant_type\":\"password\",\"client_id\":\"administration\",\"username\":\"$USER\",\"password\":\"$PASS\",\"scopes\":\"write\"}" \
-  | jq -r '.access_token // empty')
-[ -n "$TOKEN" ] || { echo "::error::admin OAuth token request failed"; exit 1; }
-AUTH=(-H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -H 'Accept: application/json')
-
 if [ -n "$ID" ]; then
-  curl -sS --max-time 30 "$BASE/api/$ENTITY/$ID" "${AUTH[@]}" | jq .
+  admin_get "$ENTITY" "$ID" | jq .
 else
   BODY=$(jq -nc --argjson limit "$LIMIT" --argjson filter "$FILTERS" \
     '{limit:$limit} + (if ($filter|length) > 0 then {filter:$filter} else {} end)')
-  curl -sS --max-time 30 -X POST "$BASE/api/search/$ENTITY" "${AUTH[@]}" -d "$BODY" \
-    | jq '{total: .total, data: (.data // [])}'
+  admin_search "$ENTITY" "$BODY" | jq '{total: .total, data: (.data // [])}'
 fi

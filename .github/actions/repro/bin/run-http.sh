@@ -28,6 +28,8 @@ BASE=${APP_URL%/}
 ACCESS_KEY=${SW_ACCESS_KEY:-}
 ADMIN_USER=${ADMIN_USER:-admin}
 ADMIN_PASS=${ADMIN_PASS:-shopware}
+# shellcheck source=lib-admin-api.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib-admin-api.sh" # admin_token + resolve_ids (shared with seed.sh)
 
 VERSION=$(jq -r '.version // "unknown"' "$ANALYSIS")
 KIND=$(jq -r '.assertion.kind' "$ANALYSIS")
@@ -55,31 +57,18 @@ echo "$NEED" | grep -qvE '^(SW_ACCESS_KEY|STOREFRONT_URL|SW_CONTEXT_TOKEN)?$' &&
 # Fetch the admin OAuth token once if EITHER an admin-api request will run OR we must resolve
 # install-specific ids (both go through the admin API). Without it, admin-api requests get the
 # store-api key and the gateway returns 401 — a harness auth failure, not the reported bug.
+# (Token + id resolution live in lib-admin-api.sh, shared with seed.sh.)
 TOKEN=""
 if [ "$ADMIN_REQ" = 1 ] || [ "$NEED_IDS" = 1 ]; then
-  TOKEN=$(curl -sS --max-time 30 -X POST "$BASE/api/oauth/token" -H 'Content-Type: application/json' \
-    -d "{\"grant_type\":\"password\",\"client_id\":\"administration\",\"username\":\"$ADMIN_USER\",\"password\":\"$ADMIN_PASS\",\"scopes\":\"write\"}" \
-    | jq -r '.access_token // empty')
-  [ -n "$TOKEN" ] || { echo "::error::admin OAuth token request failed (needed for admin-api auth / id resolution)"; exit 1; }
+  ADMIN_TOKEN=$(admin_token) || { echo "::error::admin OAuth token request failed (needed for admin-api auth / id resolution)"; exit 1; }
+  TOKEN="$ADMIN_TOKEN" # the request loop authenticates admin-api calls with $TOKEN
 fi
 
 if [ "$NEED_IDS" = 1 ]; then
-  A=(-H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -H 'Accept: application/json')
-  q() { curl -sS --max-time 30 -X POST "$BASE/api/search/$1" "${A[@]}" -d "$2"; }
-  SCJ=$(q sales-channel '{"limit":1,"filter":[{"type":"equals","field":"active","value":true}]}')
-  SC=$(echo "$SCJ" | jq -r '.data[0].id // empty')
-  NAV_CAT=$(echo "$SCJ" | jq -r '.data[0].navigationCategoryId // empty')
-  # storefrontUrl must be a registered SC domain (a basic-setup default SC is headless,
-  # domain "default.headlessN"), NOT APP_URL. Resolve the real domain when present.
-  SCDOM=$(q sales-channel-domain '{"limit":1}' | jq -r '.data[0].url // empty')
-  [ -n "$SCDOM" ] && STOREFRONT_URL="$SCDOM"
-  COUNTRY=$(q country '{"limit":1,"filter":[{"type":"equals","field":"active","value":true}]}' | jq -r '.data[0].id // empty')
-  SALS=$(q salutation '{"limit":2}')
-  SALUTATION=$(echo "$SALS" | jq -r '.data[0].id // empty')
-  SALUTATION2=$(echo "$SALS" | jq -r '.data[1].id // .data[0].id // empty')
-  TAX=$(q tax '{"limit":1}' | jq -r '.data[0].id // empty')
-  CURRENCY=$(q currency '{"limit":1,"filter":[{"type":"equals","field":"isoCode","value":"EUR"}]}' | jq -r '.data[0].id // empty')
-  LANGUAGE=$(q language '{"limit":1}' | jq -r '.data[0].id // empty')
+  # resolve_ids sets SC NAV_CAT STOREFRONT_URL COUNTRY SALUTATION SALUTATION2 TAX CURRENCY
+  # LANGUAGE (reuses $ADMIN_TOKEN — no second token fetch). It defaults STOREFRONT_URL to a
+  # registered SC domain, falling back to APP_URL (matching the prior behaviour).
+  resolve_ids || { echo "::error::install-id resolution failed"; exit 1; }
 fi
 
 CTX=""                       # sw-context-token, carried across the sequence
