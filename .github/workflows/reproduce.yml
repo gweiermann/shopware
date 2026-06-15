@@ -47,9 +47,9 @@ on:
         default: "trunk"
         type: string
       max_turns:
-        description: "Cap on the Build Repro agent's turns (cost control; default 40). Analyze is fixed-low (6, classification only)."
+        description: "Cap on the Build Repro agent's turns (cost control; default 30). Analyze is fixed-low (6, classification only)."
         required: false
-        default: "40"
+        default: "30"
         type: string
 
 concurrency:
@@ -397,8 +397,14 @@ jobs:
             Iterate ≈3 cycles max (edit your files → re-run build-verify.sh → read the result).
             The workflow validates only the files you produced; it will NOT seed or run the
             executor again. Do not stop with an unverified bundle.
+            STOP-DON'T-HACK: if you find yourself fighting the tooling — a command keeps
+            needing approval, a script won't run, you're tempted to wrap it, prefix it with
+            env vars, edit a harness file under `.github/actions/repro/`, or otherwise work
+            around it — STOP immediately. Do NOT hack around it. End your turn with a plain
+            explanation in the chat (NOT a JSON file) of exactly which command failed and how,
+            so a human can fix the harness. A clear stop beats a clever workaround.
           claude_args: >-
-            --model claude-sonnet-4-6 --max-turns ${{ github.event.inputs.max_turns || '40' }}
+            --model claude-sonnet-4-6 --max-turns ${{ github.event.inputs.max_turns || '30' }}
             --allowedTools "Read,Glob,Grep,Write,Bash(rg:*),Bash(git log:*),Bash(git show:*),Bash(git diff:*),Bash(git blame:*),Bash(cat:*),Bash(ls:*),Bash(find:*),Bash(jq:*),Bash(grep:*),Bash(head:*),Bash(tail:*),Bash(sed:*),Bash(wc:*),Bash(bash .github/actions/repro/bin/build-verify.sh:*),Bash(npm init:*),Bash(npm i:*),Bash(npm install:*),Bash(npx playwright install:*),Bash(cp:*),Bash(mkdir:*)"
         env:
           APP_URL: ${{ steps.provision.outputs.app_url }}

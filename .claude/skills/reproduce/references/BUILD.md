@@ -46,7 +46,13 @@ deterministic executor can run and classify the result.
    Do NOT call `seed.sh` / `run-leg.sh` yourself and do NOT prefix any command with
    `VAR=value`: the live-shop coordinates (`APP_URL`, `SW_ACCESS_KEY`, `ADMIN_USER`,
    `ADMIN_PASS`) are already in your environment, and a `VAR=value …` prefix is what trips
-   the approval prompt this unattended run cannot grant (it wastes the whole budget). Then:
+   the approval prompt this unattended run cannot grant (it wastes the whole budget).
+
+   **Stop, don't hack.** If a command keeps needing approval or won't run, do NOT try to work
+   around it — no wrapper scripts, no env-var prefixes, no editing anything under
+   `.github/actions/repro/`. STOP and end your turn with a plain-text explanation in the chat
+   (not a JSON file) of which command failed and how, so a human can fix the harness. A clear
+   stop beats a clever workaround. Then:
    - Read `builder-result.json` and decide whether the result proves the repro bundle's
      assumption:
      - `reproduced`: the generated healthy assertion fails on the builder instance, so
