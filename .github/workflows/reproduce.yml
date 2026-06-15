@@ -393,15 +393,13 @@ jobs:
             path — Read those directly (do not glob). Do NOT read BUILD.md/SCHEMA.md/the
             executor contract separately — they are already inlined there.
             ALLOWED COMMANDS — everything else is auto-DENIED and only wastes a turn:
-            file tools (Read/Write/Edit on your own files + fixpr.diff + known paths);
-            `bash .github/actions/repro/bin/build-verify.sh`; `bash .github/actions/repro/bin/shop-get.sh ...`;
-            WebSearch + WebFetch(developer.shopware.com); and plain read-only shell
-            (cat/ls/jq/head/tail/sed/wc/git log|show|diff|blame). There is deliberately NO file
-            search (Glob/Grep/rg/grep/find are disabled) and NO sub-agents (Task/Agent) — you
-            REPRODUCE, you do not explore the codebase; use shop-get + the dev docs + fixpr.diff
-            instead. Do NOT use python3, node, raw curl/wget, inline scripts/here-docs, or any
-            `VAR=value`-prefixed command — they are blocked. If you can't proceed within these,
-            STOP and explain in plain text. For ANY JSON use `jq` (do NOT reach for python3).
+            file tools (Read/Write/Edit/Glob/Grep); `bash .github/actions/repro/bin/build-verify.sh`;
+            `bash .github/actions/repro/bin/shop-get.sh ...`; WebSearch + WebFetch(developer.shopware.com);
+            and plain read-only shell (cat/ls/find/jq/grep/rg/head/tail/sed/wc/git log|show|diff|blame).
+            Glob/Grep ARE allowed for TARGETED lookups (find an exact template/field/selector). What
+            is NOT allowed: sub-agents (Task/Agent — disabled), python3/node/raw curl/wget/inline
+            scripts/here-docs, or any `VAR=value`-prefixed command (all blocked). For ANY JSON use
+            `jq` (not python3/grep). If you can't proceed within these, STOP and explain in plain text.
             To INSPECT live-shop state (entity ids, fields, whether a fixture took), use the
             getter — it is your ONLY way to query the API, never hand-roll curl/python/OAuth:
                 bash .github/actions/repro/bin/shop-get.sh <entity> <id>
@@ -413,29 +411,32 @@ jobs:
             repro fits well inside this; open-ended investigation does not. If you are not
             converging by roughly two-thirds of the budget, STOP and write a blocked/inconclusive
             result with a plain-text explanation rather than burning the rest.
-            Your job: write the bundle, then self-verify it.
-            - Write `repro-plan.json`, and `fixtures.json` / `repro.spec.ts` / `ReproTest.php`
-              only when the executor needs them.
-            - Self-verify by running EXACTLY (no env-var prefix — it is pre-approved):
-                bash .github/actions/repro/bin/build-verify.sh
-              then Read `builder-result.json`. Do NOT call seed.sh / run-leg.sh yourself and
-              do NOT prefix commands with `VAR=value` — that is what triggers the approval
-              prompt this unattended run cannot grant. Do NOT edit anything under
-              `.github/actions/repro/` — that is the harness, not your bundle.
-            This builder shop runs the REPORTED (buggy) version, so the EXPECTED outcome is
-            `reproduced`. A `not_reproduced` usually means the bundle does not actually
-            exercise the symptom — re-check faithfulness ONCE before accepting it, and if you
-            still accept it, lower `confidence` and explain in `confidence_reason`.
-            SCOPE — you REPRODUCE, you do not root-cause or fix. Do NOT read product source
-            under `src/**` to understand WHY the symptom happens (the resolver/service/template
-            chain) — that is debugging-to-fix and burns the whole budget. Derive the scenario
-            from the issue, `fixpr.diff`, and `shop-get.sh`. When build-verify is not
-            `reproduced`, you have two moves only: ONE targeted empirical fix and re-run, or
-            STOP with a blocked/inconclusive result + a plain-text explanation. Never pivot to
-            reading the codebase to theorize. Don't over-build fixtures: if a faithful repro
-            needs a huge interdependent fixture graph that keeps failing, the layer is too
-            expensive — stop rather than grind.
-            Iterate ≈3 cycles max (edit your files → re-run build-verify.sh → read the result).
+            WORK IN TWO PHASES — author dumb in ONE pass, then verify ONCE.
+            PHASE 1 — AUTHOR (do not touch the live shop yet): from the issue, screenshots,
+            `fixpr.diff`, your Shopware knowledge, and a FEW TARGETED lookups (glob/grep one
+            template/field/example to get an exact selector, field name, or config shape — NOT
+            an investigation), write the COMPLETE bundle in one go: `repro-plan.json` plus
+            `fixtures.json` / `repro.spec.ts` / `ReproTest.php` as the executor needs. Use
+            `{{TAX}}`/`{{CURRENCY}}`/`{{SC}}`/`{{NAV_CAT}}` placeholders for install ids and your
+            own fixed 32-hex UUIDs for entities you create; seed nested graphs as ONE nested
+            payload. You do NOT need to query the shop to author — DERIVE it.
+            PHASE 2 — VERIFY ONCE (a backstop, not a loop): run EXACTLY (pre-approved, no env
+            prefix) `bash .github/actions/repro/bin/build-verify.sh`, then Read `builder-result.json`.
+            This shop is the REPORTED (buggy) version, so `reproduced` is expected.
+            - `reproduced` → done.
+            - not `reproduced` → make AT MOST ONE targeted fix (a field, a selector, a missing
+              precondition/visibility) and re-run build-verify ONE more time.
+            - still not → STOP: keep the bundle, lower `confidence`, note why in
+              `confidence_reason`. The deterministic reported/trunk legs re-seed + re-run it as
+              the real check — your job is a plausible bundle, not a proven one.
+            HARD LINE — never turn a failed verify into an investigation. Do NOT read the
+            resolver/service chain to understand WHY the symptom happens, do NOT spelunk the
+            entity graph with shop-get. A lookup answers "what's the exact field/selector"; an
+            investigation asks "why does the bug happen" — the first is fine, the second is the
+            spiral that burns the whole budget. If the fixture graph is huge and keeps failing,
+            the layer is too expensive — STOP, don't grind.
+            Do NOT call seed.sh / run-leg.sh yourself, do NOT prefix commands with `VAR=value`,
+            and do NOT edit anything under `.github/actions/repro/` — that is the harness.
             The workflow validates only the files you produced; it will NOT seed or run the
             executor again. Do not stop with an unverified bundle.
             STOP-DON'T-HACK: if you find yourself fighting the tooling — a command keeps
@@ -444,17 +445,15 @@ jobs:
             around it — STOP immediately. Do NOT hack around it. End your turn with a plain
             explanation in the chat (NOT a JSON file) of exactly which command failed and how,
             so a human can fix the harness. A clear stop beats a clever workaround.
-          # NO source-discovery tools: three runs proved the agent rabbit-holes through src/**
-          # (and even spawned a Task subagent that source-dived) instead of authoring from
-          # shop-get + docs + fixpr.diff. Glob/Grep are dropped from allow AND disallowed
-          # (the action grants them — and Task — by default, so disallow is what removes them);
-          # the Bash search commands (rg/grep/find) are dropped too, else `bash rg` is the same
-          # capability. The agent keeps Read (its own files, fixpr.diff, build-context, known
-          # paths), shop-get for live state, and WebSearch+WebFetch(dev docs) for structure.
+          # Search tools (Glob/Grep/rg/grep/find) ARE allowed: a TARGETED lookup (find the exact
+          # template/field/selector) is what let the cheap one-shot author succeed. The failure
+          # mode is the open-ended investigation LOOP, which the prompt bounds (author once →
+          # verify once → one fix or STOP), not the toolset. Task/Agent stays disabled: a sub-agent
+          # is an unbounded source-diving expedition hidden inside one turn (a real 25-call waste).
           claude_args: >-
             --model claude-sonnet-4-6 --max-turns ${{ github.event.inputs.max_turns || '30' }}
-            --disallowedTools "Task,Agent,Glob,Grep"
-            --allowedTools "Read,Write,WebSearch,WebFetch(domain:developer.shopware.com),Bash(git log:*),Bash(git show:*),Bash(git diff:*),Bash(git blame:*),Bash(cat:*),Bash(ls:*),Bash(jq:*),Bash(head:*),Bash(tail:*),Bash(sed:*),Bash(wc:*),Bash(bash .github/actions/repro/bin/build-verify.sh:*),Bash(bash .github/actions/repro/bin/shop-get.sh:*),Bash(npm init:*),Bash(npm i:*),Bash(npm install:*),Bash(npx playwright install:*),Bash(cp:*),Bash(mkdir:*)"
+            --disallowedTools "Task,Agent"
+            --allowedTools "Read,Glob,Grep,Write,WebSearch,WebFetch(domain:developer.shopware.com),Bash(rg:*),Bash(git log:*),Bash(git show:*),Bash(git diff:*),Bash(git blame:*),Bash(cat:*),Bash(ls:*),Bash(find:*),Bash(jq:*),Bash(grep:*),Bash(head:*),Bash(tail:*),Bash(sed:*),Bash(wc:*),Bash(bash .github/actions/repro/bin/build-verify.sh:*),Bash(bash .github/actions/repro/bin/shop-get.sh:*),Bash(npm init:*),Bash(npm i:*),Bash(npm install:*),Bash(npx playwright install:*),Bash(cp:*),Bash(mkdir:*)"
         env:
           APP_URL: ${{ steps.provision.outputs.app_url }}
           SW_ACCESS_KEY: ${{ steps.provision.outputs.access_key }}

@@ -7,21 +7,26 @@ deterministic executor can run and classify the result.
 ## Scope: you REPRODUCE, you do not root-cause or fix
 
 Your job is to make the symptom *occur and be detected* — not to explain *why* it occurs.
+Author the bundle in ONE pass, then verify ONCE (below). The cheapest successful runs derive
+everything statically and barely touch the shop.
 
-- **Do NOT read product source under `src/**` to understand the bug's mechanism.** Reading
-  the resolver/service/template chain to figure out why something renders wrong is
-  debugging-to-fix; it is out of scope and burns the whole budget. Derive the scenario from
-  the issue, the fix-PR diff (`fixpr.diff`), and live-shop observation (`shop-get.sh`).
-  The only acceptable peek at source is to copy an exact fixture shape or API signature you
-  can't get from the fix PR — bounded, never a mechanism investigation.
-- **When `build-verify` does not return `reproduced`, you have exactly two moves:** (a) make
-  ONE targeted empirical fix (a fixture field, a visibility entry, a locator, a precondition)
-  and re-run, or (b) STOP and write a `blocked`/`inconclusive` builder-result with a
-  plain-text explanation. Never pivot to reading the codebase to theorize.
+- **Targeted lookups: yes. Investigation: no.** A targeted lookup answers *"what is the exact
+  field / selector / config shape?"* — e.g. grep the one Twig that renders the symptom to get
+  the assertion text, or read the fix PR's test for a fixture shape. That is fine and often
+  necessary (1–3 lookups). What is forbidden is the open-ended *investigation*: reading the
+  resolver/service chain to understand *why* the bug happens, or spelunking the entity graph
+  with `shop-get`. The first lets you author; the second is the spiral that burns the budget.
+- **After the first verify, at most ONE targeted fix.** When `build-verify` is not
+  `reproduced`, you have two moves: (a) make ONE targeted fix (a fixture field, a visibility
+  entry, a locator, a precondition) and re-verify once, or (b) STOP. Never turn a failed verify
+  into an investigation — a failed verify is NOT a cue to go read the codebase.
+- **A plausible bundle beats a proven-but-never-finished one.** If you stop unverified, keep
+  the bundle, lower `confidence`, and say why in `confidence_reason`: the deterministic
+  reported/trunk legs re-seed and re-run it, so they are the real check.
 - **Don't over-build fixtures.** If a faithful repro needs a large interdependent fixture
   graph (e.g. CMS page + element + category link + variant + sales-channel visibility) and it
-  keeps failing silently, that is a signal the layer is too expensive — reconsider a cheaper
-  layer that shows the same symptom, or stop. Do not grind the setup.
+  keeps failing, that is a signal the layer is too expensive — reconsider a cheaper layer that
+  shows the same symptom, or stop. Do not grind the setup.
 
 ## Inputs
 
@@ -94,7 +99,8 @@ Your job is to make the symptom *occur and be detected* — not to explain *why*
        so the bundle is runnable and classifies the builder version as healthy.
      - `blocked` or `inconclusive`: the bundle is not verified. Inspect the reason and
        refine fixtures/test code only if the failure is a fixable harness/setup problem.
-6. You may re-run `build-verify.sh` multiple times while building (≈3 cycles max). Keep each
+6. Verify ONCE; after a non-`reproduced` result make at most ONE targeted fix and re-verify
+   once, then accept or stop (do not loop). Keep each
    attempt idempotent:
    - Prefer deterministic 32-char IDs and sync `upsert` fixtures so reseeding updates
      the same entities instead of accumulating duplicates.
