@@ -43,6 +43,11 @@ list_screenshots () {
   echo "- **Inspect shop / API / data:** \`bash .github/actions/repro/bin/shop-get.sh <entity> [<id>|--filter field=value]\`."
   echo "  This is your ONLY way to query the shop — use it instead of curl/python for ANY API question."
   echo "- **Plain read-only shell:** \`cat\` \`ls\` \`find\` \`jq\` \`grep\` \`head\` \`tail\` \`sed\` \`wc\` \`rg\` \`git log/show/diff/blame\`."
+  echo "- **Docs (read-only):** to look up an entity's structure/fields when a fixture is"
+  echo "  non-obvious: \`WebSearch\` to FIND the page (scope every query with"
+  echo "  \`site:developer.shopware.com\`), then \`WebFetch\` it (\`WebFetch\` is locked to"
+  echo "  \`developer.shopware.com\` — no other domains). Use sparingly; it counts against your"
+  echo "  turn budget. Do not browse beyond what the fixture needs."
   echo
   echo "**For ANYTHING involving JSON** — reading a field, filtering, transforming"
   echo "\`fixtures.json\`/\`builder-result.json\`/\`shop-get\` output — use \`jq\` (it is available)."
@@ -85,6 +90,13 @@ list_screenshots () {
   echo "  DIFFERENT UUIDs, so a literal id seeds on this shop but FK-fails on the reported/trunk legs."
   echo "- Iterate by editing your OWN files (\`repro-plan.json\`, \`fixtures.json\`,"
   echo "  \`repro.spec.ts\`/\`ReproTest.php\`) and re-running build-verify.sh (≈3 cycles max)."
+  echo "- COMPLEX/NESTED fixtures (e.g. a CMS page): seed the WHOLE graph as ONE nested payload"
+  echo "  (parent → children in a single sync op), NOT as separate flat operations — the DAL then"
+  echo "  assigns the live version automatically. Writing children separately (or hand-setting"
+  echo "  \`cmsPageVersionId\`/\`cmsSectionVersionId\`) is the usual cause of \"seeded but renders"
+  echo "  empty\". CMS data model (page → sections → blocks → slots → element) + JSON examples:"
+  echo "  https://developer.shopware.com/docs/concepts/commerce/content/shopping-experiences-cms.html"
+  echo "  (WebFetch it for details.) If the graph is still too expensive after one read, STOP."
   list_screenshots
   echo
   echo "---"
