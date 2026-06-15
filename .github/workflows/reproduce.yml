@@ -361,7 +361,9 @@ jobs:
         env:
           ISSUE: ${{ needs.gate.outputs.issue }}
           GH_TOKEN: ${{ github.token }}
-        run: bash .github/actions/repro/bin/prefetch.sh
+        run: |
+          bash .github/actions/repro/bin/prefetch.sh
+          bash .github/actions/repro/bin/build-context.sh
 
       - name: Build Repro (agent)
         id: build_agent
@@ -372,36 +374,32 @@ jobs:
           anthropic_api_key: ${{ secrets.QUALITY_INITIATIVE_ANTHROPIC_API_KEY || secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ github.token }}
           prompt: |
-            Run the `reproduce` skill's Build Repro phase for issue
-            #${{ needs.gate.outputs.issue }} in repository ${{ github.repository }}.
-            Follow `.claude/skills/reproduce/references/BUILD.md` and
-            `.claude/skills/reproduce/references/SCHEMA.md`.
-            BATCH independent reads/commands into a single message to save turns ($) — e.g.
-            read `analysis.json`, `issue.md`, SCHEMA.md and the one executor contract you need
-            in ONE turn, not four.
-            Inputs:
-            - `analysis.json` is present and is config-only.
-            - `issue.md` and optional `fixpr.diff` are prefetched by this job.
-            - Live shop: APP_URL=${{ steps.provision.outputs.app_url }}
-            Outputs:
-            - Write `repro-plan.json`.
-            - Write `fixtures.json`, `repro.spec.ts`, or `ReproTest.php` only when needed.
-            - Self-verify inside this agent run: seed `fixtures.json` if it exists, run
-              the deterministic executor, read `builder-result.json`, and only leave a
-              `reproduced`/`not_reproduced` result when it proves the bundle is runnable
-              and classifiable.
-            This builder shop runs the REPORTED (buggy) version, so the EXPECTED self-verify
-            outcome is `reproduced`. A `not_reproduced` here usually means your bundle does
-            not actually exercise the symptom — re-check faithfulness ONCE (right surface?
-            precondition truly present? assertion strict enough?) before accepting it, and if
-            you still accept it, lower `confidence` and say why in `confidence_reason`.
-            Keep the seed+run loop to a SMALL bounded number of cycles (≈3). Repeated
-            blocked/inconclusive for the same reason → write that as the final builder-result.
-            The workflow will only validate the files you produced; it will NOT seed or
-            run the executor again in a separate step. Do not stop with an unverified bundle.
+            You are running the `reproduce` skill's Build Repro phase for issue
+            #${{ needs.gate.outputs.issue }}.
+            Everything you need is in `./build-context.md` — the runbook, the output
+            contracts, the executor contract, `analysis.json`, the issue, and (when found)
+            the fix PR. READ IT FIRST (one Read), and Read any `issue-assets/` images when the
+            bug is visual. Do NOT read BUILD.md/SCHEMA.md/the executor contract separately —
+            they are already inlined there.
+            Your job: write the bundle, then self-verify it.
+            - Write `repro-plan.json`, and `fixtures.json` / `repro.spec.ts` / `ReproTest.php`
+              only when the executor needs them.
+            - Self-verify by running EXACTLY (no env-var prefix — it is pre-approved):
+                bash .github/actions/repro/bin/build-verify.sh
+              then Read `builder-result.json`. Do NOT call seed.sh / run-leg.sh yourself and
+              do NOT prefix commands with `VAR=value` — that is what triggers the approval
+              prompt this unattended run cannot grant. Do NOT edit anything under
+              `.github/actions/repro/` — that is the harness, not your bundle.
+            This builder shop runs the REPORTED (buggy) version, so the EXPECTED outcome is
+            `reproduced`. A `not_reproduced` usually means the bundle does not actually
+            exercise the symptom — re-check faithfulness ONCE before accepting it, and if you
+            still accept it, lower `confidence` and explain in `confidence_reason`.
+            Iterate ≈3 cycles max (edit your files → re-run build-verify.sh → read the result).
+            The workflow validates only the files you produced; it will NOT seed or run the
+            executor again. Do not stop with an unverified bundle.
           claude_args: >-
             --model claude-sonnet-4-6 --max-turns ${{ github.event.inputs.max_turns || '40' }}
-            --allowedTools "Read,Glob,Grep,Write,Bash(rg:*),Bash(git log:*),Bash(git show:*),Bash(git diff:*),Bash(git blame:*),Bash(cat:*),Bash(ls:*),Bash(find:*),Bash(jq:*),Bash(grep:*),Bash(head:*),Bash(tail:*),Bash(sed:*),Bash(wc:*),Bash(bash .github/actions/repro/bin/seed.sh:*),Bash(bash .github/actions/repro/bin/run-leg.sh:*),Bash(npm init:*),Bash(npm i:*),Bash(npm install:*),Bash(npx playwright install:*),Bash(cp:*),Bash(mkdir:*)"
+            --allowedTools "Read,Glob,Grep,Write,Bash(rg:*),Bash(git log:*),Bash(git show:*),Bash(git diff:*),Bash(git blame:*),Bash(cat:*),Bash(ls:*),Bash(find:*),Bash(jq:*),Bash(grep:*),Bash(head:*),Bash(tail:*),Bash(sed:*),Bash(wc:*),Bash(bash .github/actions/repro/bin/build-verify.sh:*),Bash(npm init:*),Bash(npm i:*),Bash(npm install:*),Bash(npx playwright install:*),Bash(cp:*),Bash(mkdir:*)"
         env:
           APP_URL: ${{ steps.provision.outputs.app_url }}
           SW_ACCESS_KEY: ${{ steps.provision.outputs.access_key }}

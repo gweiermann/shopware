@@ -37,11 +37,16 @@ deterministic executor can run and classify the result.
    - Direct: `script_path: "ReproTest.php"` and the PHPUnit file.
    - Fixtures: `fixtures.sync_payload_path: "fixtures.json"` and `fixtures.json`
      when seeded entities are needed.
-5. Self-verify inside this agent turn. The exact loop is:
-   - If `fixtures.json` exists, seed it first with
-     `APP_URL="$APP_URL" PAYLOAD=fixtures.json bash .github/actions/repro/bin/seed.sh`.
-   - Then run the deterministic executor with
-     `TARGET=builder REPRO_PLAN=repro-plan.json OUT=builder-result.json bash .github/actions/repro/bin/run-leg.sh`.
+5. Self-verify inside this agent turn. Run EXACTLY this one command — no env-var prefix,
+   it is pre-approved and seeds `fixtures.json` (when present) then runs the executor as the
+   `builder` leg:
+   ```
+   bash .github/actions/repro/bin/build-verify.sh
+   ```
+   Do NOT call `seed.sh` / `run-leg.sh` yourself and do NOT prefix any command with
+   `VAR=value`: the live-shop coordinates (`APP_URL`, `SW_ACCESS_KEY`, `ADMIN_USER`,
+   `ADMIN_PASS`) are already in your environment, and a `VAR=value …` prefix is what trips
+   the approval prompt this unattended run cannot grant (it wastes the whole budget). Then:
    - Read `builder-result.json` and decide whether the result proves the repro bundle's
      assumption:
      - `reproduced`: the generated healthy assertion fails on the builder instance, so
@@ -50,7 +55,7 @@ deterministic executor can run and classify the result.
        so the bundle is runnable and classifies the builder version as healthy.
      - `blocked` or `inconclusive`: the bundle is not verified. Inspect the reason and
        refine fixtures/test code only if the failure is a fixable harness/setup problem.
-6. You may run this seed + executor loop multiple times while building. Keep each
+6. You may re-run `build-verify.sh` multiple times while building (≈3 cycles max). Keep each
    attempt idempotent:
    - Prefer deterministic 32-char IDs and sync `upsert` fixtures so reseeding updates
      the same entities instead of accumulating duplicates.
