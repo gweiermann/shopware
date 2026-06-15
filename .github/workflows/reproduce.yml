@@ -428,6 +428,20 @@ jobs:
           DEMO_LAYER: ${{ github.event.inputs.demo_layer || 'http' }}
         run: bash .github/actions/repro/bin/demo-build.sh
 
+      # Safety net: the agent is SUPPOSED to self-verify (so it can iterate on failures), but
+      # if its session ended without a builder-result.json (ran out of turns, forgot, died)
+      # yet it DID author a plan, run the same deterministic verification here so a salvageable
+      # bundle isn't lost to an opaque "missing" failure. The shop is still up in this job. No
+      # agent turns spent. If the agent already verified, this is skipped.
+      - name: Verify built bundle (fallback)
+        if: steps.mode.outputs.mode == 'real' && hashFiles('repro-plan.json') != '' && hashFiles('builder-result.json') == ''
+        env:
+          APP_URL: ${{ steps.provision.outputs.app_url }}
+          SW_ACCESS_KEY: ${{ steps.provision.outputs.access_key }}
+          ADMIN_USER: admin
+          ADMIN_PASS: shopware
+        run: bash .github/actions/repro/bin/build-verify.sh
+
       - name: Check built repro bundle
         run: bash .github/actions/repro/bin/build-check.sh
 

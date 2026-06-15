@@ -7,8 +7,8 @@ set -euo pipefail
 PLAN=${PLAN:-repro-plan.json}
 RESULT=${RESULT:-builder-result.json}
 
-[ -f "$PLAN" ] || { echo "::error::$PLAN missing"; exit 1; }
-[ -f "$RESULT" ] || { echo "::error::$RESULT missing"; exit 1; }
+[ -f "$PLAN" ] || { echo "::error::$PLAN missing — the build agent produced no repro bundle (check the agent transcript / turn budget)"; exit 1; }
+[ -f "$RESULT" ] || { echo "::error::$RESULT missing — the bundle was authored but never verified, and the fallback verification did not run (see the 'Verify built bundle (fallback)' step)"; exit 1; }
 
 jq -e '.schema_version == "1" and (.executor | type == "string") and (.layer | type == "string") and (.version | type == "string")' "$PLAN" >/dev/null \
   || { echo "::error::$PLAN does not contain the required executable plan fields"; exit 1; }
