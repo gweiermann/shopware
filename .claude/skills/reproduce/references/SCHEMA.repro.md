@@ -1,81 +1,6 @@
-# Output Shape
+# Contracts: `repro-plan.json` (Build Repro output) + `result.json` (leg output)
 
-Four contracts, one per pipeline seam. Emit JSON only in wrapper-fed / CI mode —
-no markdown fence, no prose.
-
-- `analysis.json` — produced by **Analyze**, consumed by **Build Repro** and matrix
-  planning. This is a config-only interpretation of the issue.
-- `repro-plan.json` — produced by **Build Repro**, consumed by deterministic
-  Reproduce legs. This is the executable repro bundle metadata.
-- `result.json` — produced by each deterministic Reproduce leg.
-- `repro-output.json` — produced by **Report**, merges the legs, renders the
-  GitHub comment.
-
-Every phase may be a stub first (emit a hand-written object that satisfies the
-contract) and an agent later. Downstream phases bind to the shape, not the source.
-
-## Analysis (`analysis.json`)
-
-The natural-language-to-configuration transform. It classifies the issue, picks the
-cheapest likely surface and build profile, and preserves the human scenario. It does
-NOT create fixtures, requests, scripts, or final assertions.
-
-```json
-{
-    "schema_version": "1",
-    "issue": 16638,
-    "layer": "service | store-api | admin-api | storefront-ui | admin-ui",
-    "executor": "direct | http | playwright",
-    "version": "6.6.10.0",
-    "build_profile": {
-        "admin_build": false,
-        "storefront_build": false,
-        "theme_build": false
-    },
-    "scenario": [
-        "Given a category with at least one product visible in the Storefront sales channel",
-        "When POST /store-api/product-listing/{categoryId}?p=99 (a page past the last)",
-        "Then a healthy shop returns HTTP 404 with PRODUCT__LISTING_PAGE_OUT_OF_RANGE"
-    ],
-    "plugins": [{ "name": "SwagFoo", "activate": true }],
-    "derived_from": "PR#16640 tests/.../MultiWarehouseTest.php",
-    "confidence": 0.82,
-    "confidence_reason": null,
-    "blocked_reason": null,
-    "needs_info": null
-}
-```
-
-Rules:
-
-- `layer` is the cheapest likely faithful surface. Order: `service` < `store-api` /
-  `admin-api` < `storefront-ui` / `admin-ui`. Escalate only when a cheaper layer
-  cannot plausibly fire the symptom.
-- `executor` follows `layer`: `service` -> `direct`, `*-api` -> `http`, `*-ui` ->
-  `playwright`.
-- `build_profile` enables the surface the candidate `layer` needs.
-  `storefront_build` / `theme_build` are `true` only for `storefront-ui`. Bias toward
-  building when uncertain: a wrong-LOW profile blocks the whole pipeline (the executor
-  can't run), a wrong-HIGH profile only costs a few minutes of build.
-- The analyzer does NOT choose which versions to run. The workflow computes targets
-  from `version`: normally reported + trunk, or trunk only when explicitly requested
-  / reported equals trunk.
-- `scenario` is a plain-English Given/When/Then list. It is the handoff to the
-  build phase, not proof that a generated test exists.
-- `confidence` measures whether the issue text is specific enough to attempt a
-  faithful build, not whether the generated test works. The build phase verifies
-  runnable artifacts.
-- `needs_info`: when the issue is too vague/contradictory/incomplete to derive a
-  faithful configuration, emit ONLY
-  `{"schema_version":"1","issue":N,"needs_info":"<one specific clarifying question>"}`
-  and omit the plan. The workflow posts the question and aborts.
-
-Confidence bands:
-
-- `confidence < 0.4` -> the run is not executed. The workflow posts the draft
-  scenario + `confidence_reason` and asks a human to confirm.
-- `0.4 <= confidence < 0.7` -> the build and legs may run, but the verdict is forced
-  to `needs_human_review`.
+Emit JSON only in wrapper-fed / CI mode — no markdown fence, no prose. `schema_version` is `"1"`.
 
 ## Repro Plan (`repro-plan.json`)
 
@@ -174,7 +99,8 @@ Rules:
 
 ## Repro Result (`result.json`)
 
-One object per deterministic Reproduce leg.
+One object per deterministic Reproduce leg (the executor emits it; you only READ
+`builder-result.json` during self-verify and check its `status`).
 
 ```json
 {
@@ -207,35 +133,3 @@ Rules:
 - `evidence.script` is the full generated repro source, verbatim, always inline.
 - Redact secrets, tokens, and instance hostnames to `[REDACTED_KEY]`,
   `[REDACTED_TOKEN]`, `[REDACTED_URL]` before emit.
-
-## Merged Report (`repro-output.json`)
-
-```json
-{
-    "schema_version": "1",
-    "issue": 16638,
-    "verdict": "live_bug | fixed_on_trunk | regression | not_reproducible | blocked | needs_human_review",
-    "fix_candidate": "PR#16575",
-    "layer": "store-api",
-    "results": { "reported": { "...": "result.json" }, "trunk": { "...": "result.json" } },
-    "summary": "1-3 sentences naming the symptom and surface.",
-    "label": "ci:reproduced | ci:not-reproduced | ci:fixed-on-trunk | ci:repro-blocked",
-    "requires_human": false
-}
-```
-
-Verdict map (first match wins):
-
-| reported | trunk | verdict |
-| --- | --- | --- |
-| any `blocked` | - | `blocked` |
-| plan `blocked_reason` set or `0.4 <= confidence < 0.7` | - | `needs_human_review` |
-| any `inconclusive` | - | `needs_human_review` |
-| `reproduced` | `reproduced` | `live_bug` |
-| `reproduced` | `not_reproduced` | `fixed_on_trunk` |
-| `not_reproduced` | `reproduced` | `regression` |
-| `not_reproduced` | `not_reproduced` | `not_reproducible` |
-| anything else | - | `needs_human_review` |
-
-When targets collapse to one leg, the missing leg is `null`; a single-leg run can
-only yield `live_bug`, `not_reproducible`, or `needs_human_review`.

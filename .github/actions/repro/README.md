@@ -64,8 +64,10 @@ buggy version** (`reproduced`) and **passes when healthy** (`not_reproduced`).
   a guess. `0.4–0.7` runs but routes to `needs_human_review`.
 - **Fail fast, never yield mid-build** — one-shot provision, poll until READY.
 
-See [`../../../.claude/skills/reproduce/references/SCHEMA.md`](../../../.claude/skills/reproduce/references/SCHEMA.md)
-for the full JSON contracts.
+See the JSON contracts in `.claude/skills/reproduce/references/`:
+[`SCHEMA.analysis.md`](../../../.claude/skills/reproduce/references/SCHEMA.analysis.md) (analysis.json),
+[`SCHEMA.repro.md`](../../../.claude/skills/reproduce/references/SCHEMA.repro.md) (repro-plan.json + result.json),
+[`SCHEMA.report.md`](../../../.claude/skills/reproduce/references/SCHEMA.report.md) (repro-output.json + verdict map).
 
 ## Layout
 

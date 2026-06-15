@@ -64,7 +64,7 @@ Bands:
 
 ## Outputs
 
-- `analysis.json` only, per `references/SCHEMA.md`.
+- `analysis.json` only, per `references/SCHEMA.analysis.md`.
 - Do NOT write `fixtures.json`, `repro.spec.ts`, `ReproTest.php`, `request(s)`, or
   final `assertion` fields.
 - Emit only the JSON file in CI/wrapper-fed mode.

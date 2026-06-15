@@ -18,7 +18,7 @@ _anchors:
            truth for the likely surface and scenario). DERIVE the config from it;
            do not guess.
         2. Invoke the reproduce skill (Skill tool, name "reproduce") to produce
-           the config-only analysis. references/SCHEMA.md is authoritative for the shape.
+           the config-only analysis. references/SCHEMA.analysis.md is authoritative for the shape.
         3. Write the skill's analysis.json output verbatim to a file called
            output.json in the current directory.
         4. No prose, no markdown fence. The grader reads output.json only.

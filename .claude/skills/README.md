@@ -24,7 +24,7 @@ No flags, no plugins — drop into a session and just describe what you want.
 
 A skill can also run unattended in CI. The `reproduce` skill's CI surface is a
 hand-written multi-job workflow at [`.github/workflows/reproduce.yml`](../../.github/workflows/reproduce.yml)
-(a parallel reported‖trunk matrix), which shares the skill's rubric and
-[`references/SCHEMA.md`](reproduce/references/SCHEMA.md) so the interactive and
+(a parallel reported‖trunk matrix), which shares the skill's rubric and the
+[`references/SCHEMA.*.md`](reproduce/references/) contracts so the interactive and
 unattended paths cannot drift. See the pipeline overview at
 [`.github/actions/repro/README.md`](../../.github/actions/repro/README.md).

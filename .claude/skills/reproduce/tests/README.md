@@ -47,6 +47,6 @@ branch — runs the same thing in CI (needs `CLAUDE_CODE_OAUTH_TOKEN`).
 ## Grading
 
 Each `grader.sh` sources `_lib.sh`, asserts the produced `output.json` against the
-config's `SCHEMA.md` shape (`check_schema_analysis`) plus task-specific predicates
+config's `SCHEMA.analysis.md` shape (`check_schema_analysis`) plus task-specific predicates
 (right layer/executor, version, minimal build profile, scenario, and `derived_from`
 the test). Score is `passed/total`; threshold `0.8`.

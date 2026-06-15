@@ -7,7 +7,7 @@ name: Reproduce Issue
 # Status: analyze = config-only claude-code-action agent; build-repro = live-instance
 # agent that creates + self-verifies the executable bundle; reproduce = real provision
 # + deterministic executor for all three layers (http / playwright / direct). All JSON conforms to
-# .claude/skills/reproduce/references/SCHEMA.md.
+# the .claude/skills/reproduce/references/SCHEMA.*.md contracts.
 
 on:
   issues:
@@ -193,11 +193,12 @@ jobs:
           echo "::error::Set the secret, or dispatch with dry_run=true for a clearly-labelled demo."
           exit 1
 
-      # Real Analyze agent. Emits config-only analysis.json per references/SCHEMA.md.
+      # Real Analyze agent. Emits config-only analysis.json per references/SCHEMA.analysis.md.
       # Prefetch the issue + (best-effort) the linked fix PR's diff with cheap gh calls,
       # then concatenate the runbook + schema + issue into ONE analyze-context.md so the
       # agent reads ONE file instead of spending turns ($) fetching/exploring.
       - name: Prefetch context
+        id: ctx
         if: steps.mode.outputs.mode == 'real'
         env:
           ISSUE: ${{ needs.gate.outputs.issue }}
@@ -205,6 +206,9 @@ jobs:
         run: |
           bash .github/actions/repro/bin/prefetch.sh
           bash .github/actions/repro/bin/analyze-context.sh
+          # Inject the assembled context as the prompt itself → the agent starts with it in
+          # context, saving the one Read of analyze-context.md (screenshots are still Read-ed).
+          { echo 'prompt<<CONTEXT_EOF'; cat analyze-context.md; echo CONTEXT_EOF; } >> "$GITHUB_OUTPUT"
 
       - name: Analyze (agent)
         id: analyze
@@ -223,16 +227,10 @@ jobs:
           # the toolset below is Read+Write ONLY — so the agent literally cannot explore; it
           # reads the context (+ any screenshots), then writes the plan. This is the cost
           # collapse: ~1 Read + 1 Write instead of a 40-turn search.
-          prompt: |
-            You are running the `reproduce` skill's Analyze phase for issue
-            #${{ needs.gate.outputs.issue }}.
-            Everything you need is in `./analyze-context.md` (the runbook + output contract +
-            the issue + any linked fix PR). Read it; it lists any attached screenshots by exact
-            path — Read those directly (do not glob). Then WRITE a complete `analysis.json`.
-            You have NO search/exploration tools — do not attempt to read code or run commands.
-            A worse-but-written plan beats an unwritten perfect one: when uncertain, emit the
-            plan with lower `confidence` (or the `needs_info` object), never silence.
-            Write ONLY `analysis.json` — no fixtures, requests, assertions, specs, or tests.
+          # The full assembled context IS the prompt (injected by the Prefetch step) — no
+          # "read the file" round-trip. Instructions are maintained in analyze-context.md
+          # (prompts/analyze-context.tpl.md + the references). One place to edit.
+          prompt: ${{ steps.ctx.outputs.prompt }}
           # Sonnet (bounded task). Hard-cap turns LOW: there is nothing to explore, so this is
           # a ceiling for read-context + read-images + write, not a search budget. Read+Write
           # only — no Bash/Grep/Glob means exploration is impossible, not merely discouraged.
@@ -368,13 +366,18 @@ jobs:
           exit 1
 
       - name: Prefetch context
+        id: ctx
         if: steps.mode.outputs.mode == 'real'
         env:
           ISSUE: ${{ needs.gate.outputs.issue }}
           GH_TOKEN: ${{ github.token }}
+          MAX_TURNS: ${{ github.event.inputs.max_turns || '30' }} # filled into the build-context turn budget
         run: |
           bash .github/actions/repro/bin/prefetch.sh
           bash .github/actions/repro/bin/build-context.sh
+          # Inject the assembled context as the prompt itself → the agent starts with it in
+          # context, saving the one Read of build-context.md (screenshots are still Read-ed).
+          { echo 'prompt<<CONTEXT_EOF'; cat build-context.md; echo CONTEXT_EOF; } >> "$GITHUB_OUTPUT"
 
       - name: Build Repro (agent)
         id: build_agent
@@ -384,67 +387,11 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.QUALITY_INITIATIVE_ANTHROPIC_API_KEY || secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ github.token }}
-          prompt: |
-            You are running the `reproduce` skill's Build Repro phase for issue
-            #${{ needs.gate.outputs.issue }}.
-            Everything you need is in `./build-context.md` — the runbook, the output
-            contracts, the executor contract, `analysis.json`, the issue, and (when found)
-            the fix PR. READ IT FIRST (one Read); it lists any attached screenshots by exact
-            path — Read those directly (do not glob). Do NOT read BUILD.md/SCHEMA.md/the
-            executor contract separately — they are already inlined there.
-            ALLOWED COMMANDS — everything else is auto-DENIED and only wastes a turn:
-            file tools (Read/Write/Edit/Glob/Grep); `bash .github/actions/repro/bin/build-verify.sh`;
-            `bash .github/actions/repro/bin/shop-get.sh ...`; WebSearch + WebFetch(developer.shopware.com);
-            and plain read-only shell (cat/ls/find/jq/grep/rg/head/tail/sed/wc/git log|show|diff|blame).
-            Glob/Grep ARE allowed for TARGETED lookups (find an exact template/field/selector). What
-            is NOT allowed: sub-agents (Task/Agent — disabled), python3/node/raw curl/wget/inline
-            scripts/here-docs, or any `VAR=value`-prefixed command (all blocked). For ANY JSON use
-            `jq` (not python3/grep). If you can't proceed within these, STOP and explain in plain text.
-            To INSPECT live-shop state (entity ids, fields, whether a fixture took), use the
-            getter — it is your ONLY way to query the API, never hand-roll curl/python/OAuth:
-                bash .github/actions/repro/bin/shop-get.sh <entity> <id>
-                bash .github/actions/repro/bin/shop-get.sh <entity> --filter field=value
-            (e.g. `shop-get.sh category --filter type=page`). It returns flat JSON.
-            TURN BUDGET: you have a HARD cap of ${{ github.event.inputs.max_turns || '30' }} turns
-            (tool calls). Hitting it KILLS the run mid-work with nothing finished — the worst
-            outcome. Spend turns on authoring + build-verify cycles, NOT research. A faithful
-            repro fits well inside this; open-ended investigation does not. If you are not
-            converging by roughly two-thirds of the budget, STOP and write a blocked/inconclusive
-            result with a plain-text explanation rather than burning the rest.
-            WORK IN TWO PHASES — author dumb in ONE pass, then verify ONCE.
-            PHASE 1 — AUTHOR (do not touch the live shop yet): from the issue, screenshots,
-            `fixpr.diff`, your Shopware knowledge, and a FEW TARGETED lookups (glob/grep one
-            template/field/example to get an exact selector, field name, or config shape — NOT
-            an investigation), write the COMPLETE bundle in one go: `repro-plan.json` plus
-            `fixtures.json` / `repro.spec.ts` / `ReproTest.php` as the executor needs. Use
-            `{{TAX}}`/`{{CURRENCY}}`/`{{SC}}`/`{{NAV_CAT}}` placeholders for install ids and your
-            own fixed 32-hex UUIDs for entities you create; seed nested graphs as ONE nested
-            payload. You do NOT need to query the shop to author — DERIVE it.
-            PHASE 2 — VERIFY ONCE (a backstop, not a loop): run EXACTLY (pre-approved, no env
-            prefix) `bash .github/actions/repro/bin/build-verify.sh`, then Read `builder-result.json`.
-            This shop is the REPORTED (buggy) version, so `reproduced` is expected.
-            - `reproduced` → done.
-            - not `reproduced` → make AT MOST ONE targeted fix (a field, a selector, a missing
-              precondition/visibility) and re-run build-verify ONE more time.
-            - still not → STOP: keep the bundle, lower `confidence`, note why in
-              `confidence_reason`. The deterministic reported/trunk legs re-seed + re-run it as
-              the real check — your job is a plausible bundle, not a proven one.
-            HARD LINE — never turn a failed verify into an investigation. Do NOT read the
-            resolver/service chain to understand WHY the symptom happens, do NOT spelunk the
-            entity graph with shop-get. A lookup answers "what's the exact field/selector"; an
-            investigation asks "why does the bug happen" — the first is fine, the second is the
-            spiral that burns the whole budget. If the fixture graph is huge and keeps failing,
-            the layer is too expensive — STOP, don't grind.
-            Do NOT call seed.sh / run-leg.sh yourself, do NOT prefix commands with `VAR=value`,
-            and do NOT edit anything under `.github/actions/repro/` — that is the harness.
-            The workflow validates only the files you produced; it will NOT seed or run the
-            executor again. Do not stop with an unverified bundle.
-            STOP-DON'T-HACK: if you find yourself fighting the tooling — a command keeps
-            needing approval, a script won't run, you're tempted to wrap it, prefix it with
-            env vars, edit a harness file under `.github/actions/repro/`, or otherwise work
-            around it — STOP immediately. Do NOT hack around it. End your turn with a plain
-            explanation in the chat (NOT a JSON file) of exactly which command failed and how,
-            so a human can fix the harness. A clear stop beats a clever workaround.
+          # The full assembled context IS the prompt (injected by the Prefetch step) — no
+          # "read the file" round-trip. All instructions (turn budget, allowed commands,
+          # two-phase discipline, fixtures rules) are maintained in build-context.md, assembled
+          # from prompts/build-context.tpl.md + the references. One place to edit.
+          prompt: ${{ steps.ctx.outputs.prompt }}
           # Search tools (Glob/Grep/rg/grep/find) ARE allowed: a TARGETED lookup (find the exact
           # template/field/selector) is what let the cheap one-shot author succeed. The failure
           # mode is the open-ended investigation LOOP, which the prompt bounds (author once →
@@ -698,6 +645,23 @@ jobs:
         env:
           HAS_KEY: ${{ secrets.QUALITY_INITIATIVE_ANTHROPIC_API_KEY != '' || secrets.ANTHROPIC_API_KEY != '' }}
         run: echo "real=$HAS_KEY" >> "$GITHUB_OUTPUT"
+      # Fill prompts/attribute.md (placeholders → values) into a multiline step output, so the
+      # prompt text is maintained in one file, not inline here.
+      - name: Build attribution prompt
+        id: attr_prompt
+        if: steps.mode.outputs.real == 'true'
+        env:
+          ISSUE: ${{ needs.gate.outputs.issue }}
+          VERDICT: ${{ needs.verdict.outputs.verdict }}
+        run: |
+          if [ "$VERDICT" = regression ]; then KIND=regression; ACTION=INTRODUCED; else KIND=fix; ACTION=FIXED; fi
+          {
+            echo 'text<<PROMPT_EOF'
+            sed -e "s/{{ISSUE}}/$ISSUE/g" -e "s/{{VERDICT}}/$VERDICT/g" -e "s/{{KIND}}/$KIND/g" -e "s/{{ACTION}}/$ACTION/g" \
+              .github/actions/repro/prompts/attribute.md
+            echo 'PROMPT_EOF'
+          } >> "$GITHUB_OUTPUT"
+
       - name: Attribute (agent)
         if: steps.mode.outputs.real == 'true'
         continue-on-error: true # enrichment only — a failed attribution must not red the run
@@ -708,15 +672,7 @@ jobs:
           claude_args: >-
             --model claude-sonnet-4-6 --max-turns 20
             --allowedTools "Read,Glob,Grep,Write,Bash(git log:*),Bash(git show:*),Bash(git diff:*),Bash(git blame:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(rg:*),Bash(cat:*),Bash(ls:*),Bash(jq:*)"
-          prompt: |
-            The reproduce pipeline returned verdict "${{ needs.verdict.outputs.verdict }}" for issue
-            #${{ needs.gate.outputs.issue }}. Read repro-plan.json for the reported version and the
-            implicated code paths/symptom. Inspect `git log v<reported-version>..trunk` restricted to
-            those paths and find the single commit that most likely
-            ${{ needs.verdict.outputs.verdict == 'regression' && 'INTRODUCED' || 'FIXED' }} the symptom
-            (the one whose diff touches the asserted behaviour). Write ONLY this JSON to
-            attribution.json — no prose, no fence:
-            {"schema_version":"1","kind":"${{ needs.verdict.outputs.verdict == 'regression' && 'regression' || 'fix' }}","likely_commit":"<sha>","pr":"<#-or-null>","reasoning":"<1-2 sentences>","confidence":0.0}
+          prompt: ${{ steps.attr_prompt.outputs.text }}
       - name: Skipped (no key)
         if: steps.mode.outputs.real != 'true'
         run: echo "::warning::No API key — skipping commit attribution (enrichment only)."

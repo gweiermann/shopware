@@ -1,156 +1,90 @@
-# Build Repro phase — runbook
+# Build Repro
 
-Build Repro turns `analysis.json` into a verified executable repro bundle. This phase
-has a live Shopware instance, so it may iterate on fixtures and test code until the
-deterministic executor can run and classify the result.
+You author a runnable repro bundle against a LIVE Shopware shop, then self-verify it once.
+This document, plus the contracts / executor / issue that follow it, is your COMPLETE context —
+read it; do not go looking for other files.
 
-## Scope: you REPRODUCE, you do not root-cause or fix
+## Environment — already set, do NOT probe
 
-Your job is to make the symptom *occur and be detected* — not to explain *why* it occurs.
-Author the bundle in ONE pass, then verify ONCE (below). The cheapest successful runs derive
-everything statically and barely touch the shop.
+A live shop on the **reported (buggy) version** is running. These are exported in your shell:
+`APP_URL`, `SW_ACCESS_KEY`, `ADMIN_USER` (`admin`), `ADMIN_PASS` (`shopware`). Never echo /
+printenv / discover them.
 
-- **Targeted lookups: yes. Investigation: no.** A targeted lookup answers *"what is the exact
-  field / selector / config shape?"* — e.g. grep the one Twig that renders the symptom to get
-  the assertion text, or read the fix PR's test for a fixture shape. That is fine and often
-  necessary (1–3 lookups). What is forbidden is the open-ended *investigation*: reading the
-  resolver/service chain to understand *why* the bug happens, or spelunking the entity graph
-  with `shop-get`. The first lets you author; the second is the spiral that burns the budget.
-- **After the first verify, at most ONE targeted fix.** When `build-verify` is not
-  `reproduced`, you have two moves: (a) make ONE targeted fix (a fixture field, a visibility
-  entry, a locator, a precondition) and re-verify once, or (b) STOP. Never turn a failed verify
-  into an investigation — a failed verify is NOT a cue to go read the codebase.
-- **A plausible bundle beats a proven-but-never-finished one.** If you stop unverified, keep
-  the bundle, lower `confidence`, and say why in `confidence_reason`: the deterministic
-  reported/trunk legs re-seed and re-run it, so they are the real check.
-- **Don't over-build fixtures.** If a faithful repro needs a large interdependent fixture
-  graph (e.g. CMS page + element + category link + variant + sales-channel visibility) and it
-  keeps failing, that is a signal the layer is too expensive — reconsider a cheaper layer that
-  shows the same symptom, or stop. Do not grind the setup.
+## Commands — everything else is auto-DENIED (and only wastes a turn)
 
-## Inputs
+| Need | Use |
+| --- | --- |
+| author / edit files | `Read`, `Write`, `Edit` |
+| find an exact selector / field / config shape | `Glob`, `Grep`, `rg`, `grep`, `find` — **targeted lookups only**, never open-ended investigation |
+| self-verify the bundle | `bash .github/actions/repro/bin/build-verify.sh` — seeds `fixtures.json` + runs the executor as the `builder` leg → writes `builder-result.json` |
+| query live shop state | `bash .github/actions/repro/bin/shop-get.sh <entity> [<id> \| --filter field=value]` — auth handled, returns flat JSON |
+| parse / transform JSON | `jq` |
+| other read-only shell | `cat` `ls` `head` `tail` `sed` `wc` `git log\|show\|diff\|blame` |
+| official docs | `WebSearch` (scope every query `site:developer.shopware.com`), then `WebFetch` (locked to that domain) |
 
-- `analysis.json` — config-only output from Analyze.
-- `issue.md` and optional `fixpr.diff` — already prefetched issue context.
-- Live shop coordinates in the environment: `APP_URL`, and when available
-  `SW_ACCESS_KEY`, `ADMIN_USER`, `ADMIN_PASS`.
-- The working directory contains the reproduce helper scripts and executor contracts.
-- To INSPECT live-shop state (entity ids, fields, whether a fixture took), use the
-  pre-approved getter — never hand-roll curl/python/OAuth (it handles auth and returns flat
-  JSON, no JSON:API `.attributes` nesting):
-  ```
-  bash .github/actions/repro/bin/shop-get.sh <entity> <id>            # GET by id
-  bash .github/actions/repro/bin/shop-get.sh <entity> --filter field=value
-  ```
-  e.g. `shop-get.sh category --filter type=page`, `shop-get.sh sales-channel`. Read-only.
-  **Use it to inspect shape/values, NOT to copy ids.** A pre-existing install entity's id
-  (tax, currency, sales channel, country, salutation, language, nav category) must be
-  referenced by its `{{PLACEHOLDER}}` in fixtures — never the literal id you read here. Every
-  provisioned instance has different UUIDs, so a literal id seeds on the builder but
-  FK-fails on the reported/trunk legs (`seed.sh` rejects hardcoded install ids for this reason).
+**BLOCKED — never attempt (each only burns a turn):** `python3`/`node`, raw `curl`/`wget`,
+inline scripts / here-docs, any `VAR=value`-prefixed command, sub-agents (`Task`/`Agent`), and
+editing anything under `.github/actions/repro/`. If you genuinely cannot proceed within the
+allowed set, **STOP** and explain in plain text (not a JSON file) — never hand-roll a workaround.
+
+## Scope & discipline
+
+- **Reproduce, don't root-cause.** Make the symptom *occur and be detected*; do not explain
+  *why* it happens.
+- **Targeted lookups: yes. Investigation: no.** Finding one exact selector/field/config shape
+  (e.g. grep the Twig that renders the symptom) is fine — 1–3 lookups. Reading the
+  resolver/service chain to understand *why*, or spelunking the entity graph with `shop-get`,
+  is the spiral that burns the budget. A failed verify is NOT a cue to investigate.
+- **Author in ONE pass, verify ONCE.** After a non-`reproduced` result: at most ONE targeted
+  fix + one re-verify, then accept or STOP. Never loop.
+- **A plausible bundle beats a never-finished one.** If you stop unverified, keep the files,
+  lower `confidence`, and say why in `confidence_reason` — the reported/trunk legs re-seed and
+  re-run it, so they are the real check.
+- **Don't over-build.** A large interdependent fixture graph that keeps failing means the
+  layer is too expensive — pick a cheaper one that shows the same symptom, or stop.
 
 ## Procedure
 
-> **Batch reads.** Pull the fixed inputs in ONE turn (`analysis.json`, `issue.md`,
-> `SCHEMA.md`, and — once you have picked the executor — its one contract file). Reading
-> them one per turn just burns budget.
+1. **Pick the executor** (start from `analysis.executor`). Switching is a real switch: read the
+   other contract and rewrite `layer`/`executor`/`build_profile` together. This shop was built
+   for `analysis.build_profile`; escalating to a surface it did not build (e.g. `http` →
+   `playwright` with no storefront) makes self-verify "prove" a broken bundle — that is a
+   `blocked` result (profile escalation needed), not a reason to weaken the assertion.
+2. **Write `repro-plan.json` + the executor's artifact:**
+   - `http`: `request`/`requests` + `assertion`.
+   - `playwright`: `script_path: "repro.spec.ts"` + the spec.
+   - `direct`: `script_path: "ReproTest.php"` + the PHPUnit test.
+   - fixtures: `fixtures.sync_payload_path: "fixtures.json"` + the file, when seeded data is needed.
+3. **Fixtures rules:**
+   - Reference pre-existing install entities by `{{PLACEHOLDER}}` (`{{SC}}` `{{NAV_CAT}}`
+     `{{TAX}}` `{{CURRENCY}}` `{{COUNTRY}}` `{{SALUTATION}}` `{{LANGUAGE}}`) — NEVER a literal id
+     read off this shop; every provisioned instance has different UUIDs (`seed.sh` rejects
+     hardcoded install ids, because a literal seeds here but FK-fails on the reported/trunk legs).
+   - Entities you create: deterministic 32-hex UUIDs, sync `upsert` (idempotent on re-seed; no
+     DB-rollback is provided, so reseeding must overwrite the same ids).
+   - **Nested graphs** (e.g. a CMS page → sections → blocks → slots): write the WHOLE graph as
+     ONE nested payload, not separate flat ops — the DAL then assigns the live version
+     automatically. Flat writes / hand-set `cmsPageVersionId` are the usual cause of "seeded but
+     renders empty". CMS model + JSON examples (WebFetch for details):
+     <https://developer.shopware.com/docs/concepts/commerce/content/shopping-experiences-cms.html>
+   - No protected/computed fields (`autoIncrement`, `createdAt`/`updatedAt`, `versionId`, …).
+4. **Self-verify:** run `bash .github/actions/repro/bin/build-verify.sh`, then Read
+   `builder-result.json`:
+   - `reproduced` → the bundle detects the symptom on this (buggy) version. **Expected — see below.**
+   - `not_reproduced` → runnable, classifies this version healthy.
+   - `blocked`/`inconclusive` → not verified; one targeted fix if it is a fixable setup problem,
+     else stop with a specific `blocked_reason`.
 
-1. Read `analysis.json`, `references/SCHEMA.md`, and the issue context.
-2. Choose the final executor. Start from `analysis.executor`, but change it if the
-   live shop proves the candidate layer cannot exercise the symptom. **Switching executor
-   is a real switch:** read the new contract, rewrite `layer`/`executor`/`build_profile`
-   together, and remember this shop was provisioned for `analysis.build_profile` — if you
-   escalate to a surface that needs assets this instance did not build (e.g. `http` →
-   `playwright` with no storefront/admin build), self-verification will "prove" a broken
-   bundle. That is a `blocked` builder-result (profile escalation needed), NOT something to
-   paper over with a weaker assertion.
-3. Read only the matching executor contract:
-   - `references/executors/http.md`
-   - `references/executors/playwright.md`
-   - `references/executors/direct.md`
-4. Write `repro-plan.json` with executable fields:
-   - HTTP: `request` or `requests`, `assertion`.
-   - Playwright: `script_path: "repro.spec.ts"` and the spec file.
-   - Direct: `script_path: "ReproTest.php"` and the PHPUnit file.
-   - Fixtures: `fixtures.sync_payload_path: "fixtures.json"` and `fixtures.json`
-     when seeded entities are needed.
-5. Self-verify inside this agent turn. Run EXACTLY this one command — no env-var prefix,
-   it is pre-approved and seeds `fixtures.json` (when present) then runs the executor as the
-   `builder` leg:
-   ```
-   bash .github/actions/repro/bin/build-verify.sh
-   ```
-   Do NOT call `seed.sh` / `run-leg.sh` yourself and do NOT prefix any command with
-   `VAR=value`: the live-shop coordinates (`APP_URL`, `SW_ACCESS_KEY`, `ADMIN_USER`,
-   `ADMIN_PASS`) are already in your environment, and a `VAR=value …` prefix is what trips
-   the approval prompt this unattended run cannot grant (it wastes the whole budget).
+## The builder runs the REPORTED (buggy) version → `reproduced` is expected
 
-   **Stop, don't hack.** If a command keeps needing approval or won't run, do NOT try to work
-   around it — no wrapper scripts, no env-var prefixes, no hand-rolled curl/python to hit the
-   API (use `shop-get.sh` to inspect state), no editing anything under
-   `.github/actions/repro/`. STOP and end your turn with a plain-text explanation in the chat
-   (not a JSON file) of which command failed and how, so a human can fix the harness. A clear
-   stop beats a clever workaround. Then:
-   - Read `builder-result.json` and decide whether the result proves the repro bundle's
-     assumption:
-     - `reproduced`: the generated healthy assertion fails on the builder instance, so
-       the bundle can detect the reported symptom on that version.
-     - `not_reproduced`: the generated healthy assertion passes on the builder instance,
-       so the bundle is runnable and classifies the builder version as healthy.
-     - `blocked` or `inconclusive`: the bundle is not verified. Inspect the reason and
-       refine fixtures/test code only if the failure is a fixable harness/setup problem.
-6. Verify ONCE; after a non-`reproduced` result make at most ONE targeted fix and re-verify
-   once, then accept or stop (do not loop). Keep each
-   attempt idempotent:
-   - Prefer deterministic 32-char IDs and sync `upsert` fixtures so reseeding updates
-     the same entities instead of accumulating duplicates.
-   - If an attempted fixture/test created bad state, reset by overwriting those same IDs
-     or by issuing a targeted cleanup through the Admin API/sync API before the next
-     attempt.
-   - Do not depend on a database transaction rollback around the full attempt: the
-     generic workflow does not provide one for HTTP/Playwright/admin sync side effects.
-     Treat fixture rollback as explicit cleanup or idempotent overwrite.
-   - Limit retries to a small bounded number; repeated `blocked`/`inconclusive` for the
-     same reason must become the final `builder-result.json`.
+A `not_reproduced` here is a RED FLAG: most likely the bundle does not exercise the symptom
+(wrong surface, an absent precondition, an assertion too loose to detect the defect) — not that
+the reporter is wrong. Re-check faithfulness once; if you still accept it, lower `confidence`
+and record the obstacle in `confidence_reason` (so the verdict routes to a human instead of a
+confident `not_reproducible`).
 
-## Success Criteria
+## Output (workspace root)
 
-Build Repro succeeds only when the agent has seeded any required fixtures, run the
-deterministic executor itself, read `builder-result.json`, and concluded that the result
-supports the bundle assumption. The final `builder-result.json` must have status
-`reproduced` or `not_reproduced`. The workflow validates the files afterward, but it does
-not seed or run the executor again. The status only proves the bundle is runnable and
-classifiable on the builder instance; reported/trunk verdicts still come from the
-deterministic matrix.
-
-### The builder runs the REPORTED (buggy) version — so `reproduced` is the expected result
-
-The builder instance is provisioned on the version the reporter says is broken. A
-`not_reproduced` here is therefore a RED FLAG, not a clean pass: by far the likeliest
-explanation is that the bundle does not actually exercise the symptom (wrong surface, a
-silently-absent precondition, an assertion too loose to detect the defect) — not that the
-reporter is wrong. Before you accept a `not_reproduced` builder result:
-
-1. Re-check faithfulness ONCE — does the scenario truly hit the reported code path? Is
-   every precondition present (not skipped/absent)? Is the healthy assertion strict enough
-   that the buggy behaviour would fail it?
-2. If it still does not reproduce, you MAY accept it, but you must lower `confidence` and
-   record the faithfulness obstacle in `confidence_reason` (so the verdict is routed to a
-   human rather than posted as a confident `not_reproducible`).
-
-Keep the seed+run loop to a small bounded number of cycles (≈3). Do not grind: repeated
-`blocked`/`inconclusive` for the same reason becomes the final `builder-result.json`.
-
-If the bundle cannot be made runnable, write `builder-result.json` with `blocked` or
-`inconclusive` and a specific `blocked_reason`. The workflow must stop before spending
-reported/trunk matrix capacity.
-
-## Output
-
-Emit these files in the workspace root:
-
-- `repro-plan.json`
-- `builder-result.json`
-- Optional `fixtures.json`
-- Optional `repro.spec.ts`
-- Optional `ReproTest.php`
+`repro-plan.json`; `builder-result.json` (`reproduced`|`not_reproduced`, or
+`blocked`/`inconclusive` + `blocked_reason` if unrunnable); optional `fixtures.json` /
+`repro.spec.ts` / `ReproTest.php`.

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Smoke test for the reproduce pipeline's decision logic.
 #
-# Tests the two pure contracts from references/SCHEMA.md that are most likely to
-# regress: the target matrix (dedup + "not on manual rerun") and the verdict map.
+# Tests the two pure contracts most likely to regress: the target matrix (dedup +
+# "not on manual rerun") and the verdict map (references/SCHEMA.report.md).
 # No GitHub, no Docker — just bash. Run: bash .claude/skills/reproduce/tests/smoke.sh
 set -euo pipefail
 
