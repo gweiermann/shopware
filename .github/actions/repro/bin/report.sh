@@ -1,93 +1,157 @@
 #!/usr/bin/env bash
-# Render the GitHub comment (-> $OUT, default comment.md) and, when $GITHUB_STEP_SUMMARY is
-# set, the job summary. Shared by reproduce + fix-verify; MODE selects leg names, the
-# headline, and the verdict callouts. Reads leg statuses straight from the artifacts.
+# Render the GitHub comment (-> $OUT, default comment.md) and, when $GITHUB_STEP_SUMMARY is set,
+# the job summary. Shared by reproduce + fix-verify; MODE selects leg names + phrasing. The
+# `### Evidence` section (inline screenshots + recording links) is appended afterwards by
+# embed-evidence.sh — the `#evidence` quicklink anchors to it.
 #
 # Env: MODE(reproduce|fix-verify, default reproduce), ART(default artifacts), ISSUE,
-#      VERDICT, FIX, UNSURE, RUN_URL, OUT(default comment.md).
+#      VERDICT, FIX, UNSURE, RUN_URL, DATE(default: today UTC), OUT(default comment.md).
 set -euo pipefail
 
 MODE=${MODE:-reproduce}; ART=${ART:-artifacts}; OUT=${OUT:-comment.md}
 VERDICT=${VERDICT:-needs_human_review}; FIX=${FIX:-}; UNSURE=${UNSURE:-}; RUN_URL=${RUN_URL:-}
+DATE=${DATE:-$(date -u +%Y-%m-%d)}
 case "$MODE" in
-  reproduce)  A=reported; B=trunk; SUBJECT="Reproduction — Issue #${ISSUE}" ;;
-  fix-verify) A=base;     B=head;  SUBJECT="Fix verification — PR #${ISSUE}" ;;
+  reproduce)  A=reported; B=trunk; KIND="Reproduction" ;;
+  fix-verify) A=base;     B=head;  KIND="Fix verification" ;;
   *) echo "::error::unknown MODE '$MODE'"; exit 1 ;;
 esac
 AF="$ART/repro-$A/result.json"; BF="$ART/repro-$B/result.json"
-AN="$ART/repro-plan/repro-plan.json"
-[ -f "$AN" ] || AN="$ART/analysis/analysis.json"
+AN="$ART/repro-plan/repro-plan.json"; [ -f "$AN" ] || AN="$ART/analysis/analysis.json"
+FX="$ART/repro-plan/fixtures.json"
 ATTR="$ART/attribution/attribution.json"
-LAYER=$(jq -r .layer "$AN" 2>/dev/null || echo unknown)
+LAYER=$(jq -r '.layer // "unknown"' "$AN" 2>/dev/null || echo unknown)
+EX=$(jq -r '.executor // "unknown"' "$AN" 2>/dev/null || echo unknown)
 have_a=0; [ -f "$AF" ] && have_a=1
 have_b=0; [ -f "$BF" ] && have_b=1
-as="null"; [ -f "$AF" ] && as=$(jq -r .status "$AF")
-bs="null"; [ -f "$BF" ] && bs=$(jq -r .status "$BF")
+as="null"; [ "$have_a" = 1 ] && as=$(jq -r .status "$AF")
+bs="null"; [ "$have_b" = 1 ] && bs=$(jq -r .status "$BF")
+RV=$(jq -r '.version // "?"' "$([ "$have_a" = 1 ] && echo "$AF" || echo "$AN")" 2>/dev/null || echo '?')
+# Human leg labels.
+if [ "$MODE" = reproduce ]; then AL="v${RV}"; BL="trunk"; else AL="base"; BL="head"; fi
 
-# Dedup: the generated script is identical across legs for direct/playwright (authored ONCE)
-# and usually http; only http can vary (per-leg resolved ids). Show it once when they match.
-same=0; maxlines=0
-for f in "$AF" "$BF"; do [ -f "$f" ] || continue
-  n=$(jq -r '.evidence.script // ""' "$f" | wc -l | tr -d ' '); [ "$n" -gt "$maxlines" ] && maxlines=$n; done
-if [ "$have_a" = 1 ] && [ "$have_b" = 1 ]; then
-  cmp -s <(jq -r '.evidence.script // ""' "$AF") <(jq -r '.evidence.script // ""' "$BF") && same=1; fi
+headline () { case "$VERDICT" in
+  live_bug)            echo "Bug reproduced — present on the reported version and on trunk" ;;
+  fixed_on_trunk)      echo "Bug reproduced on the reported version — already fixed on trunk" ;;
+  regression)          echo "Regression — fine on the reported version, broken on trunk" ;;
+  not_reproducible)    echo "Could not reproduce the bug" ;;
+  needs_human_review)  echo "Needs human review" ;;
+  blocked)             echo "Reproduction blocked (environment)" ;;
+  fix_verified)        echo "Fix verified" ;;
+  fix_ineffective)     echo "Fix ineffective — symptom still present with the fix" ;;
+  test_does_not_guard) echo "Test does not guard the bug" ;;
+  introduces_symptom)  echo "Change introduces the symptom" ;;
+  *)                   echo "$VERDICT" ;;
+esac; }
 
-emit_script () { # <result.json> <label-suffix> <mode: comment|full>
-  local f="$1" label="$2" mode="$3" lang nlines
-  lang=$(jq -r '.evidence.script_lang // "sh"' "$f")
-  nlines=$(jq -r '.evidence.script // ""' "$f" | wc -l | tr -d ' ')
-  [ "$nlines" -gt 0 ] || return 0
-  echo "**Repro script${label}** (\`${lang}\`)"
-  if [ "$mode" = comment ] && [ "$nlines" -gt 60 ]; then
-    echo "_${nlines} lines — in the \`repro-*\` run [artifact](${RUN_URL})._"
-  else echo "\`\`\`${lang}"; jq -r .evidence.script "$f"; echo '```'; fi
+surface () { case "$LAYER" in
+  storefront-ui) echo "the Storefront (browser)" ;;
+  admin-ui)      echo "the Admin (browser)" ;;
+  store-api)     echo "the Store API" ;;
+  admin-api)     echo "the Admin API" ;;
+  service)       echo "a service/DAL test" ;;
+  *)             echo "$LAYER" ;;
+esac; }
+executor_label () { case "$EX" in playwright) echo Playwright ;; http) echo HTTP ;; direct) echo PHPUnit ;; *) echo "$EX" ;; esac; }
+
+summary () { local s; s=$(surface); local e; e=$(executor_label)
+  case "$VERDICT" in
+    live_bug)         echo "Reproduced the reported bug on **v${RV}** and on **trunk** (${DATE}) via ${s} with ${e}." ;;
+    fixed_on_trunk)   echo "Reproduced on **v${RV}** but NOT on **trunk** (${DATE}) via ${s} — it appears fixed on trunk.${FIX:+ Likely fix: ${FIX}.}" ;;
+    regression)       echo "NOT reproduced on **v${RV}** but reproduced on **trunk** (${DATE}) via ${s} — this looks like a regression introduced after v${RV}." ;;
+    not_reproducible) echo "Could not reproduce on **v${RV}** or **trunk** (${DATE}) via ${s} — the generated repro may not faithfully exercise the reported scenario." ;;
+    needs_human_review) echo "The automated verdict is not trusted${UNSURE:+ (${UNSURE})}; the evidence below is informative but unconfirmed." ;;
+    blocked)          echo "The reproduction environment did not come up, so nothing was run." ;;
+    fix_verified)     echo "The symptom is present on **base** (without the fix) and gone on **head** (with it) — the fix works." ;;
+    fix_ineffective)  echo "The symptom still reproduces on **head** (with the fix applied)." ;;
+    test_does_not_guard) echo "The repro passes even on **base** (without the fix), so it would not catch a regression." ;;
+    introduces_symptom)  echo "**head** reproduces a symptom that **base** does not." ;;
+    *)                echo "Verdict: ${VERDICT}." ;;
+  esac; }
+
+# Caution blockquote — only for verdicts a human must double-check (the clean ones are covered
+# by the summary).
+callout () { case "$VERDICT" in
+  regression)          echo "> ⚠️ Confirm the reported leg actually exercised the symptom — a missing fixture can fake a regression." ;;
+  not_reproducible)    echo "> ℹ️ The symptom was observed on NEITHER version, including the reported (buggy) one — most often the repro doesn't faithfully hit the scenario. Confirm before closing." ;;
+  needs_human_review)  echo "> 🟡 Not trusted automatically${UNSURE:+ — ${UNSURE}}. Confirm against the scenario before acting." ;;
+  fix_ineffective|introduces_symptom) echo "> ❌ The change does not behave as intended — see the result below." ;;
+  test_does_not_guard) echo "> ⚠️ Strengthen the test, or the symptom isn't actually being exercised." ;;
+esac; }
+
+gloss () { case "$1" in # one-line plain-English read of a leg status
+  reproduced)     echo "→ the healthy assertion **failed**, so the symptom is present — **bug reproduced**." ;;
+  not_reproduced) echo "→ the healthy assertion **passed** — no symptom on this version (**healthy**)." ;;
+  inconclusive)   echo "→ the symptom **could not be judged** here — needs a human look." ;;
+  blocked)        echo "→ the environment/seed **failed** — this leg did not run." ;;
+  *)              echo "" ;;
+esac; }
+
+emit_result () { # <label> <status> <result.json>
+  local label="$1" st="$2" f="$3" rep br
+  rep=$(jq -r '.evidence.reporter_output // ""' "$f"); br=$(jq -r '.blocked_reason // ""' "$f")
+  echo; echo "#### On ${label}: \`${st}\`"
+  if [ -n "$rep" ] && [ "$rep" != null ]; then echo; echo '```'; echo "$rep"; echo '```'; fi
+  echo "$(gloss "$st")"
+  if [ -n "$br" ] && [ "$br" != null ]; then echo; echo "> ${br}"; fi
 }
-render_scripts () { # <mode: comment|full>
-  local mode="$1"
-  if   [ "$have_a" = 1 ] && [ "$have_b" = 1 ] && [ "$same" = 1 ]; then emit_script "$AF" " (run unchanged on both legs)" "$mode"
-  elif [ "$have_a" = 1 ] && [ "$have_b" = 1 ]; then emit_script "$AF" " — $A" "$mode"; echo; emit_script "$BF" " — $B" "$mode"
-  elif [ "$have_a" = 1 ]; then emit_script "$AF" "" "$mode"
-  elif [ "$have_b" = 1 ]; then emit_script "$BF" "" "$mode"; fi
-}
-leg_section () { # <leg name>
-  local t="$1" f st br ex ac
-  f="$ART/repro-$t/result.json"; [ -f "$f" ] || return 0
-  st=$(jq -r .status "$f"); br=$(jq -r '.blocked_reason // ""' "$f")
-  echo
-  if [ -n "$br" ] && [ "$br" != "null" ]; then echo "### ${t} — \`${st}\`"; echo; echo "> ⚠️ ${br}"
-  else ex=$(jq -r .assertion.expect "$f"); ac=$(jq -r .assertion.actual "$f"); echo "### ${t} — \`${st}\` (expected ${ex}, got ${ac})"; fi
-  echo "Reporter: \`$(jq -r .evidence.reporter_output "$f")\`"
-  # NB: must be an if (not a bare `[ ] &&`) — as the function's last command a false guard
-  # would make leg_section return 1 and set -e would abort the whole render (http legs).
-  if [ "$(jq -r .executor "$f")" = playwright ]; then
-    echo "📊 Interactive Playwright report + trace/video: \`repro-${t}\` artifact of the [run](${RUN_URL}) — open \`playwright-report/index.html\`."
+
+# Merge the two legs into one block when they reached the same status (the result is the same on
+# both); otherwise show each.
+result_section () {
+  if   [ "$have_a" = 1 ] && [ "$have_b" = 1 ] && [ "$as" = "$bs" ]; then emit_result "${AL} & ${BL}" "$as" "$AF"
+  elif [ "$have_a" = 1 ] && [ "$have_b" = 1 ]; then emit_result "$AL" "$as" "$AF"; emit_result "$BL" "$bs" "$BF"
+  elif [ "$have_a" = 1 ]; then emit_result "$AL" "$as" "$AF"
+  elif [ "$have_b" = 1 ]; then emit_result "$BL" "$bs" "$BF"
   fi
 }
 
+# Test case (the generated spec, authored once — show one). Source from whichever leg has it.
+SF="$AF"; [ "$have_a" = 1 ] || SF="$BF"
+SCRIPT=""; LANG=sh
+if [ -f "$SF" ]; then SCRIPT=$(jq -r '.evidence.script // ""' "$SF"); LANG=$(jq -r '.evidence.script_lang // "sh"' "$SF"); fi
+has_script=0; [ -n "$SCRIPT" ] && has_script=1
+has_fixtures=0; [ -f "$FX" ] && has_fixtures=1
+
 {
-  echo "## ${SUBJECT}: \`${VERDICT}\`"; echo
-  echo "Layer \`${LAYER}\` · ${A}: \`${as}\` · ${B}: \`${bs}\` · [run](${RUN_URL})"; echo
-  if jq -e '.scenario | arrays and length > 0' "$AN" >/dev/null 2>&1; then
-    echo "**Scenario**"; jq -r '.scenario[] | "1. " + .' "$AN"; echo; fi
-  case "$VERDICT" in
-    fixed_on_trunk)      if [ -n "$FIX" ]; then echo "**Likely fix (backport candidate):** ${FIX}"; fi ;;
-    fix_verified)        echo "> ✅ **Fix verified**: the symptom is present on \`base\` (without the fix) and gone on \`head\` (with it).${FIX:+ Derived from ${FIX}.}" ;;
-    fix_ineffective)     echo "> ❌ **Fix ineffective**: the symptom still reproduces on \`head\` (with the fix applied) — the change does not remove it." ;;
-    test_does_not_guard) echo "> ⚠️ **Test does not guard the bug**: the repro passes even on \`base\` (without the fix), so it would NOT catch a regression. Strengthen the test, or the symptom isn't actually being exercised." ;;
-    introduces_symptom)  echo "> ❌ **Introduces the symptom**: \`head\` reproduces a symptom that \`base\` does not." ;;
-    regression)          echo "> ⚠️ **Regression**: not reproduced on the reported version but reproduced on trunk. Confirm the reported leg actually exercised the symptom (a missing fixture can cause a false negative)." ;;
-    not_reproducible)    [ "$MODE" = reproduce ] && echo "> ℹ️ **Not reproducible**: the generated repro ran cleanly but observed the symptom on NEITHER version — including the reported (buggy) one. Most often that means the repro does not faithfully exercise the reported scenario (wrong surface, an absent precondition, or too-loose an assertion), not that the bug is absent. Confirm the steps below before closing." ;;
-    needs_human_review)  echo "> 🟡 **Needs human review**: the verdict is not trusted automatically${UNSURE:+ — ${UNSURE}}. The leg evidence below is informative but unconfirmed; confirm against the steps before acting." ;;
-  esac
-  if [ -f "$ATTR" ]; then KIND=$(jq -r .kind "$ATTR"); CMT=$(jq -r .likely_commit "$ATTR"); RSN=$(jq -r .reasoning "$ATTR"); echo "**Likely ${KIND} commit:** \`${CMT}\` — ${RSN}"; fi
-  leg_section "$A"; leg_section "$B"
+  echo "## AI Report (${KIND}): $(headline)"
   echo
-  render_scripts comment
+  # Quicklinks — Screenshots/Video anchor to the Evidence section (playwright only); Test case /
+  # Fixtures anchor to the collapsibles below.
+  ql="[Agent run](${RUN_URL})"
+  [ "$EX" = playwright ] && ql="${ql} · [Screenshots & video](#evidence)"
+  [ "$has_script" = 1 ]  && ql="${ql} · [Test case](#test-case)"
+  [ "$has_fixtures" = 1 ] && ql="${ql} · [Fixtures](#fixtures)"
+  echo "**Quicklinks:** ${ql}"
+  echo
+  echo "**Summary:** $(summary)"
+  c=$(callout); [ -n "$c" ] && { echo; echo "$c"; }
+  if [ -f "$ATTR" ]; then
+    echo; echo "**Likely $(jq -r .kind "$ATTR") commit:** \`$(jq -r .likely_commit "$ATTR")\` — $(jq -r .reasoning "$ATTR")"
+  fi
+  echo
+  echo "### Result"
+  result_section
+  # Placeholder: embed-evidence.sh inserts the `### Evidence` (screenshots + recording) block
+  # HERE — right under the verdict, above the collapsible details. Invisible if it never runs.
+  echo; echo "<!-- EVIDENCE -->"
+  if jq -e '.scenario | arrays and length > 0' "$AN" >/dev/null 2>&1; then
+    echo; echo "<details><summary>Scenario (Given / When / Then)</summary>"; echo
+    jq -r '.scenario[] | "1. " + .' "$AN"; echo; echo "</details>"
+  fi
+  if [ "$has_script" = 1 ]; then
+    echo; echo "### Test case"; echo "<details><summary>repro source (\`${LANG}\`)</summary>"; echo
+    echo "\`\`\`${LANG}"; printf '%s\n' "$SCRIPT"; echo '```'; echo; echo "</details>"
+  fi
+  if [ "$has_fixtures" = 1 ]; then
+    echo; echo "### Fixtures"; echo "<details><summary>fixtures.json (admin sync payload)</summary>"; echo
+    echo '```json'; cat "$FX"; echo '```'; echo; echo "</details>"
+  fi
 } > "$OUT"
 
-# Deterministic secret redaction — the comment is public and parts of it (scenario, scripts,
-# reporter output) originate from agent output over untrusted input. This deterministic pass is
-# the belt that doesn't rely on the agent having redacted anything.
+# Deterministic secret redaction — the comment is public and parts of it (summary, scripts,
+# reporter output, fixtures) originate from agent output over untrusted input. This deterministic
+# pass is the belt that doesn't rely on the agent having redacted anything.
 # NB: no \b — BSD sed lacks it and silent non-redaction is worse than over-redaction.
 sed -E -i.bak \
   -e 's/sk-ant-[A-Za-z0-9_-]{8,}/[REDACTED_KEY]/g' \
@@ -97,9 +161,5 @@ sed -E -i.bak \
   -e 's/([Bb]earer[[:space:]]+)[A-Za-z0-9._~+\/-]{16,}=*/\1[REDACTED]/g' \
   "$OUT" && rm -f "$OUT.bak"
 
-if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
-  { cat "$OUT"
-    if [ "$maxlines" -gt 60 ]; then echo; echo "<details><summary>Full generated repro script</summary>"; echo; render_scripts full; echo; echo "</details>"; fi
-  } >> "$GITHUB_STEP_SUMMARY"
-fi
+[ -n "${GITHUB_STEP_SUMMARY:-}" ] && cat "$OUT" >> "$GITHUB_STEP_SUMMARY"
 cat "$OUT"

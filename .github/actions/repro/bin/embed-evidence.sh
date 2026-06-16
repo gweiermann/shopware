@@ -78,6 +78,7 @@ if [ "${PUSH:-}" != "skip" ]; then
 fi
 
 RAW="https://raw.githubusercontent.com/$REPO/$BRANCH/runs/$RUN_ID"
+BLOCK=$(mktemp)
 {
   echo
   echo "### Evidence"
@@ -97,6 +98,13 @@ RAW="https://raw.githubusercontent.com/$REPO/$BRANCH/runs/$RUN_ID"
   fi
   echo
   echo "_Screenshots + recordings above persist; the trace and interactive Playwright HTML report are in the \`repro-*\` run artifacts (they expire after 7 days)._"
-} >> "$COMMENT"
+} > "$BLOCK"
+
+# Place the block where report.sh left the marker (right under the verdict); else append.
+if grep -q '<!-- EVIDENCE -->' "$COMMENT"; then
+  awk -v f="$BLOCK" '/<!-- EVIDENCE -->/{while ((getline l < f) > 0) print l; next} {print}' "$COMMENT" > "$COMMENT.new" && mv "$COMMENT.new" "$COMMENT"
+else
+  cat "$BLOCK" >> "$COMMENT"
+fi
 shown=""; for i in "${SHOW[@]}"; do shown="$shown ${NAMES[$i]}"; done
 echo "embedded inline evidence:$shown (collapsed=$COLLAPSED)"
