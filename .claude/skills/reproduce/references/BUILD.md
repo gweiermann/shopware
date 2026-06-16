@@ -1,26 +1,30 @@
 # Build Repro
 
-You author a runnable repro bundle against a LIVE Shopware shop, then self-verify it once.
-This document, plus the contracts / executor / issue that follow it, is your COMPLETE context —
-read it; do not go looking for other files.
+**You are a reproduction AUTHOR, not a debugger.** You turn a *known* bug report into a runnable
+fixture + assertion and prove it on the live shop. You do NOT investigate why the bug happens or
+how the feature works internally — that is out of scope and is the #1 reason runs fail. This
+document + the executor contract + the issue that follow are your COMPLETE context; don't look
+for other files.
 
-## Work order — author FIRST, let the verify drive the rest
+## The loop — follow it literally
 
-Do these in sequence. The single biggest budget-killer is researching the codebase *before*
-authoring — a real run spent 34 of its 40 turns reading resolvers/processors/routes, reached
-its first verify on the last turn, and iterated zero times. Don't.
+`write/fix the files → build-verify.sh → read the result → repeat`
 
-1. **Author now.** Before reading ANY `src/**`, write your best-effort bundle from the issue,
-   the screenshots, the fix PR, your Shopware knowledge, `shop-get` (for an existing entity's
-   shape), and — if truly needed — the dev docs. A wrong guess you can verify beats source you
-   study. **Do NOT read product source before your first verify.**
-2. **Verify** with `bash .github/actions/repro/bin/build-verify.sh`. Its result is precise — an
-   HTTP code, an FK error, "element not found", a wrong value — and THAT is your research
-   signal, far sharper than reading code.
-3. **Fix once.** If not `reproduced`, make ONE targeted change. Only now may you look up ONE
-   specific thing (an exact selector or field name) the failure pointed at — never to learn how
-   the feature works internally. Re-verify.
-4. Repeat step 3 at most twice, then STOP — keep the bundle, lower `confidence`, note why.
+1. **Your FIRST action is to WRITE the bundle** (`repro-plan.json` + the executor's artifact, and
+   `fixtures.json` if needed) — best-effort from the issue, screenshots, fix PR, your Shopware
+   knowledge, and `shop-get` (for an existing entity's shape/ids). **Do not read `src/**` yet.**
+2. **Verify:** `bash .github/actions/repro/bin/build-verify.sh`, then read `builder-result.json`.
+3. If not `reproduced`, the result names the ONE thing wrong (an HTTP code, an FK error,
+   "element not found", a wrong value). Fix THAT — and only now may you read ONE specific
+   file/selector it points to. Re-verify.
+4. Repeat step 3 at most twice; then STOP — keep the files, lower `confidence`, say why.
+
+**Do:** author from knowledge / screenshots / `shop-get` / docs, and verify within your first few
+turns; let each failure name the single next fix.
+**Don't:** ❌ read `src/**` before the first verify · ❌ read resolvers/processors/routes to learn
+how or why the feature works · ❌ spelunk the entity graph with `shop-get` · ❌ keep "researching
+to be sure". A real run broke all four — 34 of its 40 turns spent reading source, first verify on
+the last turn, zero iterations. A wrong guess you can verify beats source you study.
 
 ## Environment — already set, do NOT probe
 
@@ -32,26 +36,20 @@ printenv / discover them.
 
 | Need | Use |
 | --- | --- |
-| author / edit files | `Read`, `Write`, `Edit` |
-| find an exact selector / field / config shape | `Glob`, `Grep`, `rg`, `grep`, `find` — **targeted lookups only**, never open-ended investigation |
-| self-verify the bundle | `bash .github/actions/repro/bin/build-verify.sh` — seeds `fixtures.json` + runs the executor as the `builder` leg → writes `builder-result.json` |
-| query live shop state | `bash .github/actions/repro/bin/shop-get.sh <entity> [<id> \| --filter field=value]` — auth handled, returns flat JSON |
+| author / edit your files | `Read`, `Write`, `Edit` |
+| verify the bundle | `bash .github/actions/repro/bin/build-verify.sh` — seeds `fixtures.json` + runs the executor as the `builder` leg → writes `builder-result.json` |
+| inspect live shop state (an existing entity's shape / ids) | `bash .github/actions/repro/bin/shop-get.sh <entity> [<id> \| --filter field=value]` — auth handled, flat JSON |
 | parse / transform JSON | `jq` |
 | other read-only shell | `cat` `ls` `head` `tail` `sed` `wc` `git log\|show\|diff\|blame` |
-| official docs | `WebSearch` (scope every query `site:developer.shopware.com`), then `WebFetch` (locked to that domain) |
+| find ONE exact selector/field in source — **only AFTER a failed verify, never before** | `Glob`, `Grep`, `rg`, `grep`, `find` |
 
 **BLOCKED — never attempt (each only burns a turn):** `python3`/`node`, raw `curl`/`wget`,
 inline scripts / here-docs, any `VAR=value`-prefixed command, sub-agents (`Task`/`Agent`), and
 editing anything under `.github/actions/repro/`. If you genuinely cannot proceed within the
 allowed set, **STOP** and explain in plain text (not a JSON file) — never hand-roll a workaround.
 
-## Scope & discipline
+## Discipline
 
-- **Reproduce, don't root-cause.** Make the symptom *occur and be detected*; do not explain
-  *why* it happens. Reading the resolver/service chain to understand the mechanism — or
-  spelunking the entity graph with `shop-get` — is the spiral the Work order exists to prevent.
-- **A failed verify is a research signal, not a cue to investigate.** It tells you the one thing
-  to fix; resolve that, don't go read how the feature works.
 - **A plausible bundle beats a never-finished one.** If you stop unverified, keep the files,
   lower `confidence`, and say why in `confidence_reason` — the reported/trunk legs re-seed and
   re-run it, so they are the real check.
@@ -80,8 +78,7 @@ allowed set, **STOP** and explain in plain text (not a JSON file) — never hand
    - **Nested graphs** (e.g. a CMS page → sections → blocks → slots): write the WHOLE graph as
      ONE nested payload, not separate flat ops — the DAL then assigns the live version
      automatically. Flat writes / hand-set `cmsPageVersionId` are the usual cause of "seeded but
-     renders empty". CMS model + JSON examples (WebFetch for details):
-     <https://developer.shopware.com/docs/concepts/commerce/content/shopping-experiences-cms.html>
+     renders empty".
    - No protected/computed fields (`autoIncrement`, `createdAt`/`updatedAt`, `versionId`, …).
    - The sync payload is a MAP of operations — each key an `{entity, action, payload:[…]}`
      envelope, NOT a bare entity→array:

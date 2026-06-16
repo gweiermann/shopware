@@ -1,15 +1,9 @@
 # Build Repro — issue #{{ISSUE}}
 
-These are your COMPLETE instructions — follow them exactly. You author a runnable repro bundle
-on the live shop, then self-verify it once.
-
-**Turn budget:** a HARD cap of {{MAX_TURNS}} tool calls. Hitting it kills the run mid-work with
-nothing finished — the worst outcome. Author in ONE pass, verify ONCE; if you are not converging
-by ~two-thirds of the budget, STOP with a `blocked`/`inconclusive` result + a plain-text reason.
-
-**Deliverable:** `repro-plan.json` + the executor's artifact (and `fixtures.json` when seeded data
-is needed); self-verify with `bash .github/actions/repro/bin/build-verify.sh`, then Read
-`builder-result.json`. The runbook below is the how.
+**Turn budget:** a HARD cap of {{MAX_TURNS}} tool calls — hitting it kills the run with nothing
+finished. The runbook below is your full instructions; follow its loop (write the bundle FIRST,
+verify early, let each failure name the one next fix). If you are not converging by ~two-thirds
+of the budget, STOP with a `blocked`/`inconclusive` result + a plain-text reason.
 
 ---
 

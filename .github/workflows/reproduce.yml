@@ -400,7 +400,7 @@ jobs:
           claude_args: >-
             --model claude-sonnet-4-6 --max-turns ${{ github.event.inputs.max_turns || '30' }}
             --disallowedTools "Task,Agent"
-            --allowedTools "Read,Glob,Grep,Write,WebSearch,WebFetch(domain:developer.shopware.com),Bash(rg:*),Bash(git log:*),Bash(git show:*),Bash(git diff:*),Bash(git blame:*),Bash(cat:*),Bash(ls:*),Bash(find:*),Bash(jq:*),Bash(grep:*),Bash(head:*),Bash(tail:*),Bash(sed:*),Bash(wc:*),Bash(bash .github/actions/repro/bin/build-verify.sh:*),Bash(bash .github/actions/repro/bin/shop-get.sh:*),Bash(npm init:*),Bash(npm i:*),Bash(npm install:*),Bash(npx playwright install:*),Bash(cp:*),Bash(mkdir:*)"
+            --allowedTools "Read,Glob,Grep,Write,Bash(rg:*),Bash(git log:*),Bash(git show:*),Bash(git diff:*),Bash(git blame:*),Bash(cat:*),Bash(ls:*),Bash(find:*),Bash(jq:*),Bash(grep:*),Bash(head:*),Bash(tail:*),Bash(sed:*),Bash(wc:*),Bash(bash .github/actions/repro/bin/build-verify.sh:*),Bash(bash .github/actions/repro/bin/shop-get.sh:*),Bash(npm init:*),Bash(npm i:*),Bash(npm install:*),Bash(npx playwright install:*),Bash(cp:*),Bash(mkdir:*)"
         env:
           APP_URL: ${{ steps.provision.outputs.app_url }}
           SW_ACCESS_KEY: ${{ steps.provision.outputs.access_key }}
