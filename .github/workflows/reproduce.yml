@@ -50,9 +50,9 @@ on:
         default: "trunk"
         type: string
       max_turns:
-        description: "Cap on the Build Repro agent's turns (cost control; default 30). Analyze is fixed-low (6, classification only)."
+        description: "Cap on the Build Repro agent's turns (cost control; default 40). Analyze is fixed-low (6, classification only)."
         required: false
-        default: "30"
+        default: "40"
         type: string
 
 concurrency:
@@ -384,7 +384,7 @@ jobs:
         env:
           ISSUE: ${{ needs.gate.outputs.issue }}
           GH_TOKEN: ${{ github.token }}
-          MAX_TURNS: ${{ github.event.inputs.max_turns || '30' }} # filled into the build-context turn budget
+          MAX_TURNS: ${{ github.event.inputs.max_turns || '40' }} # filled into the build-context turn budget
         run: |
           bash .github/actions/repro/bin/prefetch.sh
           bash .github/actions/repro/bin/build-context.sh
@@ -413,7 +413,7 @@ jobs:
           # disabled: the agent only ever rewrites its OWN generated files, and it wasted turns
           # fighting Edit's exact-match on JSON/TS — Write (full rewrite) is the one way.
           claude_args: >-
-            --model claude-sonnet-4-6 --max-turns ${{ github.event.inputs.max_turns || '30' }}
+            --model claude-sonnet-4-6 --max-turns ${{ github.event.inputs.max_turns || '40' }}
             --disallowedTools "Task,Agent,Edit"
             --allowedTools "Read,Glob,Grep,Write,Bash(rg:*),Bash(git log:*),Bash(git show:*),Bash(git diff:*),Bash(git blame:*),Bash(cat:*),Bash(ls:*),Bash(find:*),Bash(jq:*),Bash(grep:*),Bash(head:*),Bash(tail:*),Bash(sed:*),Bash(wc:*),Bash(bash .github/actions/repro/bin/build-verify.sh:*),Bash(bash .github/actions/repro/bin/shop-get.sh:*),Bash(npm init:*),Bash(npm i:*),Bash(npm install:*),Bash(npx playwright install:*),Bash(cp:*),Bash(mkdir:*)"
         env:

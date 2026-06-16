@@ -5,14 +5,14 @@
 # scalars via sed; the executor contract is selected from analysis.executor. Keep prompt text in
 # the .md files, never here.
 #
-# Env: SKILL (references dir), TPL (template), ISSUE, MAX_TURNS (default 30), OUT (default build-context.md).
+# Env: SKILL (references dir), TPL (template), ISSUE, MAX_TURNS (default 40), OUT (default build-context.md).
 set -euo pipefail
 
 SKILL=${SKILL:-.claude/skills/reproduce/references}
 TPL=${TPL:-$(dirname "${BASH_SOURCE[0]}")/../prompts/build-context.tpl.md}
 OUT=${OUT:-build-context.md}
 ISSUE=${ISSUE:-?}
-MAX_TURNS=${MAX_TURNS:-30}
+MAX_TURNS=${MAX_TURNS:-40}
 EXECUTOR=$(jq -r '.executor // "http"' analysis.json 2>/dev/null || echo http)
 CONTRACT="$SKILL/executors/${EXECUTOR}.md"
 [ -f "$CONTRACT" ] || CONTRACT="$SKILL/executors/http.md"
