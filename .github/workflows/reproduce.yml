@@ -738,16 +738,16 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: bash .github/actions/repro/bin/report.sh
 
-      # Inline evidence (playwright legs): publish each leg's screenshot to the evidence
-      # branch and embed it in the comment — comments can't host real video (no attachments
-      # API), but images render inline and PERSIST past artifact expiry. Full video/trace/
-      # HTML report stay in the artifacts. Opt-in via the REPRO_EVIDENCE_BRANCH repo
-      # variable; enhancement only, never fails.
+      # Inline evidence (playwright legs): publish the leg screenshot(s) to an orphan evidence
+      # branch and embed them in the comment — comments can't host real video (no attachments
+      # API), but images render inline and PERSIST past artifact expiry. Full video/trace/HTML
+      # report stay in the artifacts. On by default (branch `ci/repro-evidence`, override with
+      # the REPRO_EVIDENCE_BRANCH repo variable); no-op for non-playwright legs; never fails.
       - name: Embed inline evidence
-        if: needs.gate.outputs.post == 'true' && needs.verdict.outputs.verdict != 'blocked' && vars.REPRO_EVIDENCE_BRANCH != ''
+        if: needs.gate.outputs.post == 'true' && needs.verdict.outputs.verdict != 'blocked'
         continue-on-error: true
         env:
-          BRANCH: ${{ vars.REPRO_EVIDENCE_BRANCH }}
+          BRANCH: ${{ vars.REPRO_EVIDENCE_BRANCH || 'ci/repro-evidence' }}
           REPO: ${{ github.repository }}
           RUN_ID: ${{ github.run_id }}
           TOKEN: ${{ github.token }}

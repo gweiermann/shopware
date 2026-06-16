@@ -1,13 +1,17 @@
 #!/usr/bin/env bash
-# Make playwright evidence visible INLINE in the issue/PR comment.
+# Publish playwright evidence so the issue/PR comment can show it persistently.
 #
-# GitHub renders an inline video player only for human-uploaded user-attachments (no API),
-# so a workflow cannot embed real video. What comments DO render inline is images from any
-# URL. So per playwright leg we publish the leg's screenshot (<leg>.png — the key frame,
-# persists past artifact expiry) to an orphan evidence branch and append it to comment.md
-# via a raw.githubusercontent URL. The full video/trace/HTML report stay in the run
-# artifacts. The branch is prunable at any time (old comments then lose images, like
-# expired artifacts).
+# A comment can render an image from any URL (`![](…)`) but CANNOT embed a video player — GitHub
+# only shows the `<video>` player for human-uploaded attachments and strips `<video>` HTML from
+# bot comments. So we publish, to an orphan evidence branch, the leg SCREENSHOT (rendered inline
+# via a raw.githubusercontent URL) and the leg RECORDING `.webm` (a clickable link — click to
+# watch/download). Both PERSIST past the 7-day artifact expiry; the trace + HTML report stay in
+# the run artifacts. The branch is prunable any time (old comments then lose these, like expired
+# artifacts). Note: videos are heavier than screenshots — prune the branch periodically.
+#
+# Same/different rule (two legs): if the two legs reached the SAME outcome (same status) the
+# screenshots are redundant → show ONE (the TRUNK one — it's the most up-to-date UI); if the
+# outcomes DIFFER they are the before/after → show BOTH. Only playwright legs have screenshots.
 #
 # Env: COMMENT (default comment.md), ART (default artifacts), BRANCH (evidence branch, req),
 #      REPO ("owner/name", req), RUN_ID (req), TOKEN (push token, req unless PUSH=skip),
@@ -22,17 +26,36 @@ ART=${ART:-artifacts}
 
 [ -f "$COMMENT" ] || { echo "::warning::$COMMENT not found — skipping inline evidence"; exit 0; }
 
-OUT=$(mktemp -d)
-LEGS=()
+# Collect playwright legs that produced a screenshot, plus the leg's video + status (parallel
+# indexed arrays — bash 3.2 has no associative arrays). The video is optional (recorded only
+# when the config has video on); the screenshot gates inclusion.
+NAMES=(); PNGS=(); VIDS=(); STS=()
 for d in "$ART"/repro-*/; do
   [ -d "$d" ] || continue # unmatched glob
   leg=$(basename "$d" | sed 's/^repro-//')
   png=$(find "$d" -name 'test-*.png' 2>/dev/null | head -1)
   [ -n "$png" ] || continue
-  cp "$png" "$OUT/$leg.png"
-  LEGS+=("$leg")
+  NAMES+=("$leg"); PNGS+=("$png"); STS+=("$(jq -r '.status // "?"' "$d/result.json" 2>/dev/null || echo '?')")
+  VIDS+=("$(find "$d" -name '*.webm' 2>/dev/null | head -1)")
 done
-[ "${#LEGS[@]}" -gt 0 ] || { echo "no playwright evidence found — nothing to embed"; exit 0; }
+n=${#NAMES[@]}
+[ "$n" -gt 0 ] || { echo "no playwright evidence found — nothing to embed"; exit 0; }
+
+# Indices to show. Default: all. Collapse to one when the two legs share an outcome (same
+# status) — the screenshots are then redundant.
+SHOW=(); for i in $(seq 0 $((n - 1))); do SHOW+=("$i"); done
+COLLAPSED=0
+if [ "$n" -eq 2 ] && [ "${STS[0]}" = "${STS[1]}" ]; then
+  COLLAPSED=1
+  main=0; for j in $(seq 0 $((n - 1))); do [ "${NAMES[$j]}" = trunk ] && main=$j; done # show trunk (current UI)
+  SHOW=("$main")
+fi
+
+OUT=$(mktemp -d)
+for i in "${SHOW[@]}"; do
+  cp "${PNGS[$i]}" "$OUT/${NAMES[$i]}.png"
+  [ -n "${VIDS[$i]}" ] && cp "${VIDS[$i]}" "$OUT/${NAMES[$i]}.webm" || true
+done
 
 if [ "${PUSH:-}" != "skip" ]; then
   : "${TOKEN:?TOKEN is required to push evidence}"
@@ -43,7 +66,7 @@ if [ "${PUSH:-}" != "skip" ]; then
     git -C "$EV" checkout -q FETCH_HEAD
   else
     git -C "$EV" checkout -q --orphan "$BRANCH"
-    printf '# repro evidence\n\nInline images referenced by reproduce/fix-verify comments.\nSafe to prune at any time — old comments then lose their inline images\n(the full evidence was in the run artifacts, which expire anyway).\n' > "$EV/README.md"
+    printf '# repro evidence\n\nInline images referenced by reproduce comments. Safe to prune at any\ntime — old comments then lose their inline images (the full evidence was in the run\nartifacts, which expire anyway).\n' > "$EV/README.md"
     git -C "$EV" add README.md
   fi
   mkdir -p "$EV/runs/$RUN_ID"
@@ -58,12 +81,22 @@ RAW="https://raw.githubusercontent.com/$REPO/$BRANCH/runs/$RUN_ID"
 {
   echo
   echo "### Evidence"
-  for leg in "${LEGS[@]}"; do
+  if [ "$COLLAPSED" = 1 ]; then
+    i=${SHOW[0]}
     echo
-    echo "**${leg}**"
-    echo "![${leg} — final frame](${RAW}/${leg}.png)"
-  done
+    echo "**reported & trunk** — identical outcome (\`${STS[$i]}\`); showing the **${NAMES[$i]}** evidence (most up-to-date UI)."
+    echo "![reported & trunk](${RAW}/${NAMES[$i]}.png)"
+    if [ -n "${VIDS[$i]}" ]; then echo "▶ [Watch the ${NAMES[$i]} recording](${RAW}/${NAMES[$i]}.webm)"; fi
+  else
+    for i in "${SHOW[@]}"; do
+      echo
+      echo "**${NAMES[$i]}** (\`${STS[$i]}\`)"
+      echo "![${NAMES[$i]}](${RAW}/${NAMES[$i]}.png)"
+      if [ -n "${VIDS[$i]}" ]; then echo "▶ [Watch the ${NAMES[$i]} recording](${RAW}/${NAMES[$i]}.webm)"; fi
+    done
+  fi
   echo
-  echo "_Full video, trace and the interactive Playwright HTML report are in the \`repro-*\` run artifacts (they expire after 7 days; the screenshots above persist)._"
+  echo "_Screenshots + recordings above persist; the trace and interactive Playwright HTML report are in the \`repro-*\` run artifacts (they expire after 7 days)._"
 } >> "$COMMENT"
-echo "embedded inline evidence for: ${LEGS[*]}"
+shown=""; for i in "${SHOW[@]}"; do shown="$shown ${NAMES[$i]}"; done
+echo "embedded inline evidence:$shown (collapsed=$COLLAPSED)"
