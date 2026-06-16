@@ -88,3 +88,15 @@ if [ "$CODE" != "200" ] && [ "$CODE" != "204" ]; then
   exit 1
 fi
 echo "seeded OK (sync HTTP $CODE; SC=$SC nav=$NAV_CAT tax=$TAX cur=$CURRENCY)"
+
+# Storefront indexers don't run on their own in CI (no queue worker), so a freshly-synced
+# product/category/CMS page won't appear in listings, sliders, nav or SEO URLs until indexed.
+# Refresh synchronously — a full reindex of the tiny no-demodata DB is quick. Guarded: skip when
+# there's no local shop checkout (e.g. the live integration test seeds over HTTP and reads back
+# via the admin API, which needs no storefront index).
+SHOP=${SHOP_DIR:-shop}
+if [ -x "$SHOP/bin/console" ]; then
+  echo "refreshing DAL index so seeded entities are visible in the storefront…"
+  ( cd "$SHOP" && APP_ENV=prod php bin/console dal:refresh:index --no-interaction ) \
+    || echo "::warning::dal:refresh:index failed — seeded entities may not be indexed/visible"
+fi

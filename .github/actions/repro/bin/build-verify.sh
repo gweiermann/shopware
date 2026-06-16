@@ -41,6 +41,17 @@ if [ ! -f "$PLAN" ]; then
   emit_blocked "repro-plan.json not found — author the bundle (repro-plan.json + any fixtures/script) before self-verifying"; exit 1
 fi
 
+# Reset the DB to the clean post-install snapshot so THIS attempt starts fresh — a re-seed then
+# never collides with a prior attempt's rows (composite unique keys, duplicate entries). No-op
+# when no snapshot was taken; best-effort (a failed reset just seeds onto the current state).
+SNAP=repro-clean-db.sql.gz
+if [ -f "$SNAP" ] && [ -n "${DATABASE_URL:-}" ]; then
+  echo "== build-verify: resetting DB to clean snapshot =="
+  if source "$(dirname "${BASH_SOURCE[0]}")/db-env.sh" \
+     && gunzip -c "$SNAP" | mysql -h"$DBH" -P"$DBP" -u"$DBU" ${DBPW:+-p"$DBPW"} "$DBN"; then :
+  else echo "::warning::DB reset failed — seeding onto the current state"; fi
+fi
+
 if [ -f fixtures.json ]; then
   echo "== build-verify: seeding fixtures.json =="
   if ! PAYLOAD=fixtures.json bash .github/actions/repro/bin/seed.sh; then
