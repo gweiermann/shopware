@@ -40,6 +40,7 @@ Emit JSON only (no markdown fence, no prose); `schema_version` is `"1"`.
     "executor": "direct | http | playwright",
     "version": "6.6.10.0",
     "build_profile": { "admin_build": false, "storefront_build": false, "theme_build": false },
+    "demodata": false,
     "scenario": [
         "Given a category with at least one product visible in the Storefront sales channel",
         "When POST /store-api/product-listing/{categoryId}?p=99 (a page past the last)",
@@ -62,6 +63,20 @@ Field rules:
 - `build_profile` — the surface the candidate `layer` needs (`storefront_build` / `theme_build`
   only for `storefront-ui`). **Bias toward building when unsure:** a wrong-LOW profile blocks the
   whole pipeline (the executor can't run), a wrong-HIGH one only costs a few minutes of build.
+- `demodata` — default `false` (lean, fast, deterministic: the instance installs empty and the
+  run seeds exactly what it needs). Set `true` only when the symptom depends on a **realistic,
+  pre-populated dataset that minimal hand-seeding cannot faithfully reproduce** — i.e. the bug
+  needs an ambient *body* of data rather than one or two specific entities. Decide by this test:
+  *would a near-empty install make the symptom impossible or unfaithful to trigger?* If yes,
+  `demodata: true`. Typical triggers: behaviour that emerges from volume or relationships
+  (listings, pagination, sorting, search relevance, aggregations, cross-selling, recommendations),
+  or a hand-seeded entity that can't surface until it clears the system's runtime filters
+  (visibility, indexing, availability, configurator/variant resolution) which seeded demo data
+  already satisfies. With `demodata: true` the instance comes up with a bounded catalog (products,
+  categories, properties→variants, product-streams, CMS pages) already indexed and rendering, so
+  Build Repro seeds only a small controlled delta on top. Leave it `false` whenever a handful of
+  precisely-seeded entities is enough (most `service` / `*-api` bugs) — demodata only adds
+  provision time there.
 - `version` — the reported version. The analyzer does NOT choose which versions run; the
   workflow computes targets (normally reported + trunk).
 - `scenario` — plain-English Given/When/Then; the handoff to Build Repro, not a generated test.

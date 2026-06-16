@@ -328,6 +328,10 @@ jobs:
           echo "executor=$(jq -r '.executor' analysis.json)" >> "$GITHUB_OUTPUT"
           echo "admin_build=$(jq -r '.build_profile.admin_build' analysis.json)" >> "$GITHUB_OUTPUT"
           echo "storefront_build=$(jq -r '.build_profile.storefront_build' analysis.json)" >> "$GITHUB_OUTPUT"
+          # demodata is an analyze decision (single source of truth) so the reported leg (this
+          # instance) and the trunk leg provision identically; the trunk leg reads it from the
+          # analysis.json shipped in the repro-plan artifact.
+          echo "demodata=$(jq -r '.demodata // false' analysis.json)" >> "$GITHUB_OUTPUT"
 
       - name: Provision builder shop
         id: provision
@@ -336,6 +340,7 @@ jobs:
           version: ${{ steps.buildplan.outputs.version }}
           admin-build: ${{ steps.buildplan.outputs.admin_build }}
           storefront-build: ${{ steps.buildplan.outputs.storefront_build }}
+          demodata: ${{ steps.buildplan.outputs.demodata }}
 
       # Snapshot the clean DB so build-verify can reset to it before every seed attempt
       # (each iteration starts fresh → re-seeds never collide with a prior attempt's rows).
@@ -465,6 +470,7 @@ jobs:
           name: repro-plan
           path: |
             repro-plan.json
+            analysis.json
             builder-result.json
             fixtures.json
             repro.sh
@@ -571,6 +577,7 @@ jobs:
           version: ${{ steps.plan.outputs.version }}
           admin-build: ${{ steps.plan.outputs.admin_build }}
           storefront-build: ${{ steps.plan.outputs.storefront_build }}
+          demodata: ${{ steps.plan.outputs.demodata }}
 
       # Seed exactly the entities the plan needs (admin sync, demodata:false).
       # No-ops when the plan ships no fixtures.json. Runs once per leg, before the executor.

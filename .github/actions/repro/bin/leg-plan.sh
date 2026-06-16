@@ -21,3 +21,9 @@ out executor "$(jq -r .executor "$REPRO_PLAN")"
 if [ "$ROLE" = "trunk" ]; then out version "$LEG_VERSION"; else out version "v$LEG_VERSION"; fi
 out admin_build "$(jq -r .build_profile.admin_build "$REPRO_PLAN")"
 out storefront_build "$(jq -r .build_profile.storefront_build "$REPRO_PLAN")"
+# demodata: read the analyze decision (single source of truth, shipped in the repro-plan artifact)
+# so the trunk leg provisions exactly like the reported leg did. Fall back to the plan's mirror,
+# then false.
+if [ -f analysis.json ]; then DEMODATA=$(jq -r '.demodata // false' analysis.json)
+else DEMODATA=$(jq -r '.fixtures.demodata // false' "$REPRO_PLAN" 2>/dev/null || echo false); fi
+out demodata "$DEMODATA"

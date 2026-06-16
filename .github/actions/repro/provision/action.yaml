@@ -27,6 +27,16 @@ inputs:
     description: "Build admin assets (only needed for admin-ui layer)"
     required: false
     default: "false"
+  demodata:
+    description: >
+      Generate a bounded demo dataset after install (products, categories, properties→variants,
+      product-streams, CMS pages) so bugs whose symptom needs a realistic, pre-populated, indexed
+      dataset can be reproduced against it, instead of a hand-seeded graph that must clear the
+      system's runtime filters (visibility, indexing, availability, variant resolution) to take
+      effect. Off by default (lean + deterministic). NOTE: demodata is randomized, so a repro must
+      target by structural role or the run's OWN seeded delta, never a specific generated item.
+    required: false
+    default: "false"
 
 outputs:
   app_url:
@@ -61,6 +71,32 @@ runs:
         echo "SHOPWARE_HTTP_CACHE_ENABLED=0" >> "$GITHUB_ENV"
         echo "SHOPWARE_DISABLE_UPDATE_CHECK=true" >> "$GITHUB_ENV"
         echo "BLUE_GREEN_DEPLOYMENT=1" >> "$GITHUB_ENV"
+
+    # Bounded demo dataset for bugs whose symptom needs realistic pre-populated data (opt-in via
+    # analysis.demodata). On an empty install a hand-seeded entity often can't take effect until it
+    # clears the system's runtime filters (visibility, indexing, availability, variant resolution)
+    # — a silent, hard-to-debug wall. With demodata that data already exists and is resolved; the
+    # run seeds only its small controlled delta. Counts are bounded (see below) to keep it ~15s.
+    - name: Generate demo data
+      if: inputs.demodata == 'true'
+      shell: bash
+      working-directory: ${{ inputs.path }}
+      env:
+        APP_ENV: prod
+      run: |
+        set -euo pipefail
+        echo "::group::framework:demodata (bounded) + reindex"
+        # Scale the DEFAULTS down with --multiplier (NOT --reset-defaults): the generator's
+        # default pool sizes are internally balanced, so the variant/media samplers always find
+        # enough elements. --reset-defaults zeroes pools the product generator draws from without
+        # a guard (media → "Cannot get 3 elements, only 0"; sparse property options → "Cannot get
+        # 2 elements, only 1"), crashing mid-run. We only cap --products and zero the heavy pools
+        # irrelevant to rendering (orders/reviews/promotions) to keep it fast (~15s incl. reindex).
+        # Verified live: 80 → ~107 products incl. ~27 variants, ~10 product-streams, CMS pages.
+        php bin/console framework:demodata --no-interaction --multiplier=0.1 \
+          --products=80 --orders=0 --reviews=0 --promotions=0
+        php bin/console dal:refresh:index --no-interaction
+        echo "::endgroup::"
 
     - name: Start webserver and wait until READY
       id: serve

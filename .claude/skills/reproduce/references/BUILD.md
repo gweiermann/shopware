@@ -76,6 +76,16 @@ allowed set, **STOP** and explain in plain text (not a JSON file) — never hand
    - `direct`: `script_path: "ReproTest.php"` + the PHPUnit test.
    - fixtures: `fixtures.sync_payload_path: "fixtures.json"` + the file, when seeded data is needed.
 3. **Fixtures rules:**
+   - **`demodata` is set by analysis — mirror it, never flip it.** Copy `analysis.demodata` into
+     `repro-plan.json` as `fixtures.demodata` unchanged. The reported leg's instance was ALREADY
+     provisioned from `analysis.demodata` before you ran, so changing it here only desyncs the
+     trunk leg. When it is `true`, the shop already comes up with a bounded, indexed dataset
+     (products, categories, properties→variants, product-streams, CMS pages) — so seed only your
+     small controlled delta and let the symptom fire against that populated, already-resolved data,
+     rather than hand-building a whole graph from nothing (and fighting the runtime filters —
+     visibility, indexing, availability, variant resolution — it must clear to take effect).
+     Demodata is RANDOM and differs per instance, so still anchor your repro on YOUR seeded delta
+     (controlled id/name) or a structural role — never a specific generated demo item.
    - Reference pre-existing install entities by `{{PLACEHOLDER}}` (`{{SC}}` `{{NAV_CAT}}`
      `{{TAX}}` `{{CURRENCY}}` `{{COUNTRY}}` `{{SALUTATION}}` `{{LANGUAGE}}`) — NEVER a literal id
      read off this shop; every provisioned instance has different UUIDs (`seed.sh` rejects
