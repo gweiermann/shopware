@@ -400,11 +400,13 @@ jobs:
           # Search tools (Glob/Grep/rg/grep/find) ARE allowed: a TARGETED lookup (find the exact
           # template/field/selector) is what let the cheap one-shot author succeed. The failure
           # mode is the open-ended investigation LOOP, which the prompt bounds (author once →
-          # verify once → one fix or STOP), not the toolset. Task/Agent stays disabled: a sub-agent
-          # is an unbounded source-diving expedition hidden inside one turn (a real 25-call waste).
+          # verify once → one fix or STOP), not the toolset. Task/Agent disabled: a sub-agent is an
+          # unbounded source-diving expedition hidden in one turn (a real 25-call waste). Edit
+          # disabled: the agent only ever rewrites its OWN generated files, and it wasted turns
+          # fighting Edit's exact-match on JSON/TS — Write (full rewrite) is the one way.
           claude_args: >-
             --model claude-sonnet-4-6 --max-turns ${{ github.event.inputs.max_turns || '30' }}
-            --disallowedTools "Task,Agent"
+            --disallowedTools "Task,Agent,Edit"
             --allowedTools "Read,Glob,Grep,Write,Bash(rg:*),Bash(git log:*),Bash(git show:*),Bash(git diff:*),Bash(git blame:*),Bash(cat:*),Bash(ls:*),Bash(find:*),Bash(jq:*),Bash(grep:*),Bash(head:*),Bash(tail:*),Bash(sed:*),Bash(wc:*),Bash(bash .github/actions/repro/bin/build-verify.sh:*),Bash(bash .github/actions/repro/bin/shop-get.sh:*),Bash(npm init:*),Bash(npm i:*),Bash(npm install:*),Bash(npx playwright install:*),Bash(cp:*),Bash(mkdir:*)"
         env:
           APP_URL: ${{ steps.provision.outputs.app_url }}

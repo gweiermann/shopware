@@ -36,7 +36,7 @@ printenv / discover them.
 
 | Need | Use |
 | --- | --- |
-| author / edit your files | `Read`, `Write`, `Edit` |
+| author / rewrite your files | `Read`, `Write` — always rewrite the WHOLE file; `Edit` is disabled (surgical JSON/TS edits fail more than they save) |
 | verify the bundle | `bash .github/actions/repro/bin/build-verify.sh` — seeds `fixtures.json` + runs the executor as the `builder` leg → writes `builder-result.json` |
 | inspect live shop state (an existing entity's shape / ids) | `bash .github/actions/repro/bin/shop-get.sh <entity> [<id> \| --filter field=value]` — auth handled, flat JSON |
 | parse / transform JSON | `jq` |
@@ -81,8 +81,8 @@ allowed set, **STOP** and explain in plain text (not a JSON file) — never hand
      per product+option → "already exists" / duplicate-entry errors).
    - Entity names are **snake_case** (`property_group`, `property_group_option`,
      `product_configurator_setting`, `product_visibility`, `cms_page`, `cms_slot`) — not hyphenated.
-   - Regenerate `fixtures.json` with **Write** (rewrite the whole file); don't `Edit` it
-     surgically — partial JSON edits fail more than they save.
+   - To change any of your files (`fixtures.json`, `repro-plan.json`, the spec/test), rewrite
+     the WHOLE file with `Write` — `Edit` is disabled.
    - **Nested graphs** (e.g. a CMS page → sections → blocks → slots): write the WHOLE graph as
      ONE nested payload, not separate flat ops — the DAL then assigns the live version
      automatically. Flat writes / hand-set `cmsPageVersionId` are the usual cause of "seeded but
