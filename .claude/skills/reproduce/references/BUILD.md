@@ -74,7 +74,15 @@ allowed set, **STOP** and explain in plain text (not a JSON file) — never hand
      read off this shop; every provisioned instance has different UUIDs (`seed.sh` rejects
      hardcoded install ids, because a literal seeds here but FK-fails on the reported/trunk legs).
    - Entities you create: deterministic 32-hex UUIDs, sync `upsert` (idempotent on re-seed; no
-     DB-rollback is provided, so reseeding must overwrite the same ids).
+     DB-rollback is provided, so reseeding must overwrite the same ids). On a RETRY, keep every
+     id STABLE and only change fields — re-seed is an upsert, so a stable id updates in place,
+     but giving the same logical row a NEW id collides on a composite unique key (e.g.
+     `product_visibility` is unique per product+sales-channel; a configurator option is unique
+     per product+option → "already exists" / duplicate-entry errors).
+   - Entity names are **snake_case** (`property_group`, `property_group_option`,
+     `product_configurator_setting`, `product_visibility`, `cms_page`, `cms_slot`) — not hyphenated.
+   - Regenerate `fixtures.json` with **Write** (rewrite the whole file); don't `Edit` it
+     surgically — partial JSON edits fail more than they save.
    - **Nested graphs** (e.g. a CMS page → sections → blocks → slots): write the WHOLE graph as
      ONE nested payload, not separate flat ops — the DAL then assigns the live version
      automatically. Flat writes / hand-set `cmsPageVersionId` are the usual cause of "seeded but

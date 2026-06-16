@@ -24,12 +24,18 @@ if [ ! -f "$PAYLOAD" ]; then
 fi
 
 # The sync API requires an OPERATION envelope per key: {entity, action, payload:[...]}.
-# Agents sometimes emit the bare shape {"product": [ {...} ]} instead (a real 400 we hit:
-# FRAMEWORK__INVALID_SYNC_OPERATION). Auto-wrap bare entity→array keys into upserts.
+# Normalize each operation to the sync API's shape, forgiving two recurring agent mistakes:
+#  - bare shape {"product": [ {...} ]} (a real 400: FRAMEWORK__INVALID_SYNC_OPERATION) → wrap as
+#    an upsert envelope;
+#  - hyphenated entity names like "property-group" (a real 500: FRAMEWORK__DEFINITION_NOT_FOUND)
+#    → snake_case. No Shopware entity name contains a hyphen, so the substitution is always safe.
 WRAPPED=$(mktemp)
-jq 'with_entries(if (.value|type) == "array"
-      then .value = {entity: .key, action: "upsert", payload: .value}
-      else . end)' "$PAYLOAD" > "$WRAPPED" || { echo "::error::fixtures payload is not valid JSON"; exit 1; }
+jq 'with_entries(
+      if (.value | type) == "array"
+      then .value = { entity: (.key | gsub("-"; "_")), action: "upsert", payload: .value }
+      else .value.entity = ((.value.entity // .key) | gsub("-"; "_"))
+      end
+    )' "$PAYLOAD" > "$WRAPPED" || { echo "::error::fixtures payload is not valid JSON"; exit 1; }
 PAYLOAD="$WRAPPED"
 
 # 1. Token + install-id resolution (shared with run-http.sh via lib-admin-api.sh).
