@@ -17,6 +17,12 @@ escalate here only when neither `http` nor `direct` can fire the symptom.
    scroll like a user (`mouse.wheel`), never `scrollIntoViewIfNeeded()`.
 6. For hidden/off-canvas symptoms assert explicit state (`not.toBeInViewport()` /
    `toHaveAttribute(...)`), NOT `not.toBeVisible()`.
+7. **Reach a seeded storefront page by its TECHNICAL route** — `/landingPage/<id>`,
+   `/detail/<productId>`, `/navigation/<categoryId>`. A freshly-seeded entity has no SEO URL
+   yet, so a guessed slug 404s. Never assume a slug exists; never source-dive routing to find one.
+8. **The shop renders ENGLISH (en-GB).** Do NOT copy UI strings from a non-English issue
+   screenshot (e.g. "In den Warenkorb") — use the English label ("Add to shopping cart") or, better,
+   a language-agnostic locator: the seeded entity's own name (which you control).
 
 ## What you author
 Generate `repro.spec.ts` and set `script_path: "repro.spec.ts"` in `repro-plan.json`. It asserts the HEALTHY
@@ -50,6 +56,11 @@ rules below.)
   `global.sw-admin-menu.navigation.label` instead of "Navigation"), accessible-name / text
   locators can't match. Prefer the issue's own visible strings + structural roles; a
   name-not-found is a `PRECONDITION_NOT_FOUND` (→ inconclusive), never the symptom.
+- **The shop is English (en-GB); issue screenshots may not be.** Match on the ENGLISH label,
+  not the screenshot's language ("Add to shopping cart", not "In den Warenkorb"). Best: anchor on
+  the seeded entity's own name (which you set in the fixture and is language-independent) rather
+  than a translated chrome label — a real run wasted ~10 turns because a German button-text
+  precondition never matched the English UI and looked like an empty page.
 - **NEVER** use CSS classes, data-test ids, or attribute selectors — not even as a
   fallback. An element no semantic locator can reach IS a `PRECONDITION_NOT_FOUND` (and may
   mean the bug isn't faithfully automatable — set low confidence).
@@ -68,6 +79,14 @@ await locator.waitFor({ state: 'visible', timeout })
 - Do NOT wait via `waitForLoadState('networkidle')` (the admin SPA long-polls and never
   settles) or `waitForURL()` on a pattern already true before the action — wait for a
   concrete post-action element.
+- **The precondition MUST wait for the SPECIFIC seeded entity by its unique text, never a
+  generic control.** A bare `getByRole('button', {name:/add to cart/i})` matches *any* product
+  card (or a spuriously-present/partly-rendered one), so it passes even when YOUR product never
+  rendered — and then the symptom `expect` fails for the wrong reason → a **false `reproduced`**.
+  Real incident: an empty product slider (zero cards) passed a generic add-to-cart precondition,
+  and the missing label scored `reproduced` though nothing was there. Instead, gate on the
+  seeded product's own name, e.g. `getByRole('link', {name:/Live-Film Repro/i})` scoped to the
+  slider — so an empty/wrong page fails the precondition (→ `inconclusive`), never fakes a repro.
 
 **(2) Symptom** — exactly ONE `await expect(...)` of the HEALTHY behaviour, with a generous
 timeout. This is the ONLY failure that may mean `reproduced`.

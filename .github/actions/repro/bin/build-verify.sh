@@ -71,3 +71,15 @@ if [ ! -f "$OUT" ]; then
 fi
 
 echo "== build-verify: done — read builder-result.json for the status (=$(jq -r '.status // "?"' "$OUT")) =="
+
+# Playwright: point the agent straight at the screenshot it MUST review (so it doesn't burn
+# turns hunting test-results/). A status is only trustworthy if the screenshot shows the
+# precondition state genuinely rendered.
+if [ "$(jq -r '.executor // ""' "$PLAN" 2>/dev/null)" = playwright ]; then
+  shot=$(find test-results -name '*.png' 2>/dev/null | head -1)
+  if [ -n "$shot" ]; then
+    echo "== build-verify: REVIEW THE SCREENSHOT before trusting the status — Read $shot =="
+  else
+    echo "== build-verify: no screenshot captured (env/run problem?) — do not trust a status without visual evidence =="
+  fi
+fi

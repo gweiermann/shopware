@@ -14,7 +14,14 @@ for other files.
    `fixtures.json` if needed) — best-effort from the issue, screenshots, fix PR, your Shopware
    knowledge, and `shop-get` (for an existing entity's shape/ids). **Do not read `src/**` yet.**
 2. **Verify:** `bash .github/actions/repro/bin/build-verify.sh`, then read `builder-result.json`.
-3. If not `reproduced`, the result names the ONE thing wrong (an HTTP code, an FK error,
+   **For `playwright`, you MUST also Read the captured screenshot** (build-verify prints its
+   path) and confirm with your own eyes that the precondition state is genuinely there — your
+   seeded product/element actually rendered. Trust is everything: a `reproduced`/`not_reproduced`
+   the screenshot contradicts (e.g. an EMPTY page, an error, the wrong view) is NOT trustworthy —
+   treat it as a fixture/precondition problem to fix, never as a result. Do not accept a result
+   you have not visually confirmed.
+3. If not `reproduced` (or the screenshot doesn't match), the result names the ONE thing wrong
+   (an HTTP code, an FK error,
    "element not found", a wrong value). Fix THAT — and only now may you read ONE specific
    file/selector it points to. Re-verify.
 4. Repeat step 3 at most twice; then STOP — keep the files, lower `confidence`, say why.
