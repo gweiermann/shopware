@@ -2,12 +2,15 @@ name: Reproduce Issue
 
 # Hand-written orchestrator for the bug-reproduction pipeline.
 #
-#   gate ─▶ analyze ─▶ build-repro ─▶ reproduce (matrix: reported ‖ trunk, parallel) ─▶ report
+#   gate ─▶ analyze ─▶ build-repro (+ reported leg) ─▶ reproduce (trunk leg) ─▶ report
 #
 # Status: analyze = config-only claude-code-action agent; build-repro = live-instance
-# agent that creates + self-verifies the executable bundle; reproduce = real provision
-# + deterministic executor for all three layers (http / playwright / direct). All JSON conforms to
-# the JSON contracts in .claude/skills/reproduce/references/ (ANALYZE.md, BUILD.md).
+# agent that creates + self-verifies the executable bundle, THEN runs the reported-version
+# leg deterministically on that same instance (DB reset to a clean snapshot first, so the
+# agent's mutations are wiped — no second reported provision); reproduce = a real provision
+# of trunk/branch + deterministic executor for all three layers (http / playwright / direct).
+# Both legs run the SAME authored bundle via the SAME deterministic runner → identical trust.
+# All JSON conforms to the contracts in .claude/skills/reproduce/references/ (ANALYZE.md, BUILD.md).
 
 on:
   issues:
@@ -473,9 +476,55 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      # Reported-version leg, run RIGHT HERE on the builder instance (it IS the reported version)
+      # instead of provisioning a second identical install. Run DETERMINISTICALLY by the workflow
+      # — never by promoting the agent's own builder-result.json (the agent has Write and could
+      # fabricate a verdict). build-verify resets the DB to the clean snapshot + clears the cache
+      # first, so whatever state the agent left is wiped before this fresh seed+run. Same script,
+      # same DB-reset path as a provisioned leg → identical trust properties, one less provision.
+      # Gated off by skip_reported (trunk-only re-check). Runs in dry_run too (demo plan) so the
+      # demo still exercises a reported leg.
+      - name: Reproduce on reported (same instance)
+        if: steps.provision.outcome == 'success' && needs.gate.outputs.skip_reported != 'true'
+        # Never let this leg fail the build-repro job: the bundle was already built + uploaded, and
+        # a failure here (seed defect / blocked) must not cascade to SKIP the trunk `reproduce` job
+        # (which `needs` build-repro). build-verify still writes a `blocked` result.json that the
+        # verdict reads, and the SAME fixtures run on the trunk leg — so a real plan defect still
+        # surfaces there as a red run.
+        continue-on-error: true
+        env:
+          TARGET: reported
+          OUT: result.json
+          APP_URL: ${{ steps.provision.outputs.app_url }}
+          SW_ACCESS_KEY: ${{ steps.provision.outputs.access_key }}
+          ADMIN_USER: admin
+          ADMIN_PASS: shopware
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+        run: bash .github/actions/repro/bin/build-verify.sh
+
+      # Upload as `repro-reported` so verdict/report consume it exactly like a matrix leg's
+      # artifact (the matrix now produces only `repro-trunk`).
+      - name: Upload reported leg
+        if: always() && steps.provision.outcome == 'success' && needs.gate.outputs.skip_reported != 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: repro-reported
+          path: |
+            result.json
+            seed-error.txt
+            repro.sh
+            repro.spec.ts
+            ReproTest.php
+            phpunit-output.txt
+            test-results/
+            playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7
+
   # --------------------------------------------------------------------------
-  # Reproduce: one parallel leg per target. fail-fast:false so one dead leg
-  # never kills the other. Executor is chosen by repro-plan.json.
+  # Reproduce: the trunk/branch leg (the reported leg ran on build-repro's
+  # instance). fail-fast:false so a dead leg never kills siblings. Executor is
+  # chosen by repro-plan.json.
   # --------------------------------------------------------------------------
   reproduce:
     needs: [gate, analyze, build-repro]

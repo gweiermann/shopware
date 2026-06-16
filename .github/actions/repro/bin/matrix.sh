@@ -50,13 +50,9 @@ if awk "BEGIN{exit !($CONF < 0.4)}"; then
   exit 0
 fi
 
-VERSION=$(jq -r '.version' "$ANALYSIS")
-# Each leg carries the ref to display/provision. The trunk leg uses $BRANCH (default trunk)
-# so you can reproduce against a fix branch. Trunk-only when explicitly requested
-# (skip_reported) or when reported == the branch.
-if [ "$SKIP_REPORTED" = "true" ] || [ "$VERSION" = "$BRANCH" ]; then
-  TARGETS=$(jq -nc --arg b "$BRANCH" '[$b]')
-else
-  TARGETS=$(jq -nc --arg v "$VERSION" --arg b "$BRANCH" '[$v,$b]')
-fi
+# The reported-version leg now runs on the build-repro instance (reusing its provision — no
+# second reported provision), so this matrix runs ONLY the trunk/branch leg. The leg carries the
+# ref to provision; it uses $BRANCH (default trunk) so you can reproduce against a fix branch.
+# SKIP_REPORTED no longer affects the matrix — it gates the build-repro reported-leg step instead.
+TARGETS=$(jq -nc --arg b "$BRANCH" '[$b]')
 out targets "$TARGETS"
