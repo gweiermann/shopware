@@ -47,6 +47,10 @@ engine:
   # Bounded reproduction loop (author → verify → at most a couple of fixes). Mirrors the
   # hand-written build-repro --max-turns budget; the runbook (BUILD.md) enforces the discipline.
   max-turns: 30
+  # The claude engine reads ANTHROPIC_API_KEY; this repo standardises on the
+  # QUALITY_INITIATIVE_ANTHROPIC_API_KEY secret (same as reproduce.yml), so map it here.
+  env:
+    ANTHROPIC_API_KEY: ${{ secrets.QUALITY_INITIATIVE_ANTHROPIC_API_KEY || secrets.ANTHROPIC_API_KEY }}
 
 timeout-minutes: 35
 
@@ -102,13 +106,14 @@ steps:
     with:
       persist-credentials: false
 
-  # Fail BEFORE the ~10-min provision if the engine has no key. gh-aw's claude engine reads the
-  # ANTHROPIC_API_KEY secret; this guard only checks presence (a boolean), never the value.
+  # Fail BEFORE the ~10-min provision if there is no key. The engine uses
+  # QUALITY_INITIATIVE_ANTHROPIC_API_KEY (mapped above); this guard only checks presence (a
+  # boolean), never the value.
   - name: Guard — require the Anthropic key (fail before provisioning)
     env:
-      HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+      HAS_KEY: ${{ secrets.QUALITY_INITIATIVE_ANTHROPIC_API_KEY != '' || secrets.ANTHROPIC_API_KEY != '' }}
     run: |
-      [ "$HAS_KEY" = "true" ] || { echo "::error::ANTHROPIC_API_KEY secret is required (gh-aw claude engine)."; exit 1; }
+      [ "$HAS_KEY" = "true" ] || { echo "::error::QUALITY_INITIATIVE_ANTHROPIC_API_KEY (or ANTHROPIC_API_KEY) secret is required."; exit 1; }
 
   # Phase 1 — the ONLY pre-agent decision: prefetch the issue/fix-PR/screenshots, then extract the
   # reported version by regex (first valid wins; none → trunk) and emit it as a step output. The

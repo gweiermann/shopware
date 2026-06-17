@@ -76,10 +76,10 @@ templates in `bin/report/report.sh`.
 
 ## How to enable
 
-1. Add an `ANTHROPIC_API_KEY` repo secret (the secret gh-aw's `claude` engine reads). Without it
-   the workflow hard-fails before provisioning. (Repos standardised on
-   `QUALITY_INITIATIVE_ANTHROPIC_API_KEY` for `reproduce.yml` just need to also expose
-   `ANTHROPIC_API_KEY`.)
+1. Add the `QUALITY_INITIATIVE_ANTHROPIC_API_KEY` repo secret (same as `reproduce.yml`). The
+   workflow maps it to the engine's `ANTHROPIC_API_KEY` via `engine.env`, so no separate
+   `ANTHROPIC_API_KEY` secret is needed (it is still honoured as a fallback). Without either, the
+   workflow hard-fails before provisioning.
 2. Install the extension and compile:
    ```bash
    gh extension install github/gh-aw
