@@ -54,13 +54,23 @@ surface () { case "$LAYER" in
 esac; }
 executor_label () { case "$EX" in playwright) echo Playwright ;; http) echo HTTP ;; direct) echo PHPUnit ;; *) echo "$EX" ;; esac; }
 
+# Plain-English read of the underlying leg pattern — used by the needs_human_review summary so it
+# explains itself: the legs DID find something, it just isn't trusted automatically (reproduce mode).
+nhr_underlying () { case "${as}/${bs}" in
+  reproduced/reproduced)         echo "Both **${AL}** and **${BL}** reproduced the symptom (alone that would read as a live bug)" ;;
+  reproduced/not_reproduced)     echo "**${AL}** reproduced the symptom but **${BL}** did not (alone that would read as fixed on trunk)" ;;
+  not_reproduced/reproduced)     echo "**${BL}** reproduced the symptom but **${AL}** did not (alone that would read as a regression)" ;;
+  not_reproduced/not_reproduced) echo "Neither **${AL}** nor **${BL}** reproduced the symptom" ;;
+  *)                             echo "The legs were indeterminate (**${AL}**: \`${as}\`, **${BL}**: \`${bs}\`)" ;;
+esac; }
+
 summary () { local s; s=$(surface); local e; e=$(executor_label)
   case "$VERDICT" in
     live_bug)         echo "Reproduced the reported bug on **v${RV}** and on **trunk** (${DATE}) via ${s} with ${e}." ;;
     fixed_on_trunk)   echo "Reproduced on **v${RV}** but NOT on **trunk** (${DATE}) via ${s} — it appears fixed on trunk.${FIX:+ Likely fix: ${FIX}.}" ;;
     regression)       echo "NOT reproduced on **v${RV}** but reproduced on **trunk** (${DATE}) via ${s} — this looks like a regression introduced after v${RV}." ;;
     not_reproducible) echo "Could not reproduce on **v${RV}** or **trunk** (${DATE}) via ${s} — the generated repro may not faithfully exercise the reported scenario." ;;
-    needs_human_review) echo "The automated verdict is not trusted${UNSURE:+ (${UNSURE})}; the evidence below is informative but unconfirmed." ;;
+    needs_human_review) echo "$(nhr_underlying) — **but the automated verdict is not trusted**${UNSURE:+: ${UNSURE}}. The evidence below is informative; confirm the repro faithfully matches the report before acting." ;;
     blocked)          echo "The reproduction environment did not come up, so nothing was run." ;;
     fix_verified)     echo "The symptom is present on **base** (without the fix) and gone on **head** (with it) — the fix works." ;;
     fix_ineffective)  echo "The symptom still reproduces on **head** (with the fix applied)." ;;
@@ -74,7 +84,7 @@ summary () { local s; s=$(surface); local e; e=$(executor_label)
 callout () { case "$VERDICT" in
   regression)          echo "> ⚠️ Confirm the reported leg actually exercised the symptom — a missing fixture can fake a regression." ;;
   not_reproducible)    echo "> ℹ️ The symptom was observed on NEITHER version, including the reported (buggy) one — most often the repro doesn't faithfully hit the scenario. Confirm before closing." ;;
-  needs_human_review)  echo "> 🟡 Not trusted automatically${UNSURE:+ — ${UNSURE}}. Confirm against the scenario before acting." ;;
+  needs_human_review)  echo "> 🟡 Treat as unconfirmed — a human should verify the repro faithfully matches the report before acting." ;;
   fix_ineffective|introduces_symptom) echo "> ❌ The change does not behave as intended — see the result below." ;;
   test_does_not_guard) echo "> ⚠️ Strengthen the test, or the symptom isn't actually being exercised." ;;
 esac; }
@@ -87,11 +97,31 @@ gloss () { case "$1" in # one-line plain-English read of a leg status
   *)              echo "" ;;
 esac; }
 
+qval () { case "$1" in (''|*[!0-9]*) printf "'%s'" "$1" ;; (*) printf '%s' "$1" ;; esac; } # quote unless all-digits
+
+# Render the assertion as readable pseudo-code (one assert per check, ✅/❌ + the observed value)
+# from the executor's structured `assertion.checks`; fall back to the raw reporter line when an
+# executor doesn't emit checks (e.g. playwright/direct, or blocked/inconclusive legs).
+checks_block () { # <result.json>
+  local f="$1"
+  if jq -e '.assertion.checks | arrays and length > 0' "$f" >/dev/null 2>&1; then
+    echo '```js'
+    while IFS=$'\t' read -r subj exp act ok; do
+      if [ "$ok" = true ]; then echo "assert(${subj}, $(qval "$exp")) // ✅"
+      else echo "assert(${subj}, $(qval "$exp")) // ❌ got $(qval "$act")"; fi
+    done < <(jq -r '.assertion.checks[] | [.subject, (.expected|tostring), (.actual|tostring), (.ok|tostring)] | @tsv' "$f")
+    echo '```'
+  else
+    local rep; rep=$(jq -r '.evidence.reporter_output // ""' "$f")
+    [ -n "$rep" ] && [ "$rep" != null ] && { echo '```'; echo "$rep"; echo '```'; }
+  fi
+}
+
 emit_result () { # <label> <status> <result.json>
-  local label="$1" st="$2" f="$3" rep br
-  rep=$(jq -r '.evidence.reporter_output // ""' "$f"); br=$(jq -r '.blocked_reason // ""' "$f")
-  echo; echo "#### On ${label}: \`${st}\`"
-  if [ -n "$rep" ] && [ "$rep" != null ]; then echo; echo '```'; echo "$rep"; echo '```'; fi
+  local label="$1" st="$2" f="$3" br
+  br=$(jq -r '.blocked_reason // ""' "$f")
+  echo; echo "#### On ${label}: \`${st}\`"; echo
+  checks_block "$f"
   echo "$(gloss "$st")"
   if [ -n "$br" ] && [ "$br" != null ]; then echo; echo "> ${br}"; fi
 }
@@ -129,16 +159,19 @@ has_fixtures=0; [ -f "$FX" ] && has_fixtures=1
   if [ -f "$ATTR" ]; then
     echo; echo "**Likely $(jq -r .kind "$ATTR") commit:** \`$(jq -r .likely_commit "$ATTR")\` — $(jq -r .reasoning "$ATTR")"
   fi
+  # Scenario above the result, shown directly (no spoiler) — it's the context for reading the
+  # verdict. One step per bullet, Gherkin keyword bolded — NOT an ordered list (the "1." fights
+  # the Given/When/Then and collapses the steps into a wall of text). No \b: BSD sed lacks it.
+  if jq -e '.scenario | arrays and length > 0' "$AN" >/dev/null 2>&1; then
+    echo; echo "### Scenario"; echo
+    jq -r '.scenario[]' "$AN" | sed -E -e 's/^(Given|When|Then|And|But) /**\1** /' -e 's/^/- /'
+  fi
   echo
   echo "### Result"
   result_section
   # Placeholder: embed-evidence.sh inserts the `### Evidence` (screenshots + recording) block
   # HERE — right under the verdict, above the collapsible details. Invisible if it never runs.
   echo; echo "<!-- EVIDENCE -->"
-  if jq -e '.scenario | arrays and length > 0' "$AN" >/dev/null 2>&1; then
-    echo; echo "<details><summary>Scenario (Given / When / Then)</summary>"; echo
-    jq -r '.scenario[] | "1. " + .' "$AN"; echo; echo "</details>"
-  fi
   if [ "$has_script" = 1 ]; then
     echo; echo "### Test case"; echo "<details><summary>repro source (\`${LANG}\`)</summary>"; echo
     echo "\`\`\`${LANG}"; printf '%s\n' "$SCRIPT"; echo '```'; echo; echo "</details>"

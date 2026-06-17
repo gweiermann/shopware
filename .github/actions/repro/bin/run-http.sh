@@ -164,15 +164,35 @@ fi
 
 { echo '#!/usr/bin/env bash'; echo '# Reproduction request(s) — set $APP_URL (executor injects auth: sw-access-key or admin Bearer, + sw-context-token).'; printf '%s' "$SCRIPT"; } > repro.sh
 
+# Structured checks → the report renders these as readable `assert(subject, expected) // ✅/❌ got …`
+# lines instead of one cryptic string. Only for a definitive status/field verdict; blocked /
+# inconclusive legs omit checks and fall back to reporter_output.
+CHECKS="[]"
+if [ "$STATUS" = "reproduced" ] || [ "$STATUS" = "not_reproduced" ]; then
+  is2xx=false; [[ "$CODE" =~ ^2 ]] && is2xx=true
+  fieldok=false; [ "$MATCHED" = "true" ] && fieldok=true
+  case "$KIND" in
+    http_status)
+      CHECKS=$(jq -nc --arg e "$EXPECT" --arg a "$CODE" --argjson ok "$fieldok" \
+        '[{subject:"status", expected:$e, actual:$a, ok:$ok}]') ;;
+    response_field)
+      CHECKS=$(jq -nc --arg code "$CODE" --argjson is2xx "$is2xx" --arg field "$FIELD" \
+        --arg e "$EXPECT" --arg a "$ACTUAL_RAW" --argjson ok "$fieldok" \
+        '[ {subject:"status", expected:(if $is2xx then $code else "2xx" end), actual:$code, ok:$is2xx},
+           {subject:("response" + (if ($field|startswith(".")) then $field else "."+$field end)), expected:$e, actual:$a, ok:$ok} ]') ;;
+  esac
+fi
+
 jq -n \
   --argjson issue "$(jq -r '.issue' "$ANALYSIS")" \
   --arg target "$TARGET" --arg version "$VERSION" --arg status "$STATUS" \
   --arg expect "$EXPECT" --argjson actual "$ACTUAL" --argjson matched "$MATCHED" \
   --arg script "$SCRIPT" --arg reporter "$REPORTER" --argjson code "${CODE:-0}" \
+  --argjson checks "$CHECKS" \
   --arg reason_text "$REASON_TEXT" '{
     schema_version: "1", issue: $issue, target: $target, version: $version, executor: "http",
     status: $status,
-    assertion: { expect: $expect, actual: ($actual | if . == null then null else tostring end), matched: $matched },
+    assertion: { expect: $expect, actual: ($actual | if . == null then null else tostring end), matched: $matched, checks: $checks },
     duration_s: 0,
     evidence: { script: $script, script_lang: "sh", reporter_output: $reporter,
       http: [{ status: $code }], artifacts: [], truncated: false },

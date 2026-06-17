@@ -53,9 +53,14 @@ CONF_REASON=$(jq -r '.confidence_reason // ""' "$AN" 2>/dev/null || echo "")
 # Mid-band plan (0.4–0.7; below 0.4 bailed before provision) or a blocked_reason → don't
 # trust the verdict even if the legs ran; route to a human with the reason captured.
 unsure=false; UNSURE_REASON=""
-[ -n "$BLOCKED" ] && [ "$BLOCKED" != null ] && { unsure=true; UNSURE_REASON="$BLOCKED"; }
-awk "BEGIN{exit !($CONF < 0.7)}" && { unsure=true; [ -n "$CONF_REASON" ] && UNSURE_REASON="$CONF_REASON"; }
-out unsure_reason "$UNSURE_REASON"
+if [ -n "$BLOCKED" ] && [ "$BLOCKED" != null ]; then unsure=true; UNSURE_REASON="$BLOCKED"; fi
+if awk "BEGIN{exit !($CONF < 0.7)}"; then
+  unsure=true
+  # ALWAYS record why: when the analyst left confidence_reason null, fall back to a generic
+  # confidence note — otherwise the report says "not trusted" with no reason next to a clean
+  # leg result, which reads as a contradiction.
+  [ -z "$UNSURE_REASON" ] && UNSURE_REASON="${CONF_REASON:-analysis confidence ${CONF} is below the 0.7 trust threshold, so the repro may not faithfully match the report}"
+fi
 
 # Precedence: infra → unreliable-plan → indeterminate leg → mode-specific core combos.
 V="needs_human_review"
@@ -78,6 +83,18 @@ else  # fix-verify: A = base (fix absent), B = head (fix present)
   fi
 fi
 out verdict "$V"
+
+# If the verdict is needs_human_review purely because a leg was inconclusive (neither low-confidence
+# nor blocked set a reason), surface THAT leg's reason so the summary can explain itself.
+if [ "$V" = "needs_human_review" ] && [ -z "$UNSURE_REASON" ]; then
+  for f in "$AF" "$BF"; do
+    [ -f "$f" ] && [ "$(jq -r .status "$f")" = inconclusive ] && {
+      UNSURE_REASON=$(jq -r '.blocked_reason // .evidence.reporter_output // "a leg was inconclusive — the symptom could not be judged"' "$f"); break; }
+  done
+fi
+# Single-line + bounded: this value is written to $GITHUB_OUTPUT (a newline would corrupt it).
+UNSURE_REASON=$(printf '%s' "$UNSURE_REASON" | tr '\n\r' '  ' | tr -s ' ' | cut -c1-300)
+out unsure_reason "$UNSURE_REASON"
 
 # fixed_on_trunk / fix_verified: the fixing PR/commit is often already known (derived_from).
 FIX=""; { [ "$V" = "fixed_on_trunk" ] || [ "$V" = "fix_verified" ]; } && FIX="$DERIVED"
