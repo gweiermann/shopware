@@ -67,10 +67,10 @@ allowed set, **STOP** and explain in plain text (not a JSON file) — never hand
 
 1. **Pick the executor YOURSELF** — the cheapest faithful surface (`service`→`direct`,
    `*-api`→`http`, `*-ui`→`playwright`). There is no Analyze phase: you author the SINGLE
-   `reproduction-plan.json` yourself (`layer`/`executor`/`build_profile`/`version`/…). The shop was
-   provisioned **lean** (no admin/storefront JS build, no demodata), so if your executor needs a UI
-   surface you must BUILD it on the fly first — `bash .github/actions/repro-agent/bin/agent/build-admin.sh`
-   or `build-storefront.sh` — and record `build_profile` (see step 3) so the trunk leg builds the
+   `reproduction-plan.json` yourself (`layer`/`executor`/`build_profile`/`version`/…). The shop is
+   provisioned **lean** (no admin/storefront JS build, no demodata) — you do NOT run build commands;
+   if your executor needs a UI surface, just set the matching `build_profile` flag (step 3) and
+   `verify-reproduction.sh` builds it for you (once) before verifying, and the trunk leg builds the
    same. Prefer the cheapest layer that shows the symptom; only escalate to a UI surface (and its
    build cost) when a cheaper layer genuinely cannot fire it.
 2. **Write `reproduction-plan.json` + the executor's artifact:**
@@ -82,13 +82,12 @@ allowed set, **STOP** and explain in plain text (not a JSON file) — never hand
    - **`demodata` is YOUR call — default OFF (the instance was provisioned lean).** Prefer seeding
      a small controlled delta. Opt in ONLY when the symptom needs an ambient, realistic, indexed
      body of data that minimal hand-seeding cannot fake (volume/relationship bugs: listings,
-     pagination, sorting, search relevance, aggregations, cross-selling). To opt in: run
-     `bash .github/actions/repro-agent/bin/agent/gen-demodata.sh`, then set `fixtures.demodata: true` in
-     `reproduction-plan.json` so the trunk leg regenerates the same. Demodata is RANDOM and differs
-     per instance, so still anchor your repro on YOUR seeded delta (controlled id/name) or a
-     structural role — never a specific generated demo item. Likewise, if your repro needs the
-     Admin or Storefront UI built, run `build-admin.sh` / `build-storefront.sh` and record
-     `build_profile.admin_build` / `storefront_build` (+ `theme_build`) in `reproduction-plan.json`.
+     pagination, sorting, search relevance, aggregations, cross-selling). To opt in, just set
+     `fixtures.demodata: true` in `reproduction-plan.json` — `verify-reproduction.sh` generates the
+     demodata (and the trunk leg provisions it too). Demodata is RANDOM and differs per instance, so
+     still anchor your repro on YOUR seeded delta (controlled id/name) or a structural role — never a
+     specific generated demo item. Same for a UI surface: set `build_profile.admin_build` /
+     `storefront_build` (+ `theme_build`) and the verify step builds it — you never run a build yourself.
    - Reference pre-existing install entities by `{{PLACEHOLDER}}` (`{{SC}}` `{{NAV_CAT}}`
      `{{TAX}}` `{{CURRENCY}}` `{{COUNTRY}}` `{{SALUTATION}}` `{{LANGUAGE}}`) — NEVER a literal id
      read off this shop; every provisioned instance has different UUIDs (`seed.sh` rejects

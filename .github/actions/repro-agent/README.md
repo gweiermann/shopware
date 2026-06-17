@@ -40,8 +40,8 @@ agent** pre-decides layer/executor/build profile.)
 |---|---|---|
 | 1. Issue analysis | pre-agent `steps:` → `parse-version.sh` extracts **only the version** | ✅ |
 | 2. Environment preparation | pre-agent `steps:` → **lean** `provision` + `db-snapshot.sh` | ✅ |
-| 3. Reproduction discovery + decisions | the **agent** chooses executor/build/demodata, builds on the fly, writes `reproduction-plan.json` (+ test + `fixtures.json`) | 🤖 agent |
-| 4. Verification loop | agent runs `verify-reproduction.sh`; the **script** decides + records the reported leg | ✅ (script verdict) |
+| 3. Reproduction discovery + decisions | the **agent** writes `reproduction-plan.json` (+ test + `fixtures.json`), declaring executor/build_profile/demodata | 🤖 agent |
+| 4. Build + verify | agent runs `verify-reproduction.sh` ONCE; it builds Admin/Storefront/demodata per the plan, then the **script** decides + records the reported leg | ✅ (script verdict) |
 | 5. Retry loop | bounded by `BUILD.md` + `engine.max-turns` | 🤖 agent |
 | 6. Trunk verification | `safe-outputs.jobs.reproduce-on-trunk` (clean runner) provisions from `reproduction-plan.json` | ✅ |
 | 7. Deterministic reporting | `verdict.sh` → `report.sh` → `gh issue comment` | ✅ |
@@ -58,7 +58,7 @@ agent's version pick with a regex).
 
 | Handoff script | Implemented by |
 |---|---|
-| `provision-version.sh` + `build-environment.sh` | [`provision/action.yaml`](provision/action.yaml) (composite action: `setup-shopware` + build profile + server-ready poll). The agent also builds on the fly with [`bin/agent/build-admin.sh`](bin/agent/build-admin.sh) / [`bin/agent/build-storefront.sh`](bin/agent/build-storefront.sh) / [`bin/agent/gen-demodata.sh`](bin/agent/gen-demodata.sh) |
+| `provision-version.sh` + `build-environment.sh` | [`provision/action.yaml`](provision/action.yaml) (composite action: `setup-shopware` + build profile + server-ready poll). On-the-fly builds happen inside `verify-reproduction.sh` via [`bin/execute/build-admin.sh`](bin/execute/build-admin.sh) / [`bin/execute/build-storefront.sh`](bin/execute/build-storefront.sh) / [`bin/execute/gen-demodata.sh`](bin/execute/gen-demodata.sh) (driven by the plan, not called by the agent) |
 | `create-db-snapshot.sh` | [`bin/prepare/db-snapshot.sh`](bin/prepare/db-snapshot.sh) |
 | `restore-db-snapshot.sh` + `reset-db.sh` | inlined in [`bin/execute/build-verify.sh`](bin/execute/build-verify.sh) (resets to the clean snapshot + clears cache before each attempt) |
 | **`verify-reproduction.sh`** | **new** — [`bin/agent/verify-reproduction.sh`](bin/agent/verify-reproduction.sh): the agent's verify entrypoint. Runs `build-verify.sh`; on a classified result it records the reported leg, **triggers the trunk pipeline, and stops the agent** |
@@ -90,11 +90,13 @@ templates in `bin/report/report.sh`.
 
 ## Known trade-offs (vs. `reproduce.yml`)
 
-- **No Analyze agent → on-the-fly building.** The reported instance is provisioned lean; if the
-  repro needs the Admin/Storefront built or demodata, the agent runs the helper on the live
-  instance and records the choice in `reproduction-plan.json`. That keeps `http`/`direct` runs fast and
-  pushes the (slow) JS build into only the runs that actually need it — but those builds happen
-  inside the agent's time budget and are the least-tested path here.
+- **No Analyze agent → on-the-fly building.** The reported instance is provisioned lean; the agent
+  just declares `build_profile`/`fixtures.demodata` in the plan and `verify-reproduction.sh` builds
+  the Admin/Storefront / generates demodata (once, idempotently) before verifying. That keeps
+  `http`/`direct` runs fast and pushes the (slow) JS build into only the runs that need it — but
+  those builds happen inside the agent's time budget and are the least-tested path here. (When
+  demodata is requested, the verify step also re-snapshots the clean DB so the per-attempt reset
+  keeps the demodata.)
 - **Trunk is a clean second runner triggered by the verify script.** gh-aw has no native "matrix
   job after the agent", so the trunk leg is a `safe-outputs.jobs` job triggered when
   `verify-reproduction.sh` appends to gh-aw's safe-output channel (on success, or on `giveup`).
@@ -125,12 +127,12 @@ templates in `bin/report/report.sh`.
     lib/        db-env.sh, lib-admin-api.sh        sourced helpers (DB url, admin API)
     prepare/    parse-version.sh, prefetch.sh,     Phase 1+2: parse version, fetch issue,
                 build-context.sh, db-snapshot.sh   assemble prompt, snapshot clean DB
-    agent/      verify-reproduction.sh, shop-get.sh,   what the AGENT invokes on the live shop:
-                build-admin.sh, build-storefront.sh,   verify (→ hand off → STOP), inspect,
-                gen-demodata.sh                        on-the-fly build/demodata
+    agent/      verify-reproduction.sh, shop-get.sh    the only two commands the AGENT runs:
+                                                       build(per plan)+verify(→ hand off → STOP), inspect
     execute/    build-verify.sh, run-leg.sh,       running the bundle: verifier + executors
-                run-{http,playwright,direct}.sh,   (http/playwright/direct) + seed + PW login
-                seed.sh, login-state.mjs
+                run-{http,playwright,direct}.sh,   (http/playwright/direct) + seed + PW login +
+                seed.sh, login-state.mjs,          on-the-fly builds driven by verify-reproduction
+                build-admin.sh, build-storefront.sh, gen-demodata.sh
     report/     leg-plan.sh, leg-blocked.sh,       trunk leg params + verdict map + comment
                 verdict.sh, report.sh, embed-evidence.sh
   prompts/build-context.tpl.md          the agent prompt template

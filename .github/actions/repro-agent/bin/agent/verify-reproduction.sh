@@ -1,21 +1,25 @@
 #!/usr/bin/env bash
-# Agent-facing verification entrypoint — and the END of the agent's job.
+# Agent-facing entrypoint — the ONE command the agent runs, and the END of its job.
 #
-# The agent runs THIS (not build-verify.sh directly) to check its bundle. It runs the deterministic
-# verifier on the live REPORTED instance, and then:
-#   * CLASSIFIED (reproduced | not_reproduced) → records the reported leg, HANDS OFF to the
-#     deterministic trunk-and-report pipeline (via the gh-aw safe-output channel), and tells the
-#     agent to STOP. The agent decides nothing further.
-#   * NOT classified (blocked | inconclusive)  → tells the agent the ONE thing to fix and to
-#     re-run. No hand-off, no stop.
+# The agent only has to (1) write reproduction-plan.json (+ the test + fixtures.json), declaring
+# build_profile / fixtures.demodata, and (2) run THIS once. This script does the rest itself, so
+# the agent spends no extra turns on builds/demodata:
+#   1. brings the live shop up to what the plan declares — builds Admin / Storefront / generates
+#      demodata as needed (idempotent: each is done at most once, even across retries);
+#   2. runs the deterministic verifier (reset DB → seed → execute → builder-result.json);
+#   3. CLASSIFIED (reproduced | not_reproduced) → records the reported leg, HANDS OFF to the
+#      deterministic trunk-and-report pipeline (gh-aw safe-output channel), and tells the agent to
+#      STOP — it decides nothing further;
+#      NOT classified (blocked | inconclusive)  → prints the ONE thing to fix and to re-run.
 #
 # Usage:
-#   bash .github/actions/repro-agent/bin/agent/verify-reproduction.sh          # verify; hand off iff classified
+#   bash .github/actions/repro-agent/bin/agent/verify-reproduction.sh          # build (per plan) + verify; hand off iff classified
 #   bash .github/actions/repro-agent/bin/agent/verify-reproduction.sh giveup   # cannot build → hand off a "could not reproduce"
 set -uo pipefail
 
 MODE=${1:-verify}
 PLAN=reproduction-plan.json
+BIN=.github/actions/repro-agent/bin
 
 # Trigger the deterministic trunk-and-report job exactly once, by appending one item to the gh-aw
 # safe-output channel (ingested after the agent step). The job re-runs the bundle on trunk and
@@ -41,11 +45,43 @@ if [ "$MODE" = giveup ]; then
   exit 0
 fi
 
-# Reset DB to the clean snapshot -> seed fixtures.json -> run the chosen executor -> builder-result.json.
-TARGET=builder OUT=builder-result.json bash .github/actions/repro-agent/bin/execute/build-verify.sh
+if [ ! -f "$PLAN" ]; then
+  echo "== verify-reproduction: $PLAN not found — write it first (see the runbook). =="
+  exit 1
+fi
+
+# ---- 1. Bring the shop up to what the plan declares (idempotent; builds are slow → once). -------
+admin=$(jq -r '.build_profile.admin_build // false' "$PLAN" 2>/dev/null || echo false)
+storefront=$(jq -r '.build_profile.storefront_build // false' "$PLAN" 2>/dev/null || echo false)
+demodata=$(jq -r '.fixtures.demodata // false' "$PLAN" 2>/dev/null || echo false)
+
+if [ "$admin" = true ] && [ ! -f .repro-admin-built ]; then
+  echo "== verify-reproduction: plan needs the Admin built =="
+  if bash "$BIN/execute/build-admin.sh"; then touch .repro-admin-built; else
+    echo "::error::Admin build failed — see the log above"; exit 1; fi
+fi
+if [ "$storefront" = true ] && [ ! -f .repro-storefront-built ]; then
+  echo "== verify-reproduction: plan needs the Storefront built =="
+  if bash "$BIN/execute/build-storefront.sh"; then touch .repro-storefront-built; else
+    echo "::error::Storefront build failed — see the log above"; exit 1; fi
+fi
+if [ "$demodata" = true ] && [ ! -f .repro-demodata-done ]; then
+  # Generate demodata on the clean install, THEN re-snapshot so build-verify's per-attempt DB reset
+  # restores the demodata-included state (the original clean snapshot predates it). Done once.
+  echo "== verify-reproduction: plan needs demodata — generating + re-snapshotting =="
+  if bash "$BIN/execute/gen-demodata.sh" && bash "$BIN/prepare/db-snapshot.sh"; then
+    touch .repro-demodata-done
+  else
+    echo "::error::demodata generation failed — see the log above"; exit 1
+  fi
+fi
+
+# ---- 2. Verify: reset DB to the (current) clean snapshot → seed → execute → builder-result.json. -
+TARGET=builder OUT=builder-result.json bash "$BIN/execute/build-verify.sh"
 status=$(jq -r '.status // "blocked"' builder-result.json 2>/dev/null || echo blocked)
 executor=$(jq -r '.executor // "http"' "$PLAN" 2>/dev/null || echo http)
 
+# ---- 3. Classify → record + hand off + STOP, or ask for one fix. --------------------------------
 case "$status" in
   reproduced|not_reproduced)
     # A reset+seed+run on this instance IS a clean reported-version leg → adopt it as the result.

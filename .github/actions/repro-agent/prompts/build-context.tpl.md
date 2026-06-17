@@ -15,15 +15,13 @@ There is **no Analyze phase**. **YOU decide everything** and record it in a SING
 
 - **Executor / layer** — pick the cheapest faithful one (service→`direct`, `*-api`→`http`,
   `*-ui`→`playwright`). Contracts for all three follow below.
-- **Build profile & demodata** — the reported instance was provisioned **lean** (no admin/JS
-  build, no demodata). If your repro needs more, run the helper, **then record the choice in
-  `reproduction-plan.json`** so the trunk leg matches:
-  - Admin UI → `bash .github/actions/repro-agent/bin/agent/build-admin.sh`, then set
-    `build_profile.admin_build: true`.
-  - Storefront UI → `bash .github/actions/repro-agent/bin/agent/build-storefront.sh`, then set
-    `build_profile.storefront_build: true` (and `theme_build: true`).
-  - Realistic catalog → `bash .github/actions/repro-agent/bin/agent/gen-demodata.sh`, then set
-    `fixtures.demodata: true`.
+- **Build profile & demodata** — the reported instance is provisioned **lean** (no admin/JS build,
+  no demodata). You do NOT run any build commands yourself — just **declare what you need in
+  `reproduction-plan.json`** and `verify-reproduction.sh` builds it for you (once) before verifying,
+  and the trunk leg provisions to match:
+  - Admin UI needed → `build_profile.admin_build: true`
+  - Storefront UI needed → `build_profile.storefront_build: true` (and `theme_build: true`)
+  - Realistic catalog needed → `fixtures.demodata: true`
 
 The reported version is **`{{VERSION}}`** — put it in `reproduction-plan.json` as `version`
 (use the value verbatim; `trunk` means no released version was reported).

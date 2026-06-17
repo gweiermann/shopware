@@ -66,19 +66,17 @@ features:
   dangerously-disable-sandbox-agent: "Agent must reach the localhost-provisioned Shopware to self-verify the repro; it is read-only, runs only allow-listed scripts, and has no GitHub write access (safe-outputs only)."
 
 # --- Tools the AGENT may use (Phase 3–5: discover, decide, self-verify) ------
-# The agent authors its OWN files, decides executor/build/demodata (running the build helpers on
-# the live instance as needed), inspects the shop read-only, runs the verifier, and does TARGETED
-# source lookups only AFTER a failed verify. No github MCP (issue + fix-PR are prefetched); the
-# verifier itself ends the agent's job, so no hand-off tool is exposed.
+# The agent authors its OWN files (declaring build_profile/demodata in the plan), inspects the shop
+# read-only, runs the ONE verify command (which builds Admin/Storefront/demodata per the plan,
+# verifies, hands off, and STOPS it), and does TARGETED source lookups only AFTER a failed verify.
+# No github MCP (issue + fix-PR are prefetched); the build helpers are internal to verify, not
+# separate agent tools (fewer turns).
 tools:
   edit:                 # author/rewrite reproduction-plan.json + fixtures.json + the spec/test
   github: false         # context is prefetched to files; keep the agent off the API
   bash:
-    - "bash .github/actions/repro-agent/bin/agent/verify-reproduction.sh"  # verify; on success it records + hands off + STOPS the agent
+    - "bash .github/actions/repro-agent/bin/agent/verify-reproduction.sh"  # build(per plan)+verify; on success records + hands off + STOPS the agent
     - "bash .github/actions/repro-agent/bin/agent/shop-get.sh"             # read-only live-shop entity inspector
-    - "bash .github/actions/repro-agent/bin/agent/build-admin.sh"          # on-the-fly Admin build (admin-ui repros)
-    - "bash .github/actions/repro-agent/bin/agent/build-storefront.sh"     # on-the-fly Storefront build (storefront-ui repros)
-    - "bash .github/actions/repro-agent/bin/agent/gen-demodata.sh"         # on-the-fly demodata (volume/relationship repros)
     - "jq"
     - "rg"
     - "grep"
@@ -415,15 +413,13 @@ deterministic scripts own all of that.
 
 There is no Analyze phase. **You** choose the executor (`http` / `playwright` / `direct`), and
 whether the repro needs the Admin/Storefront built or demodata generated — and you **record every
-decision in the single file `reproduction-plan.json`** so the next version (the trunk leg)
-provisions identically:
+decision in the single file `reproduction-plan.json`**. You never run build commands yourself:
+`verify-reproduction.sh` reads the plan and does the builds (once) before verifying, and the trunk
+leg provisions to match. So just set the flags:
 
-- Need the Admin UI?  `bash .github/actions/repro-agent/bin/agent/build-admin.sh`, then set
-  `build_profile.admin_build: true`.
-- Need the Storefront? `bash .github/actions/repro-agent/bin/agent/build-storefront.sh`, then set
-  `build_profile.storefront_build: true` (+ `theme_build: true`).
-- Need a realistic catalog? `bash .github/actions/repro-agent/bin/agent/gen-demodata.sh`, then set
-  `fixtures.demodata: true`.
+- Need the Admin UI? → `build_profile.admin_build: true`
+- Need the Storefront? → `build_profile.storefront_build: true` (+ `theme_build: true`)
+- Need a realistic catalog? → `fixtures.demodata: true`
 
 ## Your complete instructions
 
