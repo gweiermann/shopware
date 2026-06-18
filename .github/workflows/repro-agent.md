@@ -77,8 +77,11 @@ tools:
   edit:                 # author/rewrite reproduction-plan.json + fixtures.json + the spec/test
   github: false         # context is prefetched to files; keep the agent off the API
   bash:
-    - "bash .github/actions/repro-agent/bin/agent/verify-reproduction.sh"  # build(per plan)+verify; on success records + hands off + STOPS the agent
-    - "bash .github/actions/repro-agent/bin/agent/shop-get.sh"             # read-only live-shop entity inspector
+    # NB: the `:*` suffix is REQUIRED so the script may be called WITH arguments — without it the
+    # allow-list matches only the bare command and any arg (e.g. `shop-get.sh payment_method`, or
+    # `verify-reproduction.sh giveup`) is denied.
+    - "bash .github/actions/repro-agent/bin/agent/verify-reproduction.sh:*"  # verify (+demodata); on success records + hands off + STOPS the agent
+    - "bash .github/actions/repro-agent/bin/agent/shop-get.sh:*"             # read-only live-shop entity inspector
     - "jq"
     - "rg"
     - "grep"
