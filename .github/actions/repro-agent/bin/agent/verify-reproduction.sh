@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Agent-facing entrypoint — the ONE command the agent runs, and the END of its job.
 #
-# The agent only has to (1) write reproduction-plan.json (+ the test + fixtures.json), declaring
-# build_profile / fixtures.demodata, and (2) run THIS once. This script does the rest itself, so
-# the agent spends no extra turns on builds/demodata:
-#   1. brings the live shop up to what the plan declares — builds Admin / Storefront / generates
-#      demodata as needed (idempotent: each is done at most once, even across retries);
+# The Admin + Storefront are ALREADY BUILT on this instance (the provision step did it up front),
+# so the agent never waits on a JS build. The agent only has to (1) write reproduction-plan.json
+# (+ the test + fixtures.json), and (2) run THIS once. It:
+#   1. generates demodata if the plan asks for it (fixtures.demodata=true) — once, idempotently —
+#      and re-snapshots the clean DB so the per-attempt reset keeps it;
 #   2. runs the deterministic verifier (reset DB → seed → execute → builder-result.json);
 #   3. CLASSIFIED (reproduced | not_reproduced) → records the reported leg, HANDS OFF to the
 #      deterministic trunk-and-report pipeline (gh-aw safe-output channel), and tells the agent to
@@ -13,7 +13,7 @@
 #      NOT classified (blocked | inconclusive)  → prints the ONE thing to fix and to re-run.
 #
 # Usage:
-#   bash .github/actions/repro-agent/bin/agent/verify-reproduction.sh          # build (per plan) + verify; hand off iff classified
+#   bash .github/actions/repro-agent/bin/agent/verify-reproduction.sh          # (demodata if asked) + verify; hand off iff classified
 #   bash .github/actions/repro-agent/bin/agent/verify-reproduction.sh giveup   # cannot build → hand off a "could not reproduce"
 set -uo pipefail
 
@@ -50,21 +50,9 @@ if [ ! -f "$PLAN" ]; then
   exit 1
 fi
 
-# ---- 1. Bring the shop up to what the plan declares (idempotent; builds are slow → once). -------
-admin=$(jq -r '.build_profile.admin_build // false' "$PLAN" 2>/dev/null || echo false)
-storefront=$(jq -r '.build_profile.storefront_build // false' "$PLAN" 2>/dev/null || echo false)
+# ---- 1. demodata if the plan asks for it (Admin/Storefront are already built by provisioning). --
 demodata=$(jq -r '.fixtures.demodata // false' "$PLAN" 2>/dev/null || echo false)
 
-if [ "$admin" = true ] && [ ! -f .repro-admin-built ]; then
-  echo "== verify-reproduction: plan needs the Admin built =="
-  if bash "$BIN/execute/build-admin.sh"; then touch .repro-admin-built; else
-    echo "::error::Admin build failed — see the log above"; exit 1; fi
-fi
-if [ "$storefront" = true ] && [ ! -f .repro-storefront-built ]; then
-  echo "== verify-reproduction: plan needs the Storefront built =="
-  if bash "$BIN/execute/build-storefront.sh"; then touch .repro-storefront-built; else
-    echo "::error::Storefront build failed — see the log above"; exit 1; fi
-fi
 if [ "$demodata" = true ] && [ ! -f .repro-demodata-done ]; then
   # Generate demodata on the clean install, THEN re-snapshot so build-verify's per-attempt DB reset
   # restores the demodata-included state (the original clean snapshot predates it). Done once.

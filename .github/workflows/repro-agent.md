@@ -47,12 +47,10 @@ engine:
   # Bounded reproduction loop (author → verify → at most a couple of fixes). Mirrors the
   # hand-written build-repro --max-turns budget; the runbook (BUILD.md) enforces the discipline.
   max-turns: 30
-  # The claude engine reads ANTHROPIC_API_KEY; this repo standardises on the
-  # QUALITY_INITIATIVE_ANTHROPIC_API_KEY secret (same as reproduce.yml), so map it here.
-  env:
-    ANTHROPIC_API_KEY: ${{ secrets.QUALITY_INITIATIVE_ANTHROPIC_API_KEY || secrets.ANTHROPIC_API_KEY }}
 
-timeout-minutes: 35
+# Headroom for the agent step: authoring + ONE synchronous verify that may build the Admin/
+# Storefront (slow) and run the executor. Builds can take ~10 min, so give the step room.
+timeout-minutes: 40
 
 # Run the agent on the runner host (NOT in the AWF network sandbox): it must reach the
 # localhost-provisioned Shopware instance to self-verify the reproduction (verify-reproduction.sh /
@@ -67,11 +65,15 @@ features:
 
 # --- Tools the AGENT may use (Phase 3–5: discover, decide, self-verify) ------
 # The agent authors its OWN files (declaring build_profile/demodata in the plan), inspects the shop
-# read-only, runs the ONE verify command (which builds Admin/Storefront/demodata per the plan,
-# verifies, hands off, and STOPS it), and does TARGETED source lookups only AFTER a failed verify.
-# No github MCP (issue + fix-PR are prefetched); the build helpers are internal to verify, not
-# separate agent tools (fewer turns).
+# read-only, runs the ONE verify command (Admin/Storefront are pre-built; verify generates demodata
+# if asked, then resets+seeds+runs, hands off, and STOPS it), and does TARGETED source lookups only
+# AFTER a failed verify. No github MCP (issue + fix-PR are prefetched).
 tools:
+  # CRITICAL: gh-aw defaults the Bash tool to a 60s timeout, which would kill the long
+  # verify-reproduction.sh (builds + verify run for many minutes) — so the agent backgrounds it and
+  # the result is lost. Raise the per-call timeout to 30 min so verify runs SYNCHRONOUSLY to
+  # completion (drives BASH_DEFAULT_TIMEOUT_MS / BASH_MAX_TIMEOUT_MS).
+  timeout: 1800
   edit:                 # author/rewrite reproduction-plan.json + fixtures.json + the spec/test
   github: false         # context is prefetched to files; keep the agent off the API
   bash:
@@ -130,16 +132,17 @@ steps:
     run: bash .github/actions/repro-agent/bin/prepare/parse-version.sh
 
   # Phase 2 — Environment Preparation: provision the reported version (or trunk when none was
-  # found) LEAN — no admin/storefront JS build, no demodata. The agent builds whatever its repro
-  # needs on the fly (build-admin/build-storefront/gen-demodata) and records the choice in
-  # reproduction-plan.json so the trunk leg provisions identically. Then snapshot the clean DB.
+  # found) with the Admin + Storefront ALREADY BUILT, so the agent never waits on a (slow) JS build
+  # mid-run — any executor works immediately. The agent still records which builds its repro needs
+  # in reproduction-plan.json's build_profile so the TRUNK leg builds only those. demodata stays off
+  # (it's cheap + conditional; verify-reproduction.sh generates it on demand). Then snapshot.
   - name: Provision reported version (Phase 2)
     id: provision
     uses: ./.github/actions/repro-agent/provision
     with:
       version: ${{ steps.parse.outputs.is_trunk == 'true' && 'trunk' || format('v{0}', steps.parse.outputs.target_version) }}
-      admin-build: "false"
-      storefront-build: "false"
+      admin-build: "true"
+      storefront-build: "true"
       demodata: "false"
 
   - name: Snapshot clean DB
@@ -403,23 +406,23 @@ safe-outputs:
 
 # Reproduce a Shopware bug — discover the reproduction artifact (Phase 3–5)
 
-A live Shopware instance on the **reported version** is already running and ready (provisioned
-**lean** — no admin/storefront JS build, no demodata). Your **only** job is to discover a reliable,
-runnable reproduction of the reported bug and prove it on this instance. The version was already
-parsed for you; you do **not** run the trunk comparison, decide the verdict, or write the comment —
-deterministic scripts own all of that.
+A live Shopware instance on the **reported version** is already running and ready — with the
+**Admin and Storefront already built**, so any executor works immediately and you never wait on a
+build. Your **only** job is to discover a reliable, runnable reproduction of the reported bug and
+prove it on this instance. The version was already parsed for you; you do **not** run the trunk
+comparison, decide the verdict, or write the comment — deterministic scripts own all of that.
 
 ## You decide everything else
 
-There is no Analyze phase. **You** choose the executor (`http` / `playwright` / `direct`), and
-whether the repro needs the Admin/Storefront built or demodata generated — and you **record every
-decision in the single file `reproduction-plan.json`**. You never run build commands yourself:
-`verify-reproduction.sh` reads the plan and does the builds (once) before verifying, and the trunk
-leg provisions to match. So just set the flags:
+There is no Analyze phase. **You** choose the executor (`http` / `playwright` / `direct`) and
+**record every decision in the single file `reproduction-plan.json`**. You never run builds — they
+are already done here — but you DO record which surface your repro uses in `build_profile`, so the
+deterministic **trunk** leg builds only that:
 
-- Need the Admin UI? → `build_profile.admin_build: true`
-- Need the Storefront? → `build_profile.storefront_build: true` (+ `theme_build: true`)
-- Need a realistic catalog? → `fixtures.demodata: true`
+- Admin-UI repro → `build_profile.admin_build: true`
+- Storefront-UI repro → `build_profile.storefront_build: true` (+ `theme_build: true`)
+- `http`/`direct` repro → leave them `false`
+- Need a realistic catalog? → `fixtures.demodata: true` (verify generates it; trunk provisions it)
 
 ## Your complete instructions
 
@@ -428,6 +431,10 @@ runbook, all three executor contracts, the reported version, the issue, and any 
 Follow it literally. The loop: **write `reproduction-plan.json` (+ the test + `fixtures.json`) →
 `bash .github/actions/repro-agent/bin/agent/verify-reproduction.sh` → read `builder-result.json` (for
 Playwright, also Read the screenshot it points to) → fix the ONE thing it names → repeat.**
+
+**Run `verify-reproduction.sh` in the FOREGROUND and WAIT** — it can take **10–20 minutes** (it
+builds the Admin/Storefront and runs the test); that wait is expected. **Never** background it
+(no `&`, no `run_in_background`, no polling) — backgrounding loses the result and no verdict is posted.
 
 The live-shop coordinates (`APP_URL`, `SW_ACCESS_KEY`, `ADMIN_USER`, `ADMIN_PASS`) are already in
 your environment — never echo or rediscover them. Author only your own files

@@ -15,21 +15,27 @@ There is **no Analyze phase**. **YOU decide everything** and record it in a SING
 
 - **Executor / layer** — pick the cheapest faithful one (service→`direct`, `*-api`→`http`,
   `*-ui`→`playwright`). Contracts for all three follow below.
-- **Build profile & demodata** — the reported instance is provisioned **lean** (no admin/JS build,
-  no demodata). You do NOT run any build commands yourself — just **declare what you need in
-  `reproduction-plan.json`** and `verify-reproduction.sh` builds it for you (once) before verifying,
-  and the trunk leg provisions to match:
-  - Admin UI needed → `build_profile.admin_build: true`
-  - Storefront UI needed → `build_profile.storefront_build: true` (and `theme_build: true`)
-  - Realistic catalog needed → `fixtures.demodata: true`
+- **Build profile** — the Admin **and** Storefront are **already built** on this instance, so any
+  executor works immediately and you never run or wait on a build. You still **record which surface
+  your repro actually uses** in `reproduction-plan.json` so the deterministic **trunk** leg builds
+  only that (and the legs stay comparable):
+  - Admin-UI repro → `build_profile.admin_build: true`
+  - Storefront-UI repro → `build_profile.storefront_build: true` (and `theme_build: true`)
+  - `http`/`direct` repro → leave them `false`
+- **Demodata** — off by default. If your repro needs a realistic, pre-populated catalog, set
+  `fixtures.demodata: true`; `verify-reproduction.sh` generates it (and the trunk leg provisions it).
 
 The reported version is **`{{VERSION}}`** — put it in `reproduction-plan.json` as `version`
 (use the value verbatim; `trunk` means no released version was reported).
 
 **Verify with `bash .github/actions/repro-agent/bin/agent/verify-reproduction.sh`** — NOT build-verify
-directly. When it classifies your bundle (`reproduced`/`not_reproduced`) it records the reported
-leg, hands the artifact to the deterministic trunk-and-report pipeline, and **prints STOP** — at
-that point your job is over; do not continue. While it still says "fix and retry", iterate.
+directly. **Run it in the FOREGROUND and WAIT for it to finish.** It can take **10–20 minutes**
+(it builds the Admin/Storefront and runs the test) — that long wait is EXPECTED and correct. Do
+**NOT** run it in the background (no `&`, no `run_in_background`, no polling) — backgrounding loses
+the result and the run produces no verdict. When it classifies your bundle
+(`reproduced`/`not_reproduced`) it records the reported leg, hands the artifact to the deterministic
+trunk-and-report pipeline, and **prints STOP** — at that point your job is over; do not continue.
+While it still says "fix and retry", iterate.
 
 ---
 
