@@ -1,21 +1,23 @@
 #!/usr/bin/env bash
-# `http` executor (v2). Reads the plan (reproduction-plan.json), runs the request — or a
-# request SEQUENCE — against the running shop, and asserts on the FINAL response.
+# `http` executor (v3). Reads the plan (reproduction-plan.json), runs the request — or a request
+# SEQUENCE — against the running shop, and evaluates a LIST of assertions on the FINAL response.
 #
 # Supports:
 #  - auth by surface: admin API (/api/...) → admin OAuth Bearer; store API (/store-api/...)
 #    → sw-access-key. Chosen per request from its path; the executor owns auth (any auth
 #    header the agent wrote is dropped), so an admin-api request is never sent a store key.
-#  - install-specific placeholders in path/body/headers, resolved against the shop:
+#  - install-specific placeholders in path/body/headers/expect, resolved against the shop:
 #    {{SC}} {{NAV_CAT}} {{COUNTRY}} {{SALUTATION}} {{SALUTATION2}} {{TAX}} {{CURRENCY}}
 #    {{LANGUAGE}} {{STOREFRONT_URL}} {{SW_ACCESS_KEY}} {{SW_CONTEXT_TOKEN}}
-#  - multi-step: `requests: [...]`; sw-context-token is captured and carried forward;
-#    a non-final setup request that isn't 2xx => blocked.
-#  - false-positive guards: a 401/403 (auth rejected before the symptom ran), or an
-#    unparseable/empty response_field on a non-2xx response => inconclusive (NOT a bogus
-#    "reproduced").
-#
-# expect = HEALTHY value: actual != expect => reproduced; actual == expect => not_reproduced.
+#  - multi-step: `requests: [...]`; sw-context-token captured + carried forward; a non-final
+#    setup request that isn't 2xx => blocked.
+#  - MULTIPLE assertions: `assertions: [ {kind, field?, expect?, op?}, ... ]` (a single
+#    `assertion: {...}` is accepted as sugar). Ops: equals (default) | contains | matches |
+#    present | absent | gt | lt. Each `expect` is the HEALTHY value.
+#  - combine rule: ALL assertions pass => not_reproduced (healthy); ANY fails => reproduced.
+#  - false-positive guards (win over the combine rule): a 401/403 (auth rejected before the
+#    symptom ran, and not itself asserted), or a value-comparing assertion whose field is
+#    unreadable on a non-2xx response => inconclusive, never a bogus "reproduced".
 #
 # Env: REPRO_PLAN/ANALYSIS, OUT, APP_URL (req), TARGET (req), SW_ACCESS_KEY, ADMIN_USER, ADMIN_PASS
 set -euo pipefail
@@ -28,13 +30,13 @@ BASE=${APP_URL%/}
 ACCESS_KEY=${SW_ACCESS_KEY:-}
 ADMIN_USER=${ADMIN_USER:-admin}
 ADMIN_PASS=${ADMIN_PASS:-shopware}
-# shellcheck source=lib-admin-api.sh
+# shellcheck source=../lib/lib-admin-api.sh
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/lib-admin-api.sh" # admin_token + resolve_ids (shared with seed.sh)
 
 VERSION=$(jq -r '.version // "unknown"' "$ANALYSIS")
-KIND=$(jq -r '.assertion.kind' "$ANALYSIS")
-EXPECT=$(jq -r '.assertion.expect | tostring' "$ANALYSIS")
-FIELD=$(jq -r '.assertion.field // ""' "$ANALYSIS")
+# Normalize the assertions: prefer `assertions: [...]`, fall back to a single `assertion: {...}`.
+ASSERTIONS=$(jq -c 'if .assertions then .assertions elif .assertion then [.assertion] else [] end' "$ANALYSIS")
+NASRT=$(echo "$ASSERTIONS" | jq 'length')
 # A single `request` is treated as a one-element sequence.
 REQS=$(jq -c 'if .requests then .requests else [.request] end' "$ANALYSIS")
 NREQ=$(echo "$REQS" | jq 'length')
@@ -50,24 +52,16 @@ ADMIN_REQ=0
 while IFS= read -r p; do is_admin_path "$p" && { ADMIN_REQ=1; break; }; done < <(echo "$REQS" | jq -r '.[].path // ""')
 
 # Resolve install-specific ids only if the plan references {{...}} beyond the free ones (admin API).
-NEED=$(echo "$REQS" | grep -oE '\{\{[A-Z0-9_]+\}\}' | sort -u | tr -d '{}' || true)
+NEED=$(echo "$REQS$ASSERTIONS" | grep -oE '\{\{[A-Z0-9_]+\}\}' | sort -u | tr -d '{}' || true)
 NEED_IDS=0
 echo "$NEED" | grep -qvE '^(SW_ACCESS_KEY|STOREFRONT_URL|SW_CONTEXT_TOKEN)?$' && NEED_IDS=1
 
-# Fetch the admin OAuth token once if EITHER an admin-api request will run OR we must resolve
-# install-specific ids (both go through the admin API). Without it, admin-api requests get the
-# store-api key and the gateway returns 401 — a harness auth failure, not the reported bug.
-# (Token + id resolution live in lib-admin-api.sh, shared with seed.sh.)
 TOKEN=""
 if [ "$ADMIN_REQ" = 1 ] || [ "$NEED_IDS" = 1 ]; then
   ADMIN_TOKEN=$(admin_token) || { echo "::error::admin OAuth token request failed (needed for admin-api auth / id resolution)"; exit 1; }
-  TOKEN="$ADMIN_TOKEN" # the request loop authenticates admin-api calls with $TOKEN
+  TOKEN="$ADMIN_TOKEN"
 fi
-
 if [ "$NEED_IDS" = 1 ]; then
-  # resolve_ids sets SC NAV_CAT STOREFRONT_URL COUNTRY SALUTATION SALUTATION2 TAX CURRENCY
-  # LANGUAGE (reuses $ADMIN_TOKEN — no second token fetch). It defaults STOREFRONT_URL to a
-  # registered SC domain, falling back to APP_URL (matching the prior behaviour).
   resolve_ids || { echo "::error::install-id resolution failed"; exit 1; }
 fi
 
@@ -91,18 +85,12 @@ resolve() { # substitute {{KEY}} placeholders (SALUTATION2 before SALUTATION)
   printf '%s' "$s"
 }
 
-# assertion.expect may itself reference a resolved id (e.g. {{SALUTATION2}}).
-EXPECT=$(resolve "$EXPECT")
-
 for i in $(seq 0 $((NREQ - 1))); do
   R=$(echo "$REQS" | jq -c ".[$i]")
   M=$(echo "$R" | jq -r '.method // "GET"')
   P=$(resolve "$(echo "$R" | jq -r '.path // ""')")
   B=$(resolve "$(echo "$R" | jq -r '.body // ""')")
   CURL=(curl -sS --max-time 30 -o "$BODYF" -D "$HEAD" -w '%{http_code}' -X "$M" "$BASE$P")
-  # Auth by surface: admin API → OAuth Bearer; store API → sw-access-key. The executor owns
-  # auth (it dropped any auth header the agent wrote), so each request is authenticated for
-  # the API it actually targets — an admin-api request no longer goes out with a store key.
   DISP_H=""
   if is_admin_path "$P"; then
     [ -n "$TOKEN" ] && { CURL+=(-H "Authorization: Bearer $TOKEN"); DISP_H=" -H \"Authorization: Bearer [REDACTED_TOKEN]\""; }
@@ -110,7 +98,6 @@ for i in $(seq 0 $((NREQ - 1))); do
     [ -n "$ACCESS_KEY" ] && { CURL+=(-H "sw-access-key: $ACCESS_KEY"); DISP_H=" -H \"sw-access-key: [REDACTED_KEY]\""; }
   fi
   [ -n "$CTX" ] && CURL+=(-H "sw-context-token: $CTX")
-  # plan headers (resolved); drop any auth header the agent added (the executor injects the right one).
   has_ct=0
   while IFS= read -r h; do
     [ -n "$h" ] || continue
@@ -118,8 +105,6 @@ for i in $(seq 0 $((NREQ - 1))); do
     case "$(printf '%s' "$h" | tr 'A-Z' 'a-z')" in content-type:*) has_ct=1;; esac
     h=$(resolve "$h"); CURL+=(-H "$h"); DISP_H+=" -H \"$h\""
   done < <(echo "$R" | jq -r '.headers // {} | to_entries[] | "\(.key): \(.value)"')
-  # store-api/admin-api are JSON: default Content-Type when a body is present and the plan
-  # omitted it — otherwise curl sends form-encoded and every field reads as blank (400).
   if [ -n "$B" ] && [ "$has_ct" = 0 ]; then CURL+=(-H "Content-Type: application/json"); DISP_H+=" -H \"Content-Type: application/json\""; fi
   DISP_B=""; [ -n "$B" ] && { CURL+=(--data "$B"); DISP_B=" --data '$B'"; }
   SCRIPT="${SCRIPT}curl -sS -X $M \"\$APP_URL$P\"${DISP_H}${DISP_B}"$'\n'
@@ -127,72 +112,96 @@ for i in $(seq 0 $((NREQ - 1))); do
   if ! CODE=$("${CURL[@]}" 2>/dev/null); then blocked="request $((i + 1)) ($M $P) — transport failure"; break; fi
   T=$(grep -i '^sw-context-token:' "$HEAD" 2>/dev/null | tail -1 | tr -d '\r' | sed 's/^[^:]*:[[:space:]]*//' || true)
   [ -n "$T" ] && CTX="$T"
-  # a non-final SETUP request must succeed, else the repro can't proceed
   if [ "$i" -lt $((NREQ - 1)) ] && ! [[ "$CODE" =~ ^2 ]]; then
     blocked="setup request $((i + 1)) ($M $P) returned HTTP $CODE — $(head -c 1500 "$BODYF" 2>/dev/null | tr -d '\r\n' | tr -s ' ')"; break
   fi
 done
 
+# ---- Evaluate EVERY assertion on the FINAL response -------------------------------------------
+is2xx=false; [[ "${CODE:-}" =~ ^2 ]] && is2xx=true
+# Does any assertion legitimately expect 401/403? Then that code IS the symptom, not an auth fail.
+AUTH_ASSERTED=0
+echo "$ASSERTIONS" | jq -e 'any(.[]; (.kind=="http_status") and ((.expect|tostring)=="401" or (.expect|tostring)=="403"))' >/dev/null 2>&1 && AUTH_ASSERTED=1
+
+CHECKS="[]"; PRECOND_OK=true; SYMPTOM_OK=true; UNPARSEABLE_NON2XX=false
+if [ -z "$blocked" ] && [ "$NASRT" -gt 0 ]; then
+  for j in $(seq 0 $((NASRT - 1))); do
+    A=$(echo "$ASSERTIONS" | jq -c ".[$j]")
+    op=$(echo "$A" | jq -r '.op // "equals"')
+    role=$(echo "$A" | jq -r '.role // "assert"'); [ "$role" = "precondition" ] || role="assert"
+    field=$(echo "$A" | jq -r '.field // ""')
+    akind=$(echo "$A" | jq -r '.kind // (if .field then "response_field" else "http_status" end)')
+    exp=$(resolve "$(echo "$A" | jq -r 'if has("expect") then (.expect|tostring) else "" end')")
+    if [ "$akind" = "http_status" ]; then
+      subject="status"; actual="$CODE"
+    else
+      case "$field" in .*) subject="response$field" ;; *) subject="response.$field" ;; esac
+      actual=$(jq -r "$field" "$BODYF" 2>/dev/null || true); [ -n "$actual" ] || actual="<unparseable>"
+    fi
+    ok=false
+    case "$op" in
+      equals)   [ "$actual" = "$exp" ] && ok=true ;;
+      contains) case "$actual" in *"$exp"*) ok=true ;; esac ;;
+      matches)  printf '%s' "$actual" | grep -qE "$exp" && ok=true ;;
+      present)  { [ "$actual" != "<unparseable>" ] && [ "$actual" != null ] && [ -n "$actual" ]; } && ok=true ;;
+      absent)   { [ "$actual" = "<unparseable>" ] || [ "$actual" = null ] || [ -z "$actual" ]; } && ok=true ;;
+      gt)       awk "BEGIN{exit !(($actual)+0 > ($exp)+0)}" 2>/dev/null && ok=true ;;
+      lt)       awk "BEGIN{exit !(($actual)+0 < ($exp)+0)}" 2>/dev/null && ok=true ;;
+      *)        op=equals; [ "$actual" = "$exp" ] && ok=true ;;
+    esac
+    # A failed PRECONDITION invalidates the run (→ inconclusive); a failed symptom assert → reproduced.
+    if [ "$role" = "precondition" ]; then [ "$ok" = true ] || PRECOND_OK=false
+    else [ "$ok" = true ] || SYMPTOM_OK=false; fi
+    # An unreadable value on a non-2xx response only matters for SYMPTOM asserts (a failed precond
+    # already routes to inconclusive with a clearer reason).
+    if [ "$role" = "assert" ]; then
+      case "$op" in equals|contains|matches|gt|lt) { [ "$actual" = "<unparseable>" ] && [ "$is2xx" = false ]; } && UNPARSEABLE_NON2XX=true ;; esac
+    fi
+    CHECKS=$(echo "$CHECKS" | jq -c --arg s "$subject" --arg role "$role" --arg op "$op" --arg e "$exp" --arg a "$actual" --argjson ok "$ok" \
+      '. + [{subject:$s, role:$role, op:$op, expected:$e, actual:$a, ok:$ok}]')
+  done
+fi
+
+# ---- Decide the leg status. Order: blocked → auth guard → PRECONDITION → unreadable → symptom. -
+# Preconditions gate everything: if the scenario wasn't set up correctly, the symptom verdict can't
+# be trusted, so the leg is `inconclusive` (a human looks) — never a bogus `reproduced`.
+REASON_TEXT=""
 if [ -n "$blocked" ]; then
-  STATUS="blocked"; MATCHED="null"; ACTUAL="null"; REASON_TEXT="$blocked"; REPORTER="$blocked"
+  STATUS="blocked"; CHECKS="[]"; REASON_TEXT="$blocked"; REPORTER="$blocked"
+elif [ "$NASRT" -eq 0 ]; then
+  STATUS="inconclusive"; CHECKS="[]"; REASON_TEXT="the plan declares no assertions"; REPORTER="$REASON_TEXT"
+elif { [ "$CODE" = "401" ] || [ "$CODE" = "403" ]; } && [ "$AUTH_ASSERTED" = 0 ]; then
+  STATUS="inconclusive"; CHECKS="[]"
+  REASON_TEXT="request returned HTTP $CODE (authentication/authorization rejected) before the symptom could run — harness-credential failure, not the reported bug. body: $(head -c 500 "$BODYF" 2>/dev/null | tr -d '\r\n' | tr -s ' ')"
+  REPORTER="$REASON_TEXT"
+elif [ "$PRECOND_OK" = false ]; then
+  # A precondition failed → the scenario state is invalid; keep the checks so the human sees which.
+  STATUS="inconclusive"
+  FAILS=$(echo "$CHECKS" | jq -r '[.[] | select(.role=="precondition" and .ok==false) | .subject + " (expected " + .expected + ", got " + .actual + ")"] | join("; ")')
+  REASON_TEXT="precondition(s) not met: $FAILS — the scenario was not set up as expected, so the symptom could not be evaluated faithfully."
+  REPORTER="precondition(s) not met; HTTP $CODE"
+elif [ "$UNPARSEABLE_NON2XX" = true ]; then
+  STATUS="inconclusive"; CHECKS="[]"
+  REASON_TEXT="final request returned HTTP $CODE and an asserted field was unreadable (likely malformed) — body: $(head -c 1500 "$BODYF" 2>/dev/null | tr -d '\r\n' | tr -s ' ')"
+  REPORTER="$REASON_TEXT"
+elif [ "$SYMPTOM_OK" = true ]; then
+  STATUS="not_reproduced"; REPORTER="all assertions passed; HTTP $CODE"
 else
-  REASON_TEXT=""
-  case "$KIND" in
-    http_status) ACTUAL_RAW="$CODE"; REPORTER="HTTP $CODE (expected $EXPECT)" ;;
-    response_field)
-      ACTUAL_RAW=$(jq -r "$FIELD" "$BODYF" 2>/dev/null || true); [ -n "$ACTUAL_RAW" ] || ACTUAL_RAW="<unparseable>"
-      REPORTER="$FIELD = '$ACTUAL_RAW' (expected '$EXPECT'); HTTP $CODE" ;;
-    *) ACTUAL_RAW="$CODE"; REPORTER="HTTP $CODE (unknown assertion kind '$KIND')" ;;
-  esac
-  # Guard: 401/403 means the gateway rejected auth BEFORE the business logic ran — the harness
-  # credentials were rejected, not the reported symptom. Never score that "reproduced" (unless
-  # the symptom genuinely IS an auth code) → inconclusive, surfaced to a human with the body.
-  if { [ "$CODE" = "401" ] || [ "$CODE" = "403" ]; } && [ "$EXPECT" != "401" ] && [ "$EXPECT" != "403" ]; then
-    STATUS="inconclusive"; MATCHED="null"; ACTUAL="\"$CODE\""
-    REASON_TEXT="request returned HTTP $CODE (authentication/authorization rejected) before the symptom could be exercised — harness-credential failure, not the reported bug. body: $(head -c 500 "$BODYF" 2>/dev/null | tr -d '\r\n' | tr -s ' ')"
-  # Guard: a missing field on a non-2xx response means the call was malformed/failed,
-  # not that the symptom occurred → inconclusive, never a bogus "reproduced".
-  elif [ "$KIND" = "response_field" ] && { [ "$ACTUAL_RAW" = "<unparseable>" ] || [ "$ACTUAL_RAW" = "null" ]; } && ! [[ "$CODE" =~ ^2 ]]; then
-    STATUS="inconclusive"; MATCHED="null"; ACTUAL="\"$ACTUAL_RAW\""
-    REASON_TEXT="final request returned HTTP $CODE, asserted field absent (likely malformed) — body: $(head -c 1500 "$BODYF" 2>/dev/null | tr -d '\r\n' | tr -s ' ')"
-  elif [ "$ACTUAL_RAW" = "$EXPECT" ]; then
-    STATUS="not_reproduced"; MATCHED="true"; ACTUAL="\"$ACTUAL_RAW\""
-  else
-    STATUS="reproduced"; MATCHED="false"; ACTUAL="\"$ACTUAL_RAW\""
-  fi
+  NFAIL=$(echo "$CHECKS" | jq '[.[] | select(.role=="assert" and .ok==false)] | length')
+  STATUS="reproduced"; REPORTER="$NFAIL symptom assertion(s) failed; HTTP $CODE"
 fi
 
 { echo '#!/usr/bin/env bash'; echo '# Reproduction request(s) — set $APP_URL (executor injects auth: sw-access-key or admin Bearer, + sw-context-token).'; printf '%s' "$SCRIPT"; } > repro.sh
 
-# Structured checks → the report renders these as readable `assert(subject, expected) // ✅/❌ got …`
-# lines instead of one cryptic string. Only for a definitive status/field verdict; blocked /
-# inconclusive legs omit checks and fall back to reporter_output.
-CHECKS="[]"
-if [ "$STATUS" = "reproduced" ] || [ "$STATUS" = "not_reproduced" ]; then
-  is2xx=false; [[ "$CODE" =~ ^2 ]] && is2xx=true
-  fieldok=false; [ "$MATCHED" = "true" ] && fieldok=true
-  case "$KIND" in
-    http_status)
-      CHECKS=$(jq -nc --arg e "$EXPECT" --arg a "$CODE" --argjson ok "$fieldok" \
-        '[{subject:"status", expected:$e, actual:$a, ok:$ok}]') ;;
-    response_field)
-      CHECKS=$(jq -nc --arg code "$CODE" --argjson is2xx "$is2xx" --arg field "$FIELD" \
-        --arg e "$EXPECT" --arg a "$ACTUAL_RAW" --argjson ok "$fieldok" \
-        '[ {subject:"status", expected:(if $is2xx then $code else "2xx" end), actual:$code, ok:$is2xx},
-           {subject:("response" + (if ($field|startswith(".")) then $field else "."+$field end)), expected:$e, actual:$a, ok:$ok} ]') ;;
-  esac
-fi
-
+MATCHED=false; [ "$STATUS" = "not_reproduced" ] && MATCHED=true
 jq -n \
   --argjson issue "$(jq -r '.issue' "$ANALYSIS")" \
   --arg target "$TARGET" --arg version "$VERSION" --arg status "$STATUS" \
-  --arg expect "$EXPECT" --argjson actual "$ACTUAL" --argjson matched "$MATCHED" \
-  --arg script "$SCRIPT" --arg reporter "$REPORTER" --argjson code "${CODE:-0}" \
-  --argjson checks "$CHECKS" \
-  --arg reason_text "$REASON_TEXT" '{
+  --argjson matched "$MATCHED" --arg script "$SCRIPT" --arg reporter "$REPORTER" \
+  --argjson code "${CODE:-0}" --argjson checks "$CHECKS" --arg reason_text "$REASON_TEXT" '{
     schema_version: "1", issue: $issue, target: $target, version: $version, executor: "http",
     status: $status,
-    assertion: { expect: $expect, actual: ($actual | if . == null then null else tostring end), matched: $matched, checks: $checks },
+    assertion: { matched: $matched, checks: $checks },
     duration_s: 0,
     evidence: { script: $script, script_lang: "sh", reporter_output: $reporter,
       http: [{ status: $code }], artifacts: [], truncated: false },

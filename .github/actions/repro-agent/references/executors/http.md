@@ -9,7 +9,7 @@ generates `repro.sh` from the plan and runs it). Use:
 
 - `request` — a single object: `{ method, path, headers, body }`, OR
 - `requests` — an array for a multi-step flow (e.g. create context → add to cart → read).
-  The assertion runs on the **FINAL** response.
+  The assertions run on the **FINAL** response.
 
 The executor authenticates each request **by its path** — admin API (`/api/...`) gets an
 admin OAuth **Bearer** token, store API (`/store-api/...`) gets `sw-access-key` — and
@@ -22,20 +22,57 @@ the right credential for the surface and drops any you add. Just give the correc
 Reference pre-existing install ids via the placeholders the executor resolves against the
 running shop (see BUILD.md "Fixtures rules" for the full catalog):
 `{{SC}} {{NAV_CAT}} {{COUNTRY}} {{SALUTATION}} {{SALUTATION2}} {{TAX}} {{CURRENCY}}
-{{LANGUAGE}} {{STOREFRONT_URL}}` — also valid inside `assertion.expect`.
+{{LANGUAGE}} {{STOREFRONT_URL}}` — also valid inside an assertion's `expect`.
 Entities you create yourself go in `fixtures.json` with known 32-char hex UUIDs.
 
-## Assertion
-- `assertion.kind`: `http_status` | `response_field` | `exception`.
-- `assertion.expect` is the **healthy** value (what a FIXED shop returns). Leg is
-  `reproduced` when `actual != expect`, `not_reproduced` when `actual == expect`.
-- `assertion.field` is a jq path, used only by `response_field`.
-- `assertion.locator` is a human reference to the endpoint.
-- Send `Accept: application/json` when you need the flat (non-JSON:API) response shape.
+## Assertions
+Author a LIST of checks in `assertions: [ … ]` (a single `assertion: { … }` is also accepted).
+**All checks run on the FINAL response**, and:
+
+- **`not_reproduced`** (healthy) ⟺ **every** assertion passes;
+- **`reproduced`** (buggy) ⟺ **any** assertion fails.
+
+Each entry is `{ role?, kind?, field?, expect?, op? }`:
+- `role` (default `assert`): `precondition` | `assert` — see below.
+- `kind`: `http_status` (asserts the response code) or `response_field` (default when `field` is set).
+- `field`: a jq path/expression evaluated on the final body (e.g. `.price.totalPrice`,
+  `.errors[0].code`, `.elements | length`).
+- `expect`: the **healthy** value (what a FIXED shop returns) — placeholders like `{{SALUTATION}}` allowed.
+- `op` (default `equals`) — how `expect` is compared. The report renders one keyword per op
+  (`require*` for preconditions, `assert*` for the symptom):
+
+  | `op` | passes when | renders (symptom) |
+  |---|---|---|
+  | `equals` | actual == expect | `assertEquals(subject, expect)` |
+  | `contains` | actual contains expect | `assertContains(subject, expect)` |
+  | `matches` | actual matches regex expect | `assertMatches(subject, expect)` |
+  | `present` | field exists & non-null | `assertPresent(subject)` |
+  | `absent` | field missing/null | `assertAbsent(subject)` |
+  | `gt` / `lt` | actual >/< expect (numeric) | `assertGreaterThan` / `assertLessThan` |
+
+### Preconditions vs the symptom (avoiding false `reproduced`)
+Split your checks by intent:
+- **`role: "precondition"`** — "the scenario is set up correctly" (the cart has 2 items, the user
+  is logged in, the call returned 200). If a precondition **fails**, the leg is **`inconclusive`**
+  (a human looks) — the state was wrong, so the symptom can't be judged. These render as `require*`.
+- **`role: "assert"`** (default) — "the healthy behaviour holds". This is the actual symptom; a
+  failure means **`reproduced`**.
+
+Decision order: `blocked` (setup/transport) → **any precondition fails ⇒ `inconclusive`** →
+all preconditions hold ⇒ symptom asserts decide (all pass ⇒ `not_reproduced`, any fails ⇒
+`reproduced`).
+
+> **⚠️ Be mindful of false `reproduced`.** Anything you mark `assert` flips the leg to `reproduced`
+> when it fails. Assert **only the field(s) that define the symptom**. Put state-validity checks
+> under `role: "precondition"` instead, and never `assert` volatile/incidental values (timestamps,
+> generated UUIDs, demodata-dependent counts, non-guaranteed ordering) — a healthy shop would
+> "fail" those and you'd wrongly report a bug. When in doubt: fewer asserts, more preconditions.
+
+Send `Accept: application/json` when you need the flat (non-JSON:API) response shape.
 
 ## Request ordering (multi-step)
 `requests` run **in array order**. Every request except the LAST is **setup** and must
-return 2xx (a non-2xx setup request → `blocked`). The `assertion` always runs on the
+return 2xx (a non-2xx setup request → `blocked`). The assertions always run on the
 **final** response — so the call that surfaces the symptom must be **last**. Putting the
 asserted call in the middle is the most common authoring error: its result is discarded and
 a later setup response gets asserted instead.
@@ -61,18 +98,24 @@ total on the final response.
       "method": "GET", "path": "/store-api/checkout/cart", "headers": { "Accept": "application/json" }
     }
   ],
-  "assertion": { "kind": "response_field", "field": ".price.totalPrice", "expect": "23.8", "locator": "/store-api/checkout/cart" }
+  "assertions": [
+    { "// precondition: the request worked": "", "role": "precondition", "kind": "http_status", "expect": "200" },
+    { "// precondition: both line items are actually in the cart": "", "role": "precondition", "field": ".lineItems | length", "expect": "2" },
+    { "// symptom: a healthy shop totals 23.80": "", "field": ".price.totalPrice", "expect": "23.8" }
+  ]
 }
 ```
 
 Note: no `sw-access-key`, `Authorization`, or `sw-context-token` anywhere — the executor
-injects auth by path and carries the context token. `expect` is the HEALTHY total, so a
-buggy shop returning a different total scores `reproduced`.
+injects auth by path and carries the context token. Each `expect` is the HEALTHY value, so a
+buggy shop deviating from any of them scores `reproduced`.
 
 ## Failure semantics (no false positives)
 - A non-2xx on a **non-final** request → `blocked` (setup broke; body shown).
-- A **missing field** on a non-2xx **final** response → `inconclusive`, never a bogus
-  `reproduced` (the symptom couldn't be evaluated).
+- A failed **`role: "precondition"`** check → `inconclusive` (scenario state invalid; the failing
+  `require*` is shown), never a bogus `reproduced`.
+- A 401/403 that isn't itself asserted → `inconclusive` (auth rejected before the symptom ran).
+- A **missing field** on a non-2xx **final** response → `inconclusive` (the symptom couldn't be evaluated).
 
 ## Comment every step
 Comment each request explaining what it does and what the final assertion checks. (Inline

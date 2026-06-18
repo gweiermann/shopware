@@ -99,17 +99,36 @@ esac; }
 
 qval () { case "$1" in (''|*[!0-9]*) printf "'%s'" "$1" ;; (*) printf '%s' "$1" ;; esac; } # quote unless all-digits
 
-# Render the assertion as readable pseudo-code (one assert per check, ✅/❌ + the observed value)
-# from the executor's structured `assertion.checks`; fall back to the raw reporter line when an
-# executor doesn't emit checks (e.g. playwright/direct, or blocked/inconclusive legs).
+# Render each structured check (assertion.checks) as a readable, named assert — one keyword per
+# operator (assertEquals / assertContains / assertMatches / assertPresent / assertAbsent /
+# assertGreaterThan / assertLessThan), ✅/❌ + the observed value. Fall back to the raw reporter
+# line when an executor emits no checks (playwright/direct, or blocked/inconclusive legs).
 checks_block () { # <result.json>
   local f="$1"
   if jq -e '.assertion.checks | arrays and length > 0' "$f" >/dev/null 2>&1; then
     echo '```js'
-    while IFS=$'\t' read -r subj exp act ok; do
-      if [ "$ok" = true ]; then echo "assert(${subj}, $(qval "$exp")) // ✅"
-      else echo "assert(${subj}, $(qval "$exp")) // ❌ got $(qval "$act")"; fi
-    done < <(jq -r '.assertion.checks[] | [.subject, (.expected|tostring), (.actual|tostring), (.ok|tostring)] | @tsv' "$f")
+    # One compact JSON object per check (NOT @tsv — empty `expected` fields would collapse under a
+    # tab IFS and shift the columns); pull each field with jq so empties are preserved.
+    # `require*` keywords = preconditions (failing one → inconclusive); `assert*` = the symptom.
+    local c subj role op exp act ok verb call
+    while IFS= read -r c; do
+      subj=$(jq -r '.subject' <<<"$c"); op=$(jq -r '.op // "equals"' <<<"$c")
+      role=$(jq -r '.role // "assert"' <<<"$c")
+      exp=$(jq -r '.expected | tostring' <<<"$c"); act=$(jq -r '.actual | tostring' <<<"$c")
+      ok=$(jq -r '.ok' <<<"$c")
+      [ "$role" = precondition ] && verb="require" || verb="assert"
+      case "$op" in
+        present)  call="${verb}Present(${subj})" ;;
+        absent)   call="${verb}Absent(${subj})" ;;
+        contains) call="${verb}Contains(${subj}, $(qval "$exp"))" ;;
+        matches)  call="${verb}Matches(${subj}, $(qval "$exp"))" ;;
+        gt)       call="${verb}GreaterThan(${subj}, $(qval "$exp"))" ;;
+        lt)       call="${verb}LessThan(${subj}, $(qval "$exp"))" ;;
+        *)        call="${verb}Equals(${subj}, $(qval "$exp"))" ;;
+      esac
+      if [ "$ok" = true ]; then echo "${call} // ✅"
+      else echo "${call} // ❌ got $(qval "$act")"; fi
+    done < <(jq -c '.assertion.checks[]' "$f")
     echo '```'
   else
     local rep; rep=$(jq -r '.evidence.reporter_output // ""' "$f")

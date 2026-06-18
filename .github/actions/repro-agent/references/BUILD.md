@@ -124,12 +124,23 @@ allowed set, **STOP** and explain in plain text (not a JSON file) — never hand
        "scenario": ["Given …", "When …", "Then …"],
        "request": { "method": "POST", "path": "/store-api/checkout/cart", "headers": {}, "body": "{}" },
        "script_path": "repro.spec.ts",
-       "assertion": { "kind": "http_status | response_field | exception | ui_state", "expect": "400", "field": ".errors[0].code", "locator": "/store-api/checkout/cart" },
+       "assertions": [
+         { "role": "precondition", "kind": "http_status", "expect": "200" },
+         { "field": ".errors[0].code", "op": "equals", "expect": "CART__LINE_ITEM_NOT_FOUND" }
+       ],
        "confidence": 0.82, "confidence_reason": null, "blocked_reason": null
    }
    ```
-   - `assertion.expect` is the HEALTHY value: a leg is `reproduced` when `actual != expect`,
-     `not_reproduced` when `actual == expect`.
+   - **`http` only:** `assertions` is a LIST evaluated on the final response (see the `http`
+     contract for the full `op` set + the `role` field). Each `expect` is the HEALTHY value.
+     Mark scenario-setup checks `role: "precondition"` (a failure → `inconclusive`, the state was
+     wrong) and the actual symptom `role: "assert"` (default; a failure → `reproduced`). The leg is
+     `not_reproduced` only when every precondition AND every assert passes. ⚠️ Anything you `assert`
+     can cause a FALSE `reproduced` — assert only the symptom field(s); put state-validity (status,
+     "row exists", counts) under preconditions; never assert volatile values (timestamps, generated
+     ids, demodata-dependent counts). A single `assertion: {…}` object is still accepted.
+   - `playwright`/`direct` carry their checks in the spec/test code instead, so assert as many
+     things as you need there directly.
    - `assertion.symptom_pattern` (optional; `direct` + `kind: exception`) — a distinctive
      extended-regex; if PHPUnit errors and the output matches, the leg counts as `reproduced`.
    - `script_path` names the spec/test for `playwright`/`direct`; omit for `http`.
