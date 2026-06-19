@@ -37,12 +37,12 @@ const fixtures = {
   ],
 };
 
-function writeBundle(spec) {
+function writeBundle(spec, bundleFixtures = fixtures) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'repro-agent-validate-'));
   fs.writeFileSync(path.join(dir, 'issue.md'), issue);
   fs.writeFileSync(path.join(dir, 'issue-class.txt'), 'visual');
   fs.writeFileSync(path.join(dir, 'reproduction-plan.json'), `${JSON.stringify(plan, null, 2)}\n`);
-  fs.writeFileSync(path.join(dir, 'fixtures.json'), `${JSON.stringify(fixtures, null, 2)}\n`);
+  fs.writeFileSync(path.join(dir, 'fixtures.json'), `${JSON.stringify(bundleFixtures, null, 2)}\n`);
   fs.writeFileSync(path.join(dir, 'repro.spec.ts'), spec);
   return dir;
 }
@@ -118,6 +118,33 @@ test('good selected variant assertion', async ({ page }) => {
 const goodResult = run(good);
 if (goodResult.status !== 0) {
   console.error(`Expected selected-variant assertion to pass:\n${goodResult.stdout}\n${goodResult.stderr}`);
+  process.exit(1);
+}
+
+const syncWrappedFixtures = {
+  sync_property_group: {
+    entity: 'property_group',
+    action: 'upsert',
+    payload: fixtures.property_group,
+  },
+  sync_product: {
+    entity: 'product',
+    action: 'upsert',
+    payload: fixtures.product,
+  },
+};
+const goodSyncWrapped = writeBundle(`
+import { test, expect } from '@playwright/test';
+test('good selected variant assertion from sync wrapper fixtures', async ({ page }) => {
+  const card = page.getByRole('link', { name: /Slider Variant Product/i }).first();
+  await card.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: seeded product not visible'); });
+  await expect(page.getByText('Black')).toBeVisible();
+});
+`, syncWrappedFixtures);
+const goodSyncWrappedResult = run(goodSyncWrapped);
+if (goodSyncWrappedResult.status !== 0) {
+  console.error(`Expected sync-wrapper selected-variant assertion to pass:\n${goodSyncWrappedResult.stdout}\n${goodSyncWrappedResult.stderr}`);
   process.exit(1);
 }
 

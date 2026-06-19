@@ -29,6 +29,18 @@ function entityPayload(value) {
   return [];
 }
 
+function entityRows(data, entityName) {
+  const rows = [...entityPayload(data?.[entityName])];
+  if (!data || typeof data !== 'object') return rows;
+
+  for (const value of Object.values(data)) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
+    if (value.entity === entityName) rows.push(...entityPayload(value));
+  }
+
+  return rows;
+}
+
 function stripComments(source) {
   return source
     .replace(/\/\*[\s\S]*?\*\//g, '')
@@ -64,10 +76,10 @@ function collectControlledTerms(value, terms = new Set(), key = '') {
 
 function collectVariantTerms(data) {
   const terms = new Set();
-  const products = entityPayload(data.product);
+  const products = entityRows(data, 'product');
   const optionNamesById = new Map();
 
-  for (const group of entityPayload(data.property_group)) {
+  for (const group of entityRows(data, 'property_group')) {
     for (const option of entityPayload(group.options)) {
       if (option?.id && option?.name) optionNamesById.set(String(option.id), String(option.name));
     }

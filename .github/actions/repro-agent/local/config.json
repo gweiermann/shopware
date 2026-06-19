@@ -2,7 +2,7 @@
   "repo": "gweiermann/shopware",
   "upstream": "shopware/shopware",
   "defaultIssue": 30,
-  "model": "gpt-5.5",
+  "model": "gpt-5.4",
   "reasoningEffort": "low",
   "sandbox": "danger-full-access",
   "maxTurns": 12,

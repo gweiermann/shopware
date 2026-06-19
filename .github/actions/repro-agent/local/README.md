@@ -18,7 +18,7 @@ other visual, HTTP, and direct reproductions.
 
 ## Model policy
 
-Use `gpt-5.5` with `reasoning.effort: "low"` for the simulated build agent. Use `gpt-5.5` with
+Use `gpt-5.4` with `reasoning.effort: "low"` for the simulated build agent. Use `gpt-5.4` with
 `medium` or `high` reasoning for the orchestrator/evidence reviewer when screenshots need visual
 inspection.
 
