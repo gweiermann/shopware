@@ -79,8 +79,8 @@ else
     # element that was found. The SAME spec runs on both versions, so a failure because the
     # page/control the repro depends on is ABSENT on this version (cross-version UI drift)
     # must NOT masquerade as the symptom => inconclusive. Precedence: explicit precondition
-    # marker, then navigation/connection failure, then a genuine expect() assertion, else
-    # an unrecognised locator/timeout failure (a drive failure, not a reproduction).
+    # marker, then navigation/connection failure, then locator/strict-mode failures, then a
+    # genuine expect() assertion, else an unrecognised drive failure.
     if printf '%s' "$ERRS" | grep -q 'PRECONDITION_NOT_FOUND'; then
       STATUS="inconclusive"; MATCHED="null"; ACTUAL="\"precondition missing on $VERSION\""
       REPORTER="precondition absent on this version (UI differs) — $MSG"
@@ -89,6 +89,10 @@ else
       STATUS="inconclusive"; MATCHED="null"; ACTUAL="\"could not load the page on $VERSION\""
       REPORTER="navigation/connection failure — $MSG"
       REASON="\"the spec could not load the target page on $VERSION; the symptom cannot be judged\""
+    elif printf '%s' "$ERRS" | grep -qiE 'strict mode violation|element\(s\) not found|locator resolved to|waiting for .*locator'; then
+      STATUS="inconclusive"; MATCHED="null"; ACTUAL="\"$UNEXPECTED failing (locator/precondition)\""
+      REPORTER="locator/precondition failure — $MSG"
+      REASON="\"the failure was a locator or missing-element error, not an assertion on a found issue-specific state; cannot confirm the symptom on $VERSION\""
     elif printf '%s' "$ERRS" | grep -qE 'expect|Expected:|toBe|toHave|toContain|toEqual'; then
       STATUS="reproduced"; MATCHED="false"; ACTUAL="\"$UNEXPECTED failing\""
       REPORTER=$([ -n "$MSG" ] && printf '%s' "$MSG" || echo "assertion failed")

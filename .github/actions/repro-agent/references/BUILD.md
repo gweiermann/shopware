@@ -19,7 +19,8 @@ for other files.
    seeded product/element actually rendered. Trust is everything: a `reproduced`/`not_reproduced`
    the screenshot contradicts (e.g. an EMPTY page, an error, the wrong view) is NOT trustworthy —
    treat it as a fixture/precondition problem to fix, never as a result. Do not accept a result
-   you have not visually confirmed.
+   you have not visually confirmed. A screenshot that only proves a generic page loaded is not
+   evidence; it must visibly show the exact reported state and the distinguishing value or control.
 3. If not `reproduced` (or the screenshot doesn't match), the result names the ONE thing wrong
    (an HTTP code, an FK error,
    "element not found", a wrong value). Fix THAT — and only now may you read ONE specific
@@ -86,6 +87,20 @@ set, **STOP** and explain in plain text (not a JSON file) — never hand-roll a 
      data, force the viewport, use the technical route) — or, if you truly can't, stop with
      `blocked`/lower `confidence`. It is **never** a reason to switch to `http` "because it's more
      stable." Reproduce the SYMPTOM AS REPORTED; do not switch layers to chase a root-cause theory.
+   - **For "selected/specific X is not displayed" bugs, assert the selected/specific value.**
+     A generic container, row, card, title, or parent entity being visible is only a precondition.
+     The single symptom assertion must prove the distinguishing selected value appears: the option
+     name, product number, label, price, state, or other visible field that identifies the selected
+     entity. If the screenshot shows a product card but the selected variant option is missing,
+     `expect(productCard).toBeVisible()` is a false `not_reproduced`.
+   - **For "X should not be shown" bugs, assert absence of the whole class of visible symptom.**
+     Do not assert only one literal bad string from the report. If the bug is an unwanted discount
+     badge/percentage, a different rounded percentage (`0.02% saved` instead of `0.01% saved`) is
+     still the symptom. Assert that no percent badge / saved-percentage text is visible at all.
+   - **For Admin "loads / closes / remains usable" bugs, assert the reported interaction state,
+     not a guessed dashboard heading.** The Administration dashboard title and greeting vary by
+     version and time of day. A screenshot of a usable dashboard means a slow-network/bootstrap
+     repro did NOT fail merely because a `Dashboard` heading locator missed.
 2. **Write `reproduction-plan.json` + the executor's artifact:**
    - `http`: `request`/`requests` + `assertion`.
    - `playwright`: `script_path: "repro.spec.ts"` + the spec.

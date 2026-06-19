@@ -114,6 +114,10 @@ a freshly-seeded slug is not guaranteed, the id is. The slider renders a `produc
 accessible name is the product name (which you control) — gate the precondition on that.
 
 **Variants in a slider:** a static slider given a variant **parent** id renders **one** card that
-links to the **parent** (the slider does not expand variants). So "selected variant not shown in the
-slider" repros target the variant option text inside that one card, with the precondition only
-requiring the product card itself to be present.
+links to the **parent** (the slider does not expand variants). For bugs where a **specific child
+variant is selected/assigned** in the CMS slider, put that child variant id in
+`config.products.value` and make the product card only a precondition. The symptom assertion must
+target the distinguishing child value inside the rendered card (for example the option text
+`Black`/`White`, a variant product number, or another visible variant-specific field). Do not score
+`not_reproduced` from a visible generic parent card; that misses the reported selected-variant
+symptom.

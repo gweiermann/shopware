@@ -4,6 +4,7 @@
   "defaultIssue": 30,
   "model": "gpt-5.5",
   "reasoningEffort": "low",
+  "sandbox": "danger-full-access",
   "maxTurns": 12,
   "workflow": ".github/workflows/repro-agent.lock.yml",
   "agentVerifyCommand": "bash .github/actions/repro-agent/bin/agent/verify-reproduction.sh",

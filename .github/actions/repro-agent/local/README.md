@@ -34,8 +34,9 @@ ISSUE=30 REPO=gweiermann/shopware bash .github/actions/repro-agent/local/scripts
 # Static smoke check of generated or cookbook bundle contracts.
 node .github/actions/repro-agent/local/scripts/verify-output.mjs --root .github/actions/repro-agent/references/cookbook/cms-product-slider
 
-# Simulated agent entrypoint. Requires OPENAI_API_KEY when not using --dry-run.
+# Simulated agent entrypoint. Uses the Codex CLI auth/session; no raw OPENAI_API_KEY is required.
 node .github/actions/repro-agent/local/scripts/run-agent.mjs --issue 30 --max-turns 12 --dry-run
+node .github/actions/repro-agent/local/scripts/run-agent.mjs --issue 30 --max-turns 12
 ```
 
 ## Acceptance gates

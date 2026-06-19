@@ -30,6 +30,10 @@ a visual bug produces an unfaithful reproduction.
 8. **The shop renders ENGLISH (en-GB).** Do NOT copy UI strings from a non-English issue
    screenshot (e.g. "In den Warenkorb") — use the English label ("Add to shopping cart") or, better,
    a language-agnostic locator: the seeded entity's own name (which you control).
+9. **The final screenshot must visibly prove the issue-specific state.** If a visual fixture uses
+   an image, color, badge, wide element, or selected value, make it visible in the screenshot. A
+   transparent 1x1 image with CSS dimensions can satisfy Playwright visibility while proving
+   nothing to a human reviewer; use a visibly colored image/text sentinel or stop as inconclusive.
 
 ## What you author
 Generate `repro.spec.ts` and set `script_path: "repro.spec.ts"` in `reproduction-plan.json`. It asserts the HEALTHY
@@ -94,6 +98,10 @@ await locator.waitFor({ state: 'visible', timeout })
   and the missing label scored `reproduced` though nothing was there. Instead, gate on the
   seeded product's own name, e.g. `getByRole('link', {name:/Live-Film Repro/i})` scoped to the
   slider — so an empty/wrong page fails the precondition (→ `inconclusive`), never fakes a repro.
+- **For Admin dashboard/bootstrap checks, precondition on a real page marker and assert the
+  reported interaction.** Do not use guessed headings like `/^dashboard$/i`; Shopware may show
+  time-based greetings (`Hi!`, `Good evening.`) or cards instead. If the screenshot shows the
+  Administration is usable, a missing generic heading is a locator bug, not a reproduction.
 
 **(2) Symptom** — exactly ONE `await expect(...)` of the HEALTHY behaviour, with a generous
 timeout. This is the ONLY failure that may mean `reproduced`.
@@ -115,6 +123,13 @@ timeout. This is the ONLY failure that may mean `reproduced`.
 - When the target is one of many same-role items (rows, options), scope by each item's own
   visible text (`getByRole('row', {name:/module.?filter/i})`) before `.first()`/`.last()` —
   a bare role can match unrelated tables elsewhere on the page.
+- For unwanted visual badges/labels, assert absence of the full symptom family, not a single
+  literal value. Example: a discount rounding bug should fail if ANY `%` badge or
+  `/\d+([.,]\d+)?%\s+(saved|gespart)/i` text is visible, even when the exact percentage differs
+  from the issue screenshot.
+- For overflow/oversized-image bugs, the screenshot must show the oversized element and the
+  control it can block. A hidden, transparent, or visually blank element is a precondition gap,
+  even if `getByRole('img')` is visible to Playwright.
 
 ## Worked example — admin-ui spec (starts authenticated)
 A bug where the CMS module's "Create layout" button is missing. Note: no login steps, one

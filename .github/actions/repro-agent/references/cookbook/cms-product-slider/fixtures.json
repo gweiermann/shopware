@@ -25,7 +25,16 @@
         "blocks": [ { "id": "cc000000000000000000000000000043", "type": "product-slider", "position": 0, "sectionPosition": "main",
           "slots": [ { "id": "cc000000000000000000000000000044", "type": "product-slider", "slot": "productSlider",
             "config": { "products": { "source": "static", "value": [ "cc0000000000000000000000000000a1" ] },
-                        "title": { "source": "static", "value": "Repro" } } } ] } ] } ] }
+                        "title": { "source": "static", "value": "Repro" },
+                        "displayMode": { "source": "static", "value": "standard" },
+                        "boxLayout": { "source": "static", "value": "standard" },
+                        "navigationArrows": { "source": "static", "value": "outside" },
+                        "rotate": { "source": "static", "value": false },
+                        "autoplayTimeout": { "source": "static", "value": 5000 },
+                        "speed": { "source": "static", "value": 300 },
+                        "border": { "source": "static", "value": false },
+                        "elMinWidth": { "source": "static", "value": "300px" },
+                        "verticalAlign": { "source": "static", "value": null } } } ] } ] } ] }
   ],
   "landing_page": [
     { "id": "cc000000000000000000000000000051", "name": "Repro LP", "url": "repro-variant-slider", "active": true,

@@ -42,14 +42,18 @@ REQS=$(jq -c 'if .requests then .requests else [.request] end' "$ANALYSIS")
 NREQ=$(echo "$REQS" | jq 'length')
 
 # Plain vars (no associative array → portable to bash 3.2 + the CI's bash 5).
-SW_ACCESS_KEY_V="$ACCESS_KEY"; STOREFRONT_URL="$BASE"
+STOREFRONT_URL="$BASE"
 SC=""; NAV_CAT=""; COUNTRY=""; SALUTATION=""; SALUTATION2=""; TAX=""; CURRENCY=""; LANGUAGE=""
 
 # Auth by surface: the admin API (/api/...) needs an OAuth Bearer token; the store API
 # (/store-api/...) uses sw-access-key. Detect whether ANY request targets the admin API.
 is_admin_path() { case "$1" in /store-api/*) return 1 ;; /api/*) return 0 ;; *) return 1 ;; esac; }
-ADMIN_REQ=0
-while IFS= read -r p; do is_admin_path "$p" && { ADMIN_REQ=1; break; }; done < <(echo "$REQS" | jq -r '.[].path // ""')
+is_store_path() { case "$1" in /store-api/*) return 0 ;; *) return 1 ;; esac; }
+ADMIN_REQ=0; STORE_REQ=0
+while IFS= read -r p; do
+  is_admin_path "$p" && ADMIN_REQ=1
+  is_store_path "$p" && STORE_REQ=1
+done < <(echo "$REQS" | jq -r '.[].path // ""')
 
 # Resolve install-specific ids only if the plan references {{...}} beyond the free ones (admin API).
 NEED=$(echo "$REQS$ASSERTIONS" | grep -oE '\{\{[A-Z0-9_]+\}\}' | sort -u | tr -d '{}' || true)
@@ -57,13 +61,22 @@ NEED_IDS=0
 echo "$NEED" | grep -qvE '^(SW_ACCESS_KEY|STOREFRONT_URL|SW_CONTEXT_TOKEN)?$' && NEED_IDS=1
 
 TOKEN=""
-if [ "$ADMIN_REQ" = 1 ] || [ "$NEED_IDS" = 1 ]; then
+if [ "$ADMIN_REQ" = 1 ] || [ "$NEED_IDS" = 1 ] || { [ "$STORE_REQ" = 1 ] && [ -z "$ACCESS_KEY" ]; }; then
   ADMIN_TOKEN=$(admin_token) || { echo "::error::admin OAuth token request failed (needed for admin-api auth / id resolution)"; exit 1; }
   TOKEN="$ADMIN_TOKEN"
+fi
+if [ "$STORE_REQ" = 1 ] && [ -z "$ACCESS_KEY" ]; then
+  SCJ=$(admin_search sales-channel '{"limit":5,"filter":[{"type":"equals","field":"active","value":true}]}') || { echo "::error::store-api access-key resolution failed"; exit 1; }
+  ACCESS_KEY=$(printf '%s' "$SCJ" | jq -r '[.data[] | select(.accessKey != null and .accessKey != "") | .accessKey][0] // empty')
+  if [ -z "$ACCESS_KEY" ]; then
+    echo "::error::could not resolve an active sales-channel access key for store-api auth"
+    exit 1
+  fi
 fi
 if [ "$NEED_IDS" = 1 ]; then
   resolve_ids || { echo "::error::install-id resolution failed"; exit 1; }
 fi
+SW_ACCESS_KEY_V="$ACCESS_KEY"
 
 CTX=""                       # sw-context-token, carried across the sequence
 HEAD=$(mktemp); BODYF=$(mktemp); trap 'rm -f "$HEAD" "$BODYF"' EXIT
@@ -178,7 +191,11 @@ elif [ "$PRECOND_OK" = false ]; then
   # A precondition failed → the scenario state is invalid; keep the checks so the human sees which.
   STATUS="inconclusive"
   FAILS=$(echo "$CHECKS" | jq -r '[.[] | select(.role=="precondition" and .ok==false) | .subject + " (expected " + .expected + ", got " + .actual + ")"] | join("; ")')
-  REASON_TEXT="precondition(s) not met: $FAILS — the scenario was not set up as expected, so the symptom could not be evaluated faithfully."
+  BODY_SNIP=""
+  if [ "$is2xx" = false ]; then
+    BODY_SNIP=" body: $(head -c 1500 "$BODYF" 2>/dev/null | tr -d '\r\n' | tr -s ' ')"
+  fi
+  REASON_TEXT="precondition(s) not met: $FAILS — the scenario was not set up as expected, so the symptom could not be evaluated faithfully.$BODY_SNIP"
   REPORTER="precondition(s) not met; HTTP $CODE"
 elif [ "$UNPARSEABLE_NON2XX" = true ]; then
   STATUS="inconclusive"; CHECKS="[]"

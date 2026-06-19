@@ -15,7 +15,13 @@ set -euo pipefail
 ANALYSIS=${REPRO_PLAN:-${ANALYSIS:-reproduction-plan.json}}
 OUT=${OUT:-result.json}
 : "${TARGET:?TARGET is required}"
-SHOP=${SHOP_DIR:-shop}
+if [ -n "${SHOP_DIR:-}" ]; then
+  SHOP="$SHOP_DIR"
+elif [ -x vendor/bin/phpunit ]; then
+  SHOP="."
+else
+  SHOP="shop"
+fi
 VERSION=$(jq -r '.version // "unknown"' "$ANALYSIS")
 SPEC=$(jq -r '.script_path // "ReproTest.php"' "$ANALYSIS")
 SCRIPT=""; [ -f "$SPEC" ] && SCRIPT=$(cat "$SPEC")
@@ -29,8 +35,17 @@ else
   mkdir -p "$SHOP/tests/integration/Repro"
   cp "$SPEC" "$SHOP/tests/integration/Repro/ReproTest.php"
   set +e
-  ( cd "$SHOP" && APP_ENV=test php vendor/bin/phpunit --colors=never \
-      tests/integration/Repro/ReproTest.php ) >"$REPORT" 2>&1
+  if command -v php >/dev/null 2>&1; then
+    ( cd "$SHOP" && APP_ENV=test php vendor/bin/phpunit --colors=never \
+        tests/integration/Repro/ReproTest.php ) >"$REPORT" 2>&1
+  elif command -v docker >/dev/null 2>&1 && docker compose ps -q web >/dev/null 2>&1; then
+    docker compose exec -T web sh -lc 'cd /var/www/html && APP_ENV=test php vendor/bin/phpunit --colors=never tests/integration/Repro/ReproTest.php' >"$REPORT" 2>&1
+  else
+    {
+      echo "PHP direct executor could not find a host php binary and no docker compose web service is available."
+      echo "Install PHP locally, set PHPUNIT_REPORT, or run the local Shopware Docker stack."
+    } >"$REPORT"
+  fi
   set -e
 fi
 # Keep the FULL output as a leg artifact (the workflow uploads phpunit-output.txt) — a
@@ -39,7 +54,7 @@ cp "$REPORT" phpunit-output.txt || true
 TAIL=$(tail -c 1500 "$REPORT" | tr -d '\r' | tr -s ' ')
 # The most diagnostic part of a PHPUnit error/failure is the HEAD of the first error block
 # ("1) Test::method" + the exception message), not the tail (which is just the trace).
-ERRHEAD=$(grep -m1 -A4 -E '^[0-9]+\) ' "$REPORT" | tr -d '\r' | tr -s ' \n' '  ' | head -c 700)
+ERRHEAD=$(grep -m1 -A4 -E '^[0-9]+\) ' "$REPORT" 2>/dev/null | tr -d '\r' | tr -s ' \n' '  ' | head -c 700 || true)
 
 # Map the PHPUnit summary. OK => healthy; FAILURES => symptom; ERRORS/fatal/no-tests =>
 # the test couldn't run (likely a cross-version API mismatch) => inconclusive.

@@ -75,8 +75,10 @@ resolve_ids () {
   scj=$(admin_search sales-channel '{"limit":1,"filter":[{"type":"equals","field":"active","value":true}]}') || return 1
   SC=$(printf '%s' "$scj"  | jq -r '.data[0].id // empty')
   NAV_CAT=$(printf '%s' "$scj" | jq -r '.data[0].navigationCategoryId // empty')
-  # storefrontUrl must be a registered SC domain (a headless default SC has none), NOT APP_URL.
-  dom=$(admin_search sales-channel-domain '{"limit":1}' | jq -r '.data[0].url // empty')
+  # storefrontUrl must be a registered SC domain. Prefer the actual APP_URL used by the
+  # local/CI server, then any http(s) storefront domain, and only then fall back to the
+  # first domain returned by the API.
+  dom=$(admin_search sales-channel-domain '{"limit":25}' | jq -r --arg base "$ADMIN_API_BASE" '[.data[].url] | (map(select(. == $base))[0] // map(select(test("^https?://")))[0] // .[0] // empty)')
   STOREFRONT_URL="${dom:-$ADMIN_API_BASE}"
   COUNTRY=$(admin_search country '{"limit":1,"filter":[{"type":"equals","field":"active","value":true}]}' | jq -r '.data[0].id // empty')
   sals=$(admin_search salutation '{"limit":2}')

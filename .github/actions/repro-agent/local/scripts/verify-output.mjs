@@ -64,8 +64,14 @@ if (plan?.executor === 'playwright' && spec) {
   }
 }
 
+function entityPayload(value) {
+  if (Array.isArray(value)) return value;
+  if (Array.isArray(value?.payload)) return value.payload;
+  return [];
+}
+
 if (fixtures?.cms_page) {
-  for (const page of fixtures.cms_page) {
+  for (const page of entityPayload(fixtures.cms_page)) {
     if (!Array.isArray(page.sections)) {
       failures.push('cms_page entries must nest sections');
       continue;

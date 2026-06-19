@@ -45,7 +45,12 @@ fi
 # No-op when no snapshot was taken (a freshly-provisioned leg); best-effort (a failed reset just
 # runs on the current state).
 SNAP=repro-clean-db.sql.gz
-if [ -f "$SNAP" ] && [ -n "${DATABASE_URL:-}" ]; then
+if [ -f "$SNAP" ] && { [ "${REPRO_AGENT_LOCAL_RESTORE:-}" = 1 ] || [ -f .repro-agent-local-restore ]; } && [ -f .github/actions/repro-agent/local/scripts/restore-db.sh ]; then
+  echo "== build-verify ($TARGET): local reset to clean snapshot + clearing cache =="
+  if ! bash .github/actions/repro-agent/local/scripts/restore-db.sh "$SNAP"; then
+    echo "::warning::local DB reset failed — running on the current state"
+  fi
+elif [ -f "$SNAP" ] && [ -n "${DATABASE_URL:-}" ]; then
   echo "== build-verify ($TARGET): resetting DB to clean snapshot + clearing cache =="
   if source "$(dirname "${BASH_SOURCE[0]}")/../lib/db-env.sh" \
      && gunzip -c "$SNAP" | mysql -h"$DBH" -P"$DBP" -u"$DBU" ${DBPW:+-p"$DBPW"} "$DBN"; then
