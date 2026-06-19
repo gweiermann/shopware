@@ -74,6 +74,15 @@ EOF
   fi
 fi
 
+if ! node "$BIN/agent/validate-bundle.mjs"; then
+  cat <<'EOF'
+   Fix the bundle, then re-run verify-reproduction.sh. Do NOT hand off a result until this
+   validator passes. The validator catches weak visual reproductions whose tests pass while missing
+   the reported selected/specific value.
+EOF
+  exit 1
+fi
+
 # ---- 1. demodata if the plan asks for it (Admin/Storefront are already built by provisioning). --
 demodata=$(jq -r '.fixtures.demodata // false' "$PLAN" 2>/dev/null || echo false)
 
