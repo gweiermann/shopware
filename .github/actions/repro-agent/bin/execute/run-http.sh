@@ -43,7 +43,7 @@ NREQ=$(echo "$REQS" | jq 'length')
 
 # Plain vars (no associative array → portable to bash 3.2 + the CI's bash 5).
 STOREFRONT_URL="$BASE"
-SC=""; NAV_CAT=""; COUNTRY=""; SALUTATION=""; SALUTATION2=""; TAX=""; CURRENCY=""; LANGUAGE=""
+SC=""; NAV_CAT=""; COUNTRY=""; SALUTATION=""; SALUTATION2=""; TAX=""; CURRENCY=""; LANGUAGE=""; CUSTOMER_GROUP=""; PAYMENT_METHOD=""
 
 # Auth by surface: the admin API (/api/...) needs an OAuth Bearer token; the store API
 # (/store-api/...) uses sw-access-key. Detect whether ANY request targets the admin API.
