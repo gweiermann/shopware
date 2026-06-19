@@ -74,6 +74,24 @@ function collectControlledTerms(value, terms = new Set(), key = '') {
   return terms;
 }
 
+function collectCustomFieldTerms(value, terms = new Set(), insideCustomFields = false) {
+  if (Array.isArray(value)) {
+    for (const item of value) collectCustomFieldTerms(item, terms, insideCustomFields);
+    return terms;
+  }
+  if (!value || typeof value !== 'object') return terms;
+
+  for (const [childKey, childValue] of Object.entries(value)) {
+    const nextInsideCustomFields = insideCustomFields || childKey === 'customFields';
+    if (nextInsideCustomFields && typeof childValue === 'string') {
+      terms.add(childValue);
+    } else {
+      collectCustomFieldTerms(childValue, terms, nextInsideCustomFields);
+    }
+  }
+  return terms;
+}
+
 function collectVariantTerms(data) {
   const terms = new Set();
   const products = entityRows(data, 'product');
@@ -165,6 +183,15 @@ if (executor === 'playwright' && selectedVariantIssue(issue)) {
 
   const terms = collectVariantTerms(fixtures);
   const assertedTerms = terms.filter((term) => assertionLines.includes(term));
+  const customFieldTerms = normalizeTerms(collectCustomFieldTerms(fixtures));
+  const assertedCustomFieldTerms = customFieldTerms.filter((term) => assertionLines.includes(term));
+  if (assertedCustomFieldTerms.length > 0) {
+    fail([
+      'selected/specific variant issue but the Playwright assertion uses seeded customFields text',
+      `custom field values found in assertion: ${assertedCustomFieldTerms.join(', ')}`,
+      'do not invent hidden sentinel text; assert a variant value the stock storefront/admin actually renders, such as the option name, product number, or real product-card variant characteristic'
+    ].join(' — '));
+  }
   if (terms.length === 0) {
     fail('selected/specific variant issue but fixtures.json contains no child-variant option name or product number to assert');
   }

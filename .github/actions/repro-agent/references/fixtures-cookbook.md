@@ -121,3 +121,9 @@ target the distinguishing child value inside the rendered card (for example the 
 `Black`/`White`, a variant product number, or another visible variant-specific field). Do not score
 `not_reproduced` from a visible generic parent card; that misses the reported selected-variant
 symptom.
+
+Do not seed a hidden `customFields` label just so the assertion has text to look for. The default
+product card will not render arbitrary custom fields, so that creates an artificial failing
+assertion unrelated to the reported UI. Use the default variant data that Shopware can render, and
+if the real issue screenshot shows a line such as `Live-Film: Stream`, model that as actual variant
+configuration/name data rather than a custom-field sentinel.

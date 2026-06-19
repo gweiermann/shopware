@@ -106,6 +106,41 @@ if (!genericPreconditionResult.stdout.includes('controlled seeded fixture marker
   process.exit(1);
 }
 
+const customFieldSentinel = writeBundle(`
+import { test, expect } from '@playwright/test';
+test('bad hidden custom field sentinel assertion', async ({ page }) => {
+  const card = page.getByRole('link', { name: /Slider Variant Product/i }).first();
+  await card.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: seeded product not visible'); });
+  await expect(page.getByText('Variant: Black', { exact: true })).toBeVisible();
+});
+`, {
+  ...fixtures,
+  product: [
+    fixtures.product[0],
+    {
+      ...fixtures.product[1],
+      translations: {
+        'en-GB': {
+          customFields: {
+            variantLabel: 'Variant: Black',
+          },
+        },
+      },
+    },
+    fixtures.product[2],
+  ],
+});
+const customFieldSentinelResult = run(customFieldSentinel);
+if (customFieldSentinelResult.status === 0) {
+  console.error('Expected hidden custom field sentinel assertion to be rejected');
+  process.exit(1);
+}
+if (!customFieldSentinelResult.stdout.includes('customFields text')) {
+  console.error(`Unexpected custom-field-sentinel output:\n${customFieldSentinelResult.stdout}\n${customFieldSentinelResult.stderr}`);
+  process.exit(1);
+}
+
 const good = writeBundle(`
 import { test, expect } from '@playwright/test';
 test('good selected variant assertion', async ({ page }) => {

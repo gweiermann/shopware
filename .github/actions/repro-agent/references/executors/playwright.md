@@ -105,6 +105,11 @@ await locator.waitFor({ state: 'visible', timeout })
   variant, a long dropdown, a configured CMS block, assigned media, a specific rule, or a seeded
   entity relationship, wait for a controlled marker from that trigger before the single symptom
   `expect`. A page heading, `Home`, dashboard chrome, or a generic product card is not enough.
+- Do not invent hidden sentinel text and then assert it as the symptom. For example, setting a
+  product `customFields.variantLabel = "Variant: Black"` does not make the stock storefront render
+  that label. If the issue is about selected variant display, assert a value the default UI actually
+  renders: the option name, product number, child product name, or real product-card variant
+  characteristic shown in the issue screenshots.
 - **For Admin dashboard/bootstrap checks, precondition on a real page marker and assert the
   reported interaction.** Do not use guessed headings like `/^dashboard$/i`; Shopware may show
   time-based greetings (`Hi!`, `Good evening.`) or cards instead. If the screenshot shows the
