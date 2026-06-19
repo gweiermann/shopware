@@ -45,6 +45,12 @@ While it still says "fix and retry", iterate.
 
 ---
 
+# FIXTURES COOKBOOK — verified seed graphs + why "seeded but empty" is a seed gap, not the bug (references/fixtures-cookbook.md)
+
+{{COOKBOOK}}
+
+---
+
 # EXECUTOR CONTRACTS — pick one (read only the one you choose)
 
 {{EXECUTOR_MD}}

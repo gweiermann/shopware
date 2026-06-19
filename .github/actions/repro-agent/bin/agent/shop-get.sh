@@ -12,6 +12,12 @@
 #   bash .github/actions/repro-agent/bin/agent/shop-get.sh <entity>                      # search, first 10
 #   bash .github/actions/repro-agent/bin/agent/shop-get.sh <entity> --filter field=value # equals filter (repeatable)
 #   bash .github/actions/repro-agent/bin/agent/shop-get.sh <entity> --limit 25 --filter active=true
+#   bash .github/actions/repro-agent/bin/agent/shop-get.sh <entity> <id> --jq '.sections[0].blocks[0].slots'  # drill into nested JSON
+#
+# --jq applies a jq filter to the output IN-TOOL, so you drill into deeply-nested results (CMS
+# page → sections → blocks → slots, a product's variantListingConfig, …) with ONE pre-approved
+# command — no pipe. Do NOT pipe this into python3/node: the permission check splits on `|` and
+# DENIES the whole command (a real wasted turn); use --jq (or pipe into `jq`, also allowed).
 #
 # <entity> is the admin resource, hyphenated: sales-channel, cms-page, category, product, ...
 # Filter values are coerced (true/false/123 → JSON; anything else → string).
@@ -19,7 +25,7 @@ set -euo pipefail
 
 ENTITY=${1:-}
 if [ -z "$ENTITY" ] || [ "$ENTITY" = "-h" ] || [ "$ENTITY" = "--help" ]; then
-  echo "usage: shop-get.sh <entity> [<id> | --filter field=value ... | --limit N]"; exit 0
+  echo "usage: shop-get.sh <entity> [<id> | --filter field=value ... | --limit N] [--jq '<filter>']"; exit 0
 fi
 shift
 
@@ -27,8 +33,9 @@ shift
 # shellcheck source=lib-admin-api.sh
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/lib-admin-api.sh"
 
-# Parse args: a bare token = entity id (GET by id); --filter field=value (repeatable); --limit N.
-ID=""; LIMIT=10; FILTERS="[]"
+# Parse args: a bare token = entity id (GET by id); --filter field=value (repeatable); --limit N;
+# --jq applies a jq filter to the output (drill into nested JSON in-tool, no pipe needed).
+ID=""; LIMIT=10; FILTERS="[]"; JQ=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --filter)
@@ -37,15 +44,19 @@ while [ $# -gt 0 ]; do
       vj=$(jq -nc --arg v "$v" 'try ($v|fromjson) catch $v')  # "true"→true, "12"→12, else string (catch binds . to the error, so use $v)
       FILTERS=$(jq -c --arg f "$f" --argjson v "$vj" '. + [{type:"equals",field:$f,value:$v}]' <<<"$FILTERS") ;;
     --limit) LIMIT=${2:?--limit needs a number}; shift 2 ;;
+    --jq) JQ=${2:?--jq needs a filter}; shift 2 ;;
     --*) echo "::error::unknown option '$1'"; exit 1 ;;
     *) ID=$1; shift ;;
   esac
 done
 
 if [ -n "$ID" ]; then
-  admin_get "$ENTITY" "$ID" | jq .
+  # GET-by-id: unwrap the {data:{…}} envelope so the output IS the entity (truly flat) and a
+  # --jq filter drills straight in, e.g. --jq '.sections[0].blocks[0].slots' (no .data prefix).
+  RESULT=$(admin_get "$ENTITY" "$ID" | jq 'if type=="object" and has("data") then .data else . end')
 else
   BODY=$(jq -nc --argjson limit "$LIMIT" --argjson filter "$FILTERS" \
     '{limit:$limit} + (if ($filter|length) > 0 then {filter:$filter} else {} end)')
-  admin_search "$ENTITY" "$BODY" | jq '{total: .total, data: (.data // [])}'
+  RESULT=$(admin_search "$ENTITY" "$BODY" | jq '{total: .total, data: (.data // [])}')
 fi
+if [ -n "$JQ" ]; then jq "$JQ" <<<"$RESULT"; else printf '%s\n' "$RESULT"; fi

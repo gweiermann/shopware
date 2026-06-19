@@ -115,6 +115,16 @@ Note: no `sw-access-key`, `Authorization`, or `sw-context-token` anywhere — th
 injects auth by path and carries the context token. Each `expect` is the HEALTHY value, so a
 buggy shop deviating from any of them scores `reproduced`.
 
+## `POST /store-api/product-listing/{categoryId}` — filters are scalar/CSV, not arrays
+Body filters take **comma-separated strings** of ids, NOT JSON arrays:
+`{"properties":"<optionId1>,<optionId2>","manufacturer":"<id>"}`. An array
+(`"properties":["..."]`) returns **HTTP 400 "contains a non-scalar value"** — a harness mistake,
+not the bug. The response is `{ elements:[…products…], total, aggregations:{ properties:{entities:[…]} } }`.
+A variant only appears here if it's seeded to surface (see the **fixtures cookbook**: the
+filterable property must be on the variant, `visibility`+`categories` set, and reindexed). If the
+listing is empty, that's the seed — verify the UNFILTERED listing returns your product before
+trusting a filtered one.
+
 ## Failure semantics (no false positives)
 - A non-2xx on a **non-final** request → `blocked` (setup broke; body shown).
 - A failed **`role: "precondition"`** check → `inconclusive` (scenario state invalid; the failing

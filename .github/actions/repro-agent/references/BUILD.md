@@ -46,14 +46,20 @@ printenv / discover them.
 | author / rewrite your files | `Read`, `Write` — always rewrite the WHOLE file; `Edit` is disabled (surgical JSON/TS edits fail more than they save) |
 | verify the bundle | `bash .github/actions/repro-agent/bin/agent/verify-reproduction.sh` — seeds `fixtures.json` + runs the executor as the `builder` leg → writes `builder-result.json` |
 | inspect live shop state (an existing entity's shape / ids) | `bash .github/actions/repro-agent/bin/agent/shop-get.sh <entity> [<id> \| --filter field=value]` — auth handled, flat JSON |
-| parse / transform JSON | `jq` |
+| drill into a nested entity (CMS page→sections→blocks→slots, a product's `variantListingConfig`, …) | add `--jq '<filter>'` to shop-get, e.g. `shop-get.sh cms-page <id> --jq '.sections[0].blocks[0].slots'` — ONE command, no pipe |
+| parse / transform JSON | `jq` (pipe into it, or use shop-get's `--jq`). NEVER `python3`/`node` |
 | other read-only shell | `cat` `ls` `head` `tail` `sed` `wc` `git log\|show\|diff\|blame` |
 | find ONE exact selector/field in source — **only AFTER a failed verify, never before** | `Glob`, `Grep`, `rg`, `grep`, `find` |
 
+**Invoke the two scripts with the EXACT relative path shown above** (`bash .github/actions/repro-agent/bin/agent/…`) — do NOT rewrite it as an absolute `/home/runner/...` path or wrap the call in extra redirections/pipes; the allow-list is a literal prefix match and a reworded command can be denied (a wasted turn).
+
 **BLOCKED — never attempt (each only burns a turn):** `python3`/`node`, raw `curl`/`wget`,
 inline scripts / here-docs, any `VAR=value`-prefixed command, sub-agents (`Task`/`Agent`), and
-editing anything under `.github/actions/repro-agent/`. If you genuinely cannot proceed within the
-allowed set, **STOP** and explain in plain text (not a JSON file) — never hand-roll a workaround.
+editing anything under `.github/actions/repro-agent/`. **Piping an allowed command INTO a blocked
+one denies the WHOLE pipeline** — the permission check splits on `|`/`&&`/`||` and any blocked
+sub-command fails it (a real wasted turn was `shop-get … | python3 -c …`). To drill into JSON, use
+`jq` or shop-get's `--jq`, never `python3`. If you genuinely cannot proceed within the allowed
+set, **STOP** and explain in plain text (not a JSON file) — never hand-roll a workaround.
 
 ## Discipline
 
@@ -86,6 +92,10 @@ allowed set, **STOP** and explain in plain text (not a JSON file) — never hand
    - `direct`: `script_path: "ReproTest.php"` + the PHPUnit test.
    - fixtures: `fixtures.sync_payload_path: "fixtures.json"` + the file, when seeded data is needed.
 3. **Fixtures rules:**
+   - **If your symptom reads from a listing / search / slider / aggregation, see the FIXTURES
+     COOKBOOK** (next section) — and treat an empty/`null`/absent result as a SEED gap, not the
+     symptom: confirm your entity appears in the simplest (unfiltered) query first, then add the
+     constraint that triggers the bug.
    - **`demodata` is YOUR call — default OFF.** Prefer seeding a small controlled delta. Opt in
      ONLY when the symptom needs an ambient, realistic, indexed body of data that minimal
      hand-seeding cannot fake (volume/relationship bugs: listings, pagination, sorting, search

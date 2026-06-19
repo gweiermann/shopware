@@ -80,8 +80,14 @@ tools:
     # NB: the `:*` suffix is REQUIRED so the script may be called WITH arguments — without it the
     # allow-list matches only the bare command and any arg (e.g. `shop-get.sh payment_method`, or
     # `verify-reproduction.sh giveup`) is denied.
+    # Allow BOTH the relative path AND the absolute workspace path: the allow-list is a literal
+    # PREFIX match, and the agent often expands the script to the runner's absolute path
+    # (`$GITHUB_WORKSPACE` = `/home/runner/work/shopware/shopware` on GitHub-hosted runners), which
+    # would otherwise NOT match the relative prefix and gets denied. Listing both covers either form.
     - "bash .github/actions/repro-agent/bin/agent/verify-reproduction.sh:*"  # verify (+demodata); on success records + hands off + STOPS the agent
     - "bash .github/actions/repro-agent/bin/agent/shop-get.sh:*"             # read-only live-shop entity inspector
+    - "bash /home/runner/work/shopware/shopware/.github/actions/repro-agent/bin/agent/verify-reproduction.sh:*"
+    - "bash /home/runner/work/shopware/shopware/.github/actions/repro-agent/bin/agent/shop-get.sh:*"
     - "jq"
     - "rg"
     - "grep"

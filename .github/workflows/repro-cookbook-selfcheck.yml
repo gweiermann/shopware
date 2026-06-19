@@ -1,0 +1,55 @@
+name: Repro cookbook self-check
+
+# Keeps the reproduce-agent's fixtures cookbook honest: each verified example in
+# .github/actions/repro-agent/references/cookbook/<name>/ is SEEDED on a fresh trunk shop and must
+# still classify `not_reproduced` (i.e. it still matches a healthy shop). If Shopware drifts from
+# the documented response, this goes red and the example gets fixed — so the cookbook can't rot
+# silently. Deterministic (no agent): reuses the provision action + seed.sh/run-leg.sh.
+
+on:
+  pull_request:
+    paths:
+      - ".github/actions/repro-agent/references/cookbook/**"
+      - ".github/actions/repro-agent/bin/**"
+      - ".github/actions/repro-agent/provision/**"
+  workflow_dispatch:
+  schedule:
+    - cron: "0 4 * * 1" # weekly (Mon 04:00 UTC) — catch drift from upstream trunk changes
+
+permissions:
+  contents: read
+
+concurrency:
+  group: repro-cookbook-selfcheck-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  selfcheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      # Lean trunk shop (no JS build, no demodata) under ./shop — the examples seed + assert over
+      # the store/admin API, which needs neither.
+      - name: Provision trunk
+        id: provision
+        uses: ./.github/actions/repro-agent/provision
+        with:
+          version: trunk
+          admin-build: "false"
+          storefront-build: "false"
+          demodata: "false"
+
+      - name: Run cookbook self-check
+        env:
+          APP_URL: ${{ steps.provision.outputs.app_url }}
+          SW_ACCESS_KEY: ${{ steps.provision.outputs.access_key }}
+          SHOP_DIR: shop # seed.sh reindexes shop/bin/console so seeded entities are listable
+        run: bash .github/actions/repro-agent/references/cookbook/selfcheck.sh

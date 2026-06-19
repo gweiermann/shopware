@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "issue": 0,
+  "_comment": "Cookbook example, NOT a real bug. Its assertions encode the DOCUMENTED healthy store-api response for the variant-listing graph; the self-check seeds it and requires `not_reproduced`. Reusable as a starting bundle for product-listing / variant-preselection repros.",
+  "layer": "store-api",
+  "executor": "http",
+  "version": "selfcheck",
+  "build_profile": { "admin_build": false, "storefront_build": false, "theme_build": false },
+  "fixtures": { "demodata": false, "sync_payload_path": "fixtures.json" },
+  "request": { "method": "POST", "path": "/store-api/product-listing/{{NAV_CAT}}", "headers": {}, "body": "{}" },
+  "assertions": [
+    { "role": "precondition", "kind": "http_status", "expect": "200" },
+    { "role": "precondition", "field": ".total", "op": "gt", "expect": "0" },
+    { "field": ".elements[0].options[0].name", "op": "equals", "expect": "white" }
+  ],
+  "confidence": 1
+}

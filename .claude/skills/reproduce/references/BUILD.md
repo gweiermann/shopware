@@ -46,14 +46,18 @@ printenv / discover them.
 | author / rewrite your files | `Read`, `Write` — always rewrite the WHOLE file; `Edit` is disabled (surgical JSON/TS edits fail more than they save) |
 | verify the bundle | `bash .github/actions/repro/bin/build-verify.sh` — seeds `fixtures.json` + runs the executor as the `builder` leg → writes `builder-result.json` |
 | inspect live shop state (an existing entity's shape / ids) | `bash .github/actions/repro/bin/shop-get.sh <entity> [<id> \| --filter field=value]` — auth handled, flat JSON |
-| parse / transform JSON | `jq` |
+| drill into a nested entity (CMS page→sections→blocks→slots, a product's `variantListingConfig`, …) | add `--jq '<filter>'` to shop-get, e.g. `shop-get.sh cms-page <id> --jq '.sections[0].blocks[0].slots'` — ONE command, no pipe |
+| parse / transform JSON | `jq` (pipe into it, or use shop-get's `--jq`). NEVER `python3`/`node` |
 | other read-only shell | `cat` `ls` `head` `tail` `sed` `wc` `git log\|show\|diff\|blame` |
 | find ONE exact selector/field in source — **only AFTER a failed verify, never before** | `Glob`, `Grep`, `rg`, `grep`, `find` |
 
 **BLOCKED — never attempt (each only burns a turn):** `python3`/`node`, raw `curl`/`wget`,
 inline scripts / here-docs, any `VAR=value`-prefixed command, sub-agents (`Task`/`Agent`), and
-editing anything under `.github/actions/repro/`. If you genuinely cannot proceed within the
-allowed set, **STOP** and explain in plain text (not a JSON file) — never hand-roll a workaround.
+editing anything under `.github/actions/repro/`. **Piping an allowed command INTO a blocked one
+denies the WHOLE pipeline** — the permission check splits on `|`/`&&`/`||` and any blocked
+sub-command fails it (a real wasted turn was `shop-get … | python3 -c …`). To drill into JSON, use
+`jq` or shop-get's `--jq`, never `python3`. If you genuinely cannot proceed within the allowed
+set, **STOP** and explain in plain text (not a JSON file) — never hand-roll a workaround.
 
 ## Discipline
 
