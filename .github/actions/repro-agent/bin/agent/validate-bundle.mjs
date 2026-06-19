@@ -17,6 +17,21 @@ const plan = readJson('reproduction-plan.json') ?? {};
 const fixtures = readJson('fixtures.json') ?? {};
 const executor = String(plan.executor ?? '');
 const issueClass = read('issue-class.txt').trim();
+const allowedPlaceholders = new Set([
+  'SC',
+  'NAV_CAT',
+  'COUNTRY',
+  'SALUTATION',
+  'SALUTATION2',
+  'TAX',
+  'CURRENCY',
+  'LANGUAGE',
+  'CUSTOMER_GROUP',
+  'PAYMENT_METHOD',
+  'STOREFRONT_URL',
+  'SW_ACCESS_KEY',
+  'SW_CONTEXT_TOKEN',
+]);
 
 function fail(reason) {
   console.log(`== validate-bundle: REFUSED — ${reason} ==`);
@@ -128,6 +143,45 @@ function normalizeTerms(terms) {
     .filter((term) => !generic.test(term));
 }
 
+function isPlaceholder(value) {
+  const match = String(value).match(/^\{\{([A-Z0-9_]+)\}\}$/);
+  return match && allowedPlaceholders.has(match[1]);
+}
+
+function validateUuidFields(value, pathParts = []) {
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => validateUuidFields(item, [...pathParts, String(index)]));
+    return;
+  }
+  if (!value || typeof value !== 'object') return;
+
+  for (const [key, childValue] of Object.entries(value)) {
+    const nextPath = [...pathParts, key];
+    if (typeof childValue === 'string' && /(^id$|Id$)/.test(key)) {
+      if (!isPlaceholder(childValue) && !/^[0-9a-f]{32}$/i.test(childValue)) {
+        fail(`fixtures.json field ${nextPath.join('.')} must be a 32-character hex UUID or supported {{PLACEHOLDER}}, got '${childValue}'`);
+      }
+    } else {
+      validateUuidFields(childValue, nextPath);
+    }
+  }
+}
+
+function collectPlaceholders(value, found = new Set()) {
+  if (typeof value === 'string') {
+    for (const match of value.matchAll(/\{\{([A-Z0-9_]+)\}\}/g)) found.add(match[1]);
+    return found;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) collectPlaceholders(item, found);
+    return found;
+  }
+  if (!value || typeof value !== 'object') return found;
+
+  for (const childValue of Object.values(value)) collectPlaceholders(childValue, found);
+  return found;
+}
+
 function preconditionSnippet(source) {
   const lines = source.split('\n');
   const picked = new Set();
@@ -141,6 +195,14 @@ function preconditionSnippet(source) {
     }
   });
   return [...picked].sort((a, b) => a - b).map((index) => lines[index]).join('\n');
+}
+
+validateUuidFields(fixtures);
+
+const unknownPlaceholders = [...collectPlaceholders(plan)]
+  .filter((name) => !allowedPlaceholders.has(name));
+if (unknownPlaceholders.length > 0) {
+  fail(`reproduction-plan.json uses unsupported placeholder(s): ${unknownPlaceholders.join(', ')}`);
 }
 
 if (executor === 'playwright') {

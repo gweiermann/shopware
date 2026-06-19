@@ -22,18 +22,18 @@ const plan = {
 const fixtures = {
   property_group: [
     {
-      id: 'group',
+      id: 'aa000000000000000000000000000001',
       name: 'Color',
       options: [
-        { id: 'black', name: 'Black' },
-        { id: 'white', name: 'White' },
+        { id: 'aa000000000000000000000000000002', name: 'Black' },
+        { id: 'aa000000000000000000000000000003', name: 'White' },
       ],
     },
   ],
   product: [
-    { id: 'parent', productNumber: 'PARENT', name: 'Slider Variant Product' },
-    { id: 'child-black', parentId: 'parent', productNumber: 'SLIDE-VAR-1.1', options: [{ id: 'black' }] },
-    { id: 'child-white', parentId: 'parent', productNumber: 'SLIDE-VAR-1.2', options: [{ id: 'white' }] },
+    { id: 'bb000000000000000000000000000001', productNumber: 'PARENT', name: 'Slider Variant Product' },
+    { id: 'bb000000000000000000000000000002', parentId: 'bb000000000000000000000000000001', productNumber: 'SLIDE-VAR-1.1', options: [{ id: 'aa000000000000000000000000000002' }] },
+    { id: 'bb000000000000000000000000000003', parentId: 'bb000000000000000000000000000001', productNumber: 'SLIDE-VAR-1.2', options: [{ id: 'aa000000000000000000000000000003' }] },
   ],
 };
 
@@ -49,6 +49,56 @@ function writeBundle(spec, bundleFixtures = fixtures) {
 
 function run(dir) {
   return spawnSync('node', [validator], { cwd: dir, encoding: 'utf8' });
+}
+
+const invalidUuid = writeBundle(`
+import { test, expect } from '@playwright/test';
+test('bad fixture uuid', async ({ page }) => {
+  const card = page.getByRole('link', { name: /Slider Variant Product/i }).first();
+  await card.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: seeded product not visible'); });
+  await expect(page.getByText('Black')).toBeVisible();
+});
+`, {
+  ...fixtures,
+  product: [
+    { ...fixtures.product[0], id: 'cc00000000000000000000000000w101' },
+    fixtures.product[1],
+    fixtures.product[2],
+  ],
+});
+const invalidUuidResult = run(invalidUuid);
+if (invalidUuidResult.status === 0) {
+  console.error('Expected invalid fixture UUID to be rejected');
+  process.exit(1);
+}
+if (!invalidUuidResult.stdout.includes('32-character hex UUID')) {
+  console.error(`Unexpected invalid-uuid output:\n${invalidUuidResult.stdout}\n${invalidUuidResult.stderr}`);
+  process.exit(1);
+}
+
+const unsupportedPlaceholderDir = fs.mkdtempSync(path.join(os.tmpdir(), 'repro-agent-validate-'));
+fs.writeFileSync(path.join(unsupportedPlaceholderDir, 'issue.md'), issue);
+fs.writeFileSync(path.join(unsupportedPlaceholderDir, 'issue-class.txt'), 'api');
+fs.writeFileSync(path.join(unsupportedPlaceholderDir, 'reproduction-plan.json'), `${JSON.stringify({
+  ...plan,
+  executor: 'http',
+  request: {
+    method: 'POST',
+    path: '/api/customer',
+    body: '{"groupId":"{{UNKNOWN_GROUP}}"}',
+  },
+  assertions: [{ kind: 'http_status', expect: '200' }],
+}, null, 2)}\n`);
+fs.writeFileSync(path.join(unsupportedPlaceholderDir, 'fixtures.json'), '{}\n');
+const unsupportedPlaceholderResult = run(unsupportedPlaceholderDir);
+if (unsupportedPlaceholderResult.status === 0) {
+  console.error('Expected unsupported placeholder to be rejected');
+  process.exit(1);
+}
+if (!unsupportedPlaceholderResult.stdout.includes('unsupported placeholder')) {
+  console.error(`Unexpected unsupported-placeholder output:\n${unsupportedPlaceholderResult.stdout}\n${unsupportedPlaceholderResult.stderr}`);
+  process.exit(1);
 }
 
 const bad = writeBundle(`

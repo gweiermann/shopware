@@ -94,6 +94,8 @@ resolve() { # substitute {{KEY}} placeholders (SALUTATION2 before SALUTATION)
   s="${s//\{\{TAX\}\}/$TAX}"
   s="${s//\{\{CURRENCY\}\}/$CURRENCY}"
   s="${s//\{\{LANGUAGE\}\}/$LANGUAGE}"
+  s="${s//\{\{CUSTOMER_GROUP\}\}/$CUSTOMER_GROUP}"
+  s="${s//\{\{PAYMENT_METHOD\}\}/$PAYMENT_METHOD}"
   s="${s//\{\{SW_CONTEXT_TOKEN\}\}/$CTX}"
   printf '%s' "$s"
 }
