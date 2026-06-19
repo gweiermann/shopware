@@ -50,6 +50,30 @@ if [ ! -f "$PLAN" ]; then
   exit 1
 fi
 
+# HARD GATE: a VISUAL bug (screenshots / rendering symptom, classified deterministically) cannot be
+# faithfully reproduced over http/direct — the API can be correct while the page renders wrong, so
+# an http/direct bundle would post a FALSE verdict. Refuse to verify/hand off anything but
+# playwright for a visual issue, no matter how the agent rationalises it ("diagnostic", "more
+# stable", …). The agent must make the playwright repro render, or run `giveup`.
+if [ "$(cat issue-class.txt 2>/dev/null)" = visual ]; then
+  EXV=$(jq -r '.executor // ""' "$PLAN" 2>/dev/null || echo "")
+  if [ "$EXV" != playwright ]; then
+    cat <<EOF
+== verify-reproduction: REFUSED — this issue is classified VISUAL but reproduction-plan.json uses
+   executor '$EXV'. An http/direct check cannot faithfully show a rendering defect and would post a
+   FALSE verdict, so it will NOT be run or handed off.
+   → Use the 'playwright' executor against the rendered page. If your seeded data renders blank
+     (empty slider/page), that is a FIXTURE problem — fix visibility / cms-page version /
+     variantListingConfig.displayParent (see references/fixtures-cookbook.md + the playwright
+     contract). Do NOT switch to http to "diagnose".
+   → If you genuinely cannot make it render after honest attempts, run:
+     bash .github/actions/repro-agent/bin/agent/verify-reproduction.sh giveup
+==
+EOF
+    exit 1
+  fi
+fi
+
 # ---- 1. demodata if the plan asks for it (Admin/Storefront are already built by provisioning). --
 demodata=$(jq -r '.fixtures.demodata // false' "$PLAN" 2>/dev/null || echo false)
 

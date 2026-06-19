@@ -413,47 +413,20 @@ safe-outputs:
           run: gh issue comment "$ISSUE" --repo "${{ github.repository }}" --body-file comment.md
 ---
 
-# Reproduce a Shopware bug — discover the reproduction artifact (Phase 3–5)
+# Reproduce a Shopware bug — produce ONE verified reproduction, then stop
 
-A live Shopware instance on the **reported version** is already running and ready — with the
-**Admin and Storefront already built**, so any executor works immediately and you never wait on a
-build. Your **only** job is to discover a reliable, runnable reproduction of the reported bug and
-prove it on this instance. The version was already parsed for you; you do **not** run the trunk
-comparison, decide the verdict, or write the comment — deterministic scripts own all of that.
+A live shop on the **reported version** is up (Admin + Storefront already built). Your only job is to
+reproduce the reported bug on it and prove it. You do **not** parse the version, run the trunk
+comparison, decide the verdict, or write the issue comment — deterministic scripts own all of that.
 
-## You decide everything else
+**Start by reading `build-context.md`** in the workspace root and following it — the compact brief
+for this run (classification + where to read the bug, the method, the fixtures cookbook, and the
+executor contracts on demand). Author only your own files: `reproduction-plan.json`, `fixtures.json`,
+and one of `repro.spec.ts` / `ReproTest.php`.
 
-There is no Analyze phase. **You** choose the executor (`http` / `playwright` / `direct`) and
-**record every decision in the single file `reproduction-plan.json`**. You never run builds — they
-are already done here — but you DO record which surface your repro uses in `build_profile`, so the
-deterministic **trunk** leg builds only that:
-
-- Admin-UI repro → `build_profile.admin_build: true`
-- Storefront-UI repro → `build_profile.storefront_build: true` (+ `theme_build: true`)
-- `http`/`direct` repro → leave them `false`
-- Need a realistic catalog? → `fixtures.demodata: true` (verify generates it; trunk provisions it)
-
-## Your complete instructions
-
-Read **`build-context.md`** in the workspace root **first** — the assembled brief (the BUILD
-runbook, all three executor contracts, the reported version, the issue, and any screenshots).
-Follow it literally. The loop: **write `reproduction-plan.json` (+ the test + `fixtures.json`) →
-`bash .github/actions/repro-agent/bin/agent/verify-reproduction.sh` → read `builder-result.json` (for
-Playwright, also Read the screenshot it points to) → fix the ONE thing it names → repeat.**
-
-**Run `verify-reproduction.sh` in the FOREGROUND and WAIT** — it can take **10–20 minutes** (it
-builds the Admin/Storefront and runs the test); that wait is expected. **Never** background it
-(no `&`, no `run_in_background`, no polling) — backgrounding loses the result and no verdict is posted.
-
-The live-shop coordinates (`APP_URL`, `SW_ACCESS_KEY`, `ADMIN_USER`, `ADMIN_PASS`) are already in
-your environment — never echo or rediscover them. Author only your own files
-(`reproduction-plan.json`, `fixtures.json`, and one of `repro.spec.ts` / `ReproTest.php`); always
-rewrite the whole file. Reference pre-existing install entities by `{{PLACEHOLDER}}`, never a literal id.
-
-## How your job ends — the verify script stops you
-
-When `verify-reproduction.sh` classifies your bundle (`reproduced`, or `not_reproduced` after an
-honest re-check), it records the reported leg, **hands the artifact to the deterministic trunk
-pipeline, prints `STOP`, and your job is over** — do not continue or call any tool. While it still
-says "fix and retry", iterate. If you genuinely cannot build a runnable bundle within your budget,
-run `bash .github/actions/repro-agent/bin/agent/verify-reproduction.sh giveup` and stop.
+**Your terminal action is `bash .github/actions/repro-agent/bin/agent/verify-reproduction.sh`.** When
+your bundle classifies, it records the reported leg, hands off to the deterministic pipeline, and
+prints **STOP** — your job is then over. Run it in the **FOREGROUND and WAIT** (it can take minutes;
+never `&` / `run_in_background` / poll — backgrounding loses the result and no verdict is posted). If
+you genuinely cannot reproduce, run it with `giveup`. Do not call the `reproduce-on-trunk` tool
+yourself; you decide nothing about the verdict.

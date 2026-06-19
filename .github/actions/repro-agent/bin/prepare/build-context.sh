@@ -1,15 +1,14 @@
 #!/usr/bin/env bash
-# Assemble the SINGLE context file the Build Repro agent reads. ALL prose lives in the template
-# (prompts/build-context.tpl.md) + the shared references — this script only FILLS placeholders:
-# whole-line {{BLOCK}} markers → file contents / generated blocks; the {{ISSUE}}, {{VERSION}} and
-# {{MAX_TURNS}} scalars via sed. The agent picks the executor itself, so ALL contracts are shipped.
-# Keep prompt text in the .md files, never here.
+# Assemble the COMPACT context file the Build Repro agent reads first. It carries only the run-
+# specific bits (classification, issue, version, screenshots, fix-PR pointer) + a map of WHERE to
+# read the heavy references on demand. The references (BUILD.md, fixtures-cookbook.md, executors/*)
+# are NOT inlined — the agent Reads the relevant one fresh, at the point of use, so it isn't buried
+# in a giant front-loaded blob. Keep prompt prose in the .md files, never here.
 #
-# Env: SKILL (references dir), TPL (template), ISSUE, VERSION (reported version, "" → trunk),
-#      MAX_TURNS (default 40), OUT (default build-context.md).
+# Env: TPL (template), ISSUE, VERSION (reported version, "" → trunk), MAX_TURNS (default 40),
+#      OUT (default build-context.md).
 set -euo pipefail
 
-SKILL=${SKILL:-.github/actions/repro-agent/references}
 TPL=${TPL:-$(dirname "${BASH_SOURCE[0]}")/../../prompts/build-context.tpl.md}
 OUT=${OUT:-build-context.md}
 ISSUE=${ISSUE:-?}
@@ -17,11 +16,24 @@ VERSION=${VERSION:-}
 VERSION_LABEL=${VERSION:-trunk}
 MAX_TURNS=${MAX_TURNS:-40}
 
-# The agent CHOOSES the executor — there is no pre-decided one — so ship ALL three contracts.
-executor_contracts () {
-  for ex in http playwright direct; do
-    printf '\n## Executor contract: `%s`\n\n' "$ex"; cat "$SKILL/executors/${ex}.md"
-  done
+# Deterministic visual/api classification. Persist it to issue-class.txt so verify-reproduction.sh
+# can HARD-REFUSE a non-playwright handoff for a visual bug; inject a directive so the agent knows
+# up front (don't waste turns on an http bundle that will be rejected).
+CLASS=$(ISSUE_MD=issue.md ASSETS=issue-assets bash "$(dirname "${BASH_SOURCE[0]}")/classify-issue.sh" 2>/dev/null || echo api)
+printf '%s' "$CLASS" > issue-class.txt
+classify_block () {
+  if [ "$CLASS" = visual ]; then
+    cat <<'EOF'
+## ⚠️ Classified VISUAL — you MUST use the `playwright` executor
+The symptom is about what the page *renders* (screenshots / rendering wording). An `http`/`direct`
+bundle is **rejected by verify-reproduction.sh** (the API can be correct while the page renders
+wrong — it would post a false verdict). If your seeded data renders blank, that is a FIXTURE problem
+(fix visibility / cms-page version / `variantListingConfig` — see the cookbook), NOT a reason to
+switch to http. If you truly cannot make it render: `verify-reproduction.sh giveup`.
+EOF
+  else
+    echo "_Classified \`api\` — pick the cheapest faithful executor (service→direct, \*-api→http)._"
+  fi
 }
 
 # Enumerate the prefetched screenshots so the agent Reads the exact paths directly instead of
@@ -34,18 +46,16 @@ list_screenshots () {
     echo "No screenshots attached to the issue."
   fi
 }
-fixpr_section () { [ -f fixpr.diff ] || return 0; printf -- '\n---\n\n# LINKED FIX PR — description + diff\n\n'; cat fixpr.diff; }
+# Pointer, not inlined: the prefetched fix-PR diff can be large — the agent Reads it if useful.
+fixpr_section () { [ -f fixpr.diff ] || return 0; printf -- '\n_A linked fix PR was prefetched — Read `fixpr.diff` for its intent + diff (a candidate surface, not a test to import)._\n'; }
 
 sed -e "s/{{ISSUE}}/$ISSUE/g" -e "s/{{VERSION}}/$VERSION_LABEL/g" -e "s/{{MAX_TURNS}}/$MAX_TURNS/g" "$TPL" | while IFS= read -r line; do
   case "$line" in
-    '{{BUILD_MD}}')      cat "$SKILL/BUILD.md" ;;
-    '{{COOKBOOK}}')      cat "$SKILL/fixtures-cookbook.md" ;;
-    '{{EXECUTOR_MD}}')   executor_contracts ;;
-    '{{ISSUE_MD}}')      cat issue.md ;;
+    '{{CLASSIFY}}')      classify_block ;;
     '{{SCREENSHOTS}}')   list_screenshots ;;
     '{{FIXPR}}')         fixpr_section ;;
     *)                   printf '%s\n' "$line" ;;
   esac
 done > "$OUT"
 
-echo "wrote $OUT ($(wc -c <"$OUT") bytes; version=$VERSION_LABEL)$([ -d issue-assets ] && echo " + $(ls issue-assets | wc -l | tr -d ' ') screenshot(s)")"
+echo "wrote $OUT ($(wc -c <"$OUT") bytes; class=$CLASS; version=$VERSION_LABEL)$([ -d issue-assets ] && echo " + $(ls issue-assets | wc -l | tr -d ' ') screenshot(s)")"
