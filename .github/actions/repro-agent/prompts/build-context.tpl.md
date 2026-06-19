@@ -26,10 +26,13 @@ If you genuinely cannot reproduce: `…/verify-reproduction.sh giveup`.
   **`.github/actions/repro-agent/references/BUILD.md`** (do this first).
 - **Writing fixtures / relationships** (variants, listings, sliders, CMS, visibility, indexing — the
   "seeded but empty is a seed gap, not the bug" traps) → Read
-  **`.github/actions/repro-agent/references/fixtures-cookbook.md`**, and **START by copying a verified
-  example** rather than hand-writing the fragile parts:
-  `cp .github/actions/repro-agent/references/cookbook/<name>/fixtures.json fixtures.json`
-  (e.g. `variant-listing`) and change only the distinguishing fields.
+  **`.github/actions/repro-agent/references/fixtures-cookbook.md`**, and **START by copying the closest
+  verified example** rather than hand-writing the fragile parts —
+  `cp .github/actions/repro-agent/references/cookbook/<name>/fixtures.json fixtures.json` — then change
+  only the distinguishing fields. Available examples (under `.github/actions/repro-agent/references/cookbook/`):
+{{COOKBOOK_INDEX}}
+  Unsure how to shape an entity or association? **Skim a sibling example** — they share the same
+  sync-payload conventions — to get the pattern before you write.
 - **Your chosen executor's contract** → Read
   **`.github/actions/repro-agent/references/executors/{http|playwright|direct}.md`**.
 

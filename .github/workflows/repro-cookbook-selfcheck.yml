@@ -47,6 +47,10 @@ jobs:
           storefront-build: "false"
           demodata: "false"
 
+      # Snapshot the clean post-install DB so each example resets to it (isolation between examples).
+      - name: Snapshot clean DB
+        run: bash .github/actions/repro-agent/bin/prepare/db-snapshot.sh
+
       - name: Run cookbook self-check
         env:
           APP_URL: ${{ steps.provision.outputs.app_url }}

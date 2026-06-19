@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "issue": 0,
+  "_about": "landing page → CMS page → product-slider slot resolving a static product (the issue-#30 family). NB the slot's resolved products live at `.data.products[]` — a plain ARRAY, NOT `.data.products.elements[]`.",
+  "layer": "store-api",
+  "executor": "http",
+  "version": "selfcheck",
+  "build_profile": { "admin_build": false, "storefront_build": false, "theme_build": false },
+  "fixtures": { "demodata": false, "sync_payload_path": "fixtures.json" },
+  "request": { "method": "POST", "path": "/store-api/landing-page/aa00000000000000000000000000dd01", "headers": {}, "body": "{}" },
+  "assertions": [
+    { "role": "precondition", "kind": "http_status", "expect": "200" },
+    { "role": "precondition", "field": ".cmsPage.sections[0].blocks[0].slots[0].type", "op": "equals", "expect": "product-slider" },
+    { "field": ".cmsPage.sections[0].blocks[0].slots[0].data.products[0].productNumber", "op": "equals", "expect": "SLIDE-1" }
+  ],
+  "confidence": 1
+}

@@ -15,7 +15,8 @@
 #   admin_search <e> <body>  POST /api/search/<e>  → raw JSON
 #   admin_get <e> <id>       GET  /api/<e>/<id>     → raw JSON
 #   resolve_ids              sets globals SC NAV_CAT STOREFRONT_URL COUNTRY SALUTATION
-#                            SALUTATION2 TAX CURRENCY LANGUAGE from the running shop
+#                            SALUTATION2 TAX CURRENCY LANGUAGE CUSTOMER_GROUP PAYMENT_METHOD
+#                            from the running shop
 #
 # Efficiency: call `ADMIN_TOKEN=$(admin_token)` (or resolve_ids, which does it) ONCE up
 # front — admin_search/admin_get reuse $ADMIN_TOKEN, so the token is fetched a single time.
@@ -84,4 +85,6 @@ resolve_ids () {
   TAX=$(admin_search tax '{"limit":1}' | jq -r '.data[0].id // empty')
   CURRENCY=$(admin_search currency '{"limit":1,"filter":[{"type":"equals","field":"isoCode","value":"EUR"}]}' | jq -r '.data[0].id // empty')
   LANGUAGE=$(admin_search language '{"limit":1}' | jq -r '.data[0].id // empty')
+  CUSTOMER_GROUP=$(admin_search customer-group '{"limit":1}' | jq -r '.data[0].id // empty')
+  PAYMENT_METHOD=$(admin_search payment-method '{"limit":1,"filter":[{"type":"equals","field":"active","value":true}]}' | jq -r '.data[0].id // empty')
 }

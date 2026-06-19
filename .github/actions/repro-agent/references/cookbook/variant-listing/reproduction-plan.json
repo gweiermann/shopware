@@ -1,7 +1,7 @@
 {
   "schema_version": "1",
   "issue": 0,
-  "_comment": "Cookbook example, NOT a real bug. Its assertions encode the DOCUMENTED healthy store-api response for the variant-listing graph; the self-check seeds it and requires `not_reproduced`. Reusable as a starting bundle for product-listing / variant-preselection repros.",
+  "_about": "product + variants in a category listing — preselected (white) main variant, configurator, visibility, indexing. Covers listing / slider / variant-preselection / availability / property-filter bugs. Option text is at `.elements[].options[].name` (`.variation` is null over http).",
   "layer": "store-api",
   "executor": "http",
   "version": "selfcheck",
@@ -10,8 +10,8 @@
   "request": { "method": "POST", "path": "/store-api/product-listing/{{NAV_CAT}}", "headers": {}, "body": "{}" },
   "assertions": [
     { "role": "precondition", "kind": "http_status", "expect": "200" },
-    { "role": "precondition", "field": ".total", "op": "gt", "expect": "0" },
-    { "field": ".elements[0].options[0].name", "op": "equals", "expect": "white" }
+    { "role": "precondition", "field": "[.elements[].productNumber] | index(\"REPRO-003-WHITE\")", "op": "present" },
+    { "field": ".elements[] | select(.productNumber==\"REPRO-003-WHITE\") | .options[0].name", "op": "equals", "expect": "white" }
   ],
   "confidence": 1
 }

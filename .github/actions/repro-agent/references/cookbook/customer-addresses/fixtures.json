@@ -1,0 +1,15 @@
+{
+  "customer": [
+    { "id": "aa00000000000000000000000000c001", "customerNumber": "REPRO-C-1",
+      "firstName": "Repro", "lastName": "Customer", "email": "repro-c1@example.com",
+      "salesChannelId": "{{SC}}", "groupId": "{{CUSTOMER_GROUP}}",
+      "defaultPaymentMethodId": "{{PAYMENT_METHOD}}", "salutationId": "{{SALUTATION}}",
+      "defaultBillingAddressId": "aa00000000000000000000000000c002",
+      "defaultShippingAddressId": "aa00000000000000000000000000c002",
+      "addresses": [
+        { "id": "aa00000000000000000000000000c002", "firstName": "Repro", "lastName": "Customer",
+          "street": "Test St 1", "zipcode": "12345", "city": "Test",
+          "countryId": "{{COUNTRY}}", "salutationId": "{{SALUTATION}}" }
+      ] }
+  ]
+}

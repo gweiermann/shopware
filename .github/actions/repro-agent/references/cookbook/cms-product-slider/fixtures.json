@@ -1,0 +1,20 @@
+{
+  "product": [
+    { "id": "aa00000000000000000000000000aa01", "name": "Slider Product", "productNumber": "SLIDE-1", "stock": 50, "active": true,
+      "taxId": "{{TAX}}", "price": [ { "currencyId": "{{CURRENCY}}", "gross": 9.99, "net": 8.40, "linked": true } ],
+      "categories": [ { "id": "{{NAV_CAT}}" } ],
+      "visibilities": [ { "id": "aa00000000000000000000000000ee01", "salesChannelId": "{{SC}}", "visibility": 30 } ] }
+  ],
+  "cms_page": [
+    { "id": "aa00000000000000000000000000cc01", "name": "Repro slider page", "type": "landingpage",
+      "sections": [ { "id": "aa00000000000000000000000000cc02", "type": "default", "position": 0,
+        "blocks": [ { "id": "aa00000000000000000000000000cc03", "type": "product-slider", "position": 0, "sectionPosition": "main",
+          "slots": [ { "id": "aa00000000000000000000000000cc04", "type": "product-slider", "slot": "productSlider",
+            "config": { "products": { "source": "static", "value": [ "aa00000000000000000000000000aa01" ] },
+                        "title": { "source": "static", "value": "Repro" } } } ] } ] } ] }
+  ],
+  "landing_page": [
+    { "id": "aa00000000000000000000000000dd01", "name": "Repro LP", "url": "repro-landing", "active": true,
+      "cmsPageId": "aa00000000000000000000000000cc01", "salesChannels": [ { "id": "{{SC}}" } ] }
+  ]
+}

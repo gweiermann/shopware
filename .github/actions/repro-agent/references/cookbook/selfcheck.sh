@@ -8,10 +8,14 @@
 # changed, the documented field is actually volatile), an assertion fails, the status flips to
 # `reproduced`, and this exits non-zero so the example/cookbook gets fixed.
 #
-# Reuses the real pipeline (seed.sh + run-leg.sh → run-http.sh) — no separate assertion logic.
+# Reuses the real verify path (build-verify.sh: reset DB → seed → run). Each example RESETS to the
+# clean snapshot first, so examples can't contaminate each other (e.g. one seeding into the nav
+# category that another lists). Take the snapshot on a clean install BEFORE running this (the CI
+# job does `db-snapshot.sh` right after provision).
 #
 # Env: APP_URL (req), SW_ACCESS_KEY (store-api key, req for store-api examples),
-#      SHOP_DIR (default shop; seed.sh reindexes <SHOP_DIR>/bin/console), ADMIN_USER/ADMIN_PASS.
+#      DATABASE_URL (req — build-verify resets to the snapshot), SHOP_DIR (default shop),
+#      ADMIN_USER/ADMIN_PASS.
 set -uo pipefail
 
 COOK="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -23,12 +27,12 @@ for plan in "$COOK"/*/reproduction-plan.json; do
   [ -f "$plan" ] || continue
   dir=$(dirname "$plan"); name=$(basename "$dir"); n=$((n + 1))
   echo "::group::cookbook self-check — $name"
-  rm -f fixtures.json reproduction-plan.json result.json
+  rm -f fixtures.json reproduction-plan.json result.json builder-result.json
   [ -f "$dir/fixtures.json" ] && cp "$dir/fixtures.json" fixtures.json
   cp "$plan" reproduction-plan.json
 
-  if [ -f fixtures.json ]; then PAYLOAD=fixtures.json bash "$BIN/execute/seed.sh" || { echo "❌ $name — seeding failed"; fail=1; echo "::endgroup::"; continue; }; fi
-  TARGET=cookbook OUT=result.json REPRO_PLAN=reproduction-plan.json bash "$BIN/execute/run-leg.sh" >/dev/null 2>&1 || true
+  # build-verify resets to the clean snapshot (isolation) → seeds this example → runs the executor.
+  TARGET=cookbook OUT=result.json bash "$BIN/execute/build-verify.sh" >/dev/null 2>&1 || true
 
   status=$(jq -r '.status // "missing"' result.json 2>/dev/null || echo missing)
   jq -r '.assertion.checks[]? | "  \(.role)/\(.op) \(.subject) expect=\(.expected) got=\(.actual) ok=\(.ok)"' result.json 2>/dev/null || true

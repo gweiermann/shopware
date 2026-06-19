@@ -1,0 +1,21 @@
+{
+  "schema_version": "1",
+  "issue": 0,
+  "_about": "the FK-heavy customer graph: a customer with group + payment method + salutation + sales channel and one address (billing+shipping). Verified through the ADMIN API (note `Accept: application/json` for the flat shape).",
+  "layer": "admin-api",
+  "executor": "http",
+  "version": "selfcheck",
+  "build_profile": { "admin_build": false, "storefront_build": false, "theme_build": false },
+  "fixtures": { "demodata": false, "sync_payload_path": "fixtures.json" },
+  "request": {
+    "method": "POST", "path": "/api/search/customer",
+    "headers": { "Accept": "application/json" },
+    "body": "{\"filter\":[{\"type\":\"equals\",\"field\":\"customerNumber\",\"value\":\"REPRO-C-1\"}],\"associations\":{\"addresses\":{}}}"
+  },
+  "assertions": [
+    { "role": "precondition", "kind": "http_status", "expect": "200" },
+    { "role": "precondition", "field": ".total", "op": "equals", "expect": "1" },
+    { "field": ".data[0].addresses[0].city", "op": "equals", "expect": "Test" }
+  ],
+  "confidence": 1
+}

@@ -46,15 +46,26 @@ list_screenshots () {
     echo "No screenshots attached to the issue."
   fi
 }
+# Inline index of the cookbook examples (name + one-line `_about`), so the agent knows which to copy
+# WITHOUT spending ls/Read round-trips discovering them. Read from each example's reproduction-plan.
+cookbook_index () {
+  local refs=".github/actions/repro-agent/references/cookbook" d name about
+  for d in "$refs"/*/; do
+    [ -f "$d/reproduction-plan.json" ] || continue
+    name=$(basename "$d"); about=$(jq -r '._about // ""' "$d/reproduction-plan.json" 2>/dev/null || echo "")
+    printf -- '  - `%s/` — %s\n' "$name" "$about"
+  done
+}
 # Pointer, not inlined: the prefetched fix-PR diff can be large — the agent Reads it if useful.
 fixpr_section () { [ -f fixpr.diff ] || return 0; printf -- '\n_A linked fix PR was prefetched — Read `fixpr.diff` for its intent + diff (a candidate surface, not a test to import)._\n'; }
 
 sed -e "s/{{ISSUE}}/$ISSUE/g" -e "s/{{VERSION}}/$VERSION_LABEL/g" -e "s/{{MAX_TURNS}}/$MAX_TURNS/g" "$TPL" | while IFS= read -r line; do
   case "$line" in
-    '{{CLASSIFY}}')      classify_block ;;
-    '{{SCREENSHOTS}}')   list_screenshots ;;
-    '{{FIXPR}}')         fixpr_section ;;
-    *)                   printf '%s\n' "$line" ;;
+    '{{CLASSIFY}}')         classify_block ;;
+    '{{COOKBOOK_INDEX}}')   cookbook_index ;;
+    '{{SCREENSHOTS}}')      list_screenshots ;;
+    '{{FIXPR}}')            fixpr_section ;;
+    *)                      printf '%s\n' "$line" ;;
   esac
 done > "$OUT"
 
