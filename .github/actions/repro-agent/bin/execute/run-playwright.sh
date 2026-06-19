@@ -89,13 +89,17 @@ else
       STATUS="inconclusive"; MATCHED="null"; ACTUAL="\"could not load the page on $VERSION\""
       REPORTER="navigation/connection failure — $MSG"
       REASON="\"the spec could not load the target page on $VERSION; the symptom cannot be judged\""
-    elif printf '%s' "$ERRS" | grep -qiE 'strict mode violation|element\(s\) not found|locator resolved to|waiting for .*locator'; then
-      STATUS="inconclusive"; MATCHED="null"; ACTUAL="\"$UNEXPECTED failing (locator/precondition)\""
-      REPORTER="locator/precondition failure — $MSG"
-      REASON="\"the failure was a locator or missing-element error, not an assertion on a found issue-specific state; cannot confirm the symptom on $VERSION\""
-    elif printf '%s' "$ERRS" | grep -qE 'expect|Expected:|toBe|toHave|toContain|toEqual'; then
+    elif printf '%s' "$ERRS" | grep -qiE 'strict mode violation'; then
+      STATUS="inconclusive"; MATCHED="null"; ACTUAL="\"$UNEXPECTED failing (ambiguous locator)\""
+      REPORTER="ambiguous locator failure — $MSG"
+      REASON="\"the failure was a strict-mode locator error, not an assertion on one issue-specific state; cannot confirm the symptom on $VERSION\""
+    elif printf '%s' "$ERRS" | grep -qE 'Error: expect\(locator\)|expect\(locator\)\.|Expected:|Expected (pattern|string|value)|Received (string|value)|toBe|toHave|toContain|toEqual'; then
       STATUS="reproduced"; MATCHED="false"; ACTUAL="\"$UNEXPECTED failing\""
       REPORTER=$([ -n "$MSG" ] && printf '%s' "$MSG" || echo "assertion failed")
+    elif printf '%s' "$ERRS" | grep -qiE 'element\(s\) not found|waiting for .*locator'; then
+      STATUS="inconclusive"; MATCHED="null"; ACTUAL="\"$UNEXPECTED failing (locator/precondition)\""
+      REPORTER="locator/precondition failure — $MSG"
+      REASON="\"the failure was a locator or missing-element error before a value assertion; cannot confirm the symptom on $VERSION\""
     else
       STATUS="inconclusive"; MATCHED="null"; ACTUAL="\"$UNEXPECTED failing (non-assertion)\""
       REPORTER="failure was not a value assertion (likely a missing/changed element) — $MSG"
