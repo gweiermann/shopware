@@ -1,0 +1,53 @@
+{
+  "repo": "gweiermann/shopware",
+  "upstream": "shopware/shopware",
+  "defaultIssue": 30,
+  "model": "gpt-5.5",
+  "reasoningEffort": "low",
+  "maxTurns": 12,
+  "workflow": ".github/workflows/repro-agent.lock.yml",
+  "agentVerifyCommand": "bash .github/actions/repro-agent/bin/agent/verify-reproduction.sh",
+  "agentShopGetCommand": "bash .github/actions/repro-agent/bin/agent/shop-get.sh",
+  "generatedArtifacts": [
+    "build-context.md",
+    "issue.md",
+    "fixpr.diff",
+    "issue-class.txt",
+    "issue-assets",
+    "reproduction-plan.json",
+    "fixtures.json",
+    "repro.spec.ts",
+    "repro.sh",
+    "ReproTest.php",
+    "builder-result.json",
+    "result.json",
+    "seed-error.txt",
+    "pw-report.json",
+    "pw-stdout.txt",
+    "pw-stderr.txt",
+    "test-results",
+    "playwright-report"
+  ],
+  "evalSet": [
+    {
+      "name": "issue-30-cms-product-slider-variant",
+      "issue": 30,
+      "expectedExecutor": "playwright",
+      "visual": true
+    },
+    {
+      "name": "cookbook-cms-product-slider",
+      "bundleRoot": ".github/actions/repro-agent/references/cookbook/cms-product-slider",
+      "expectedExecutor": "playwright",
+      "visual": true
+    },
+    {
+      "name": "cookbook-variant-listing",
+      "bundleRoot": ".github/actions/repro-agent/references/cookbook/variant-listing"
+    },
+    {
+      "name": "cookbook-customer-addresses",
+      "bundleRoot": ".github/actions/repro-agent/references/cookbook/customer-addresses"
+    }
+  ]
+}
