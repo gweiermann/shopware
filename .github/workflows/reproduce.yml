@@ -45,9 +45,14 @@ on:
         type: choice
         options: [http, direct, playwright]
       branch:
-        description: "Branch/ref the trunk leg reproduces against (defaults to trunk)"
+        description: "Branch/ref the target leg reproduces against (defaults to upstream trunk; independent from the workflow --ref)"
         required: false
         default: "trunk"
+        type: string
+      branch_repository:
+        description: "Repository for the target branch/ref (defaults to upstream shopware/shopware; set to gweiermann/shopware for fork-only refs)"
+        required: false
+        default: "shopware/shopware"
         type: string
       max_turns:
         description: "Cap on the Build Repro agent's turns (cost control; default 40). Analyze is fixed-low (6, classification only)."
@@ -575,6 +580,7 @@ jobs:
         uses: ./.github/actions/repro/provision
         with:
           version: ${{ steps.plan.outputs.version }}
+          repository: ${{ github.event.inputs.branch_repository || 'shopware/shopware' }}
           admin-build: ${{ steps.plan.outputs.admin_build }}
           storefront-build: ${{ steps.plan.outputs.storefront_build }}
           demodata: ${{ steps.plan.outputs.demodata }}
