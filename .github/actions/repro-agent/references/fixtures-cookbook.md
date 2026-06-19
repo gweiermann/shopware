@@ -80,7 +80,40 @@ Option text = `.options[].name`. `variation` is `null` over http (the storefront
 render time) — so asserting `variation` is empty ⇒ false `reproduced`. A bug about the text *as
 displayed* ⇒ `playwright`, not http.
 
-## Product-slider / CMS bug
-The same product graph applies; the slider slot's config references this product (or a product-stream
-that matches it) — keep the product graph above as the base and add the CMS page on top, verifying the
-product is listable FIRST (Rule 1).
+## Product-slider / CMS / landing-page bug (VERIFIED — `cookbook/cms-product-slider/`)
+The same product graph applies; the slider slot's config references the product (or a product-stream
+that matches it). Keep the product graph above as the base, verify it's listable FIRST (Rule 1), then
+add the CMS page on top. **Copy `cookbook/cms-product-slider/` verbatim and change only the
+distinguishing fields** — the CMS graph below is the #1 thing runs get wrong by hand.
+
+**Rule 3 — NEST the CMS graph; never hand-write flat `cms_section`/`cms_block`/`cms_slot`.** Author
+one `cms_page` with its `sections` → `blocks` → `slots` nested inside it. Nesting lets the sync API
+assign every parent FK **and the shared `versionId`** automatically. Hand-writing the children as
+top-level entities means guessing the FK field names — and they are NOT `cmsPageId`/`cmsSectionId`/
+`cmsBlockId`; they are **`pageId` / `sectionId` / `blockId`** — so the flat form fails sync with
+`"This value should not be blank"` (a real, repeated waste of a whole run). The nested form:
+
+```json
+"cms_page": [
+  { "id": "…41", "name": "Repro page", "type": "landingpage",
+    "sections": [ { "id": "…42", "type": "default", "position": 0,
+      "blocks": [ { "id": "…43", "type": "product-slider", "position": 0, "sectionPosition": "main",
+        "slots": [ { "id": "…44", "type": "product-slider", "slot": "productSlider",
+          "config": { "products": { "source": "static", "value": [ "<productId>" ] },
+                      "title": { "source": "static", "value": "Repro" } } } ] } ] } ] }
+],
+"landing_page": [
+  { "id": "…51", "name": "Repro LP", "url": "repro-slider", "active": true,
+    "cmsPageId": "…41", "salesChannels": [ { "id": "{{SC}}" } ] }
+]
+```
+
+**Reaching the page in the storefront (visual / `playwright`):** go to the TECHNICAL route
+`/landingPage/<landingPageId>`. It **301-redirects to the page's SEO url** (Playwright follows it) —
+a freshly-seeded slug is not guaranteed, the id is. The slider renders a `product-name` link whose
+accessible name is the product name (which you control) — gate the precondition on that.
+
+**Variants in a slider:** a static slider given a variant **parent** id renders **one** card that
+links to the **parent** (the slider does not expand variants). So "selected variant not shown in the
+slider" repros target the variant option text inside that one card, with the precondition only
+requiring the product card itself to be present.

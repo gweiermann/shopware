@@ -5,11 +5,13 @@ import { cwd } from 'node:process';
 // directory — run-playwright.sh copies the generated spec here so it is the only spec
 // collected (a spec left at the workspace root is NOT discovered). baseURL comes from the
 // leg's running shop; outputDir is pinned to the workspace root so the workflow uploads the
-// trace/video/screenshot evidence. testIgnore excludes the committed dry-run demo fixtures
-// under demo/ — testDir recurses, so without this a real run would ALSO collect demo/.
+// trace/video/screenshot evidence. testIgnore excludes the committed specs that are NOT the
+// generated repro — testDir recurses, so without these a real run would ALSO collect them and
+// fail on their hard-coded fixture ids: the dry-run demo fixtures under demo/, and the cookbook's
+// verified example specs under references/cookbook/.
 export default defineConfig({
     testDir: '.',
-    testIgnore: '**/demo/**',
+    testIgnore: ['**/demo/**', '**/references/**'],
     // A repro is a multi-step flow against a freshly-provisioned shop (login + navigate +
     // interact), with generous per-locator waits. Playwright's 30s default per-test timeout
     // is too short and aborts mid-flow; give the whole test room.

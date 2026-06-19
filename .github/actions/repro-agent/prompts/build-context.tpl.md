@@ -27,9 +27,12 @@ If you genuinely cannot reproduce: `…/verify-reproduction.sh giveup`.
 - **Writing fixtures / relationships** (variants, listings, sliders, CMS, visibility, indexing — the
   "seeded but empty is a seed gap, not the bug" traps) → Read
   **`.github/actions/repro-agent/references/fixtures-cookbook.md`**, and **START by copying the closest
-  verified example** rather than hand-writing the fragile parts —
-  `cp .github/actions/repro-agent/references/cookbook/<name>/fixtures.json fixtures.json` — then change
-  only the distinguishing fields. Available examples (under `.github/actions/repro-agent/references/cookbook/`):
+  verified example, then change only distinguishing fields** — do NOT hand-write the fragile parts
+  (variant graphs, and especially the nested CMS `cms_page→sections→blocks→slots`: hand-rolling flat
+  `cms_section`/`cms_block`/`cms_slot` with guessed FK names is the #1 cause of failed runs). Copy the
+  WHOLE example bundle, not just snippets:
+  `cp .github/actions/repro-agent/references/cookbook/<name>/{fixtures.json,repro.spec.ts} ./` (the
+  `.spec.ts` only exists for `playwright` examples). Available examples (under `.github/actions/repro-agent/references/cookbook/`):
 {{COOKBOOK_INDEX}}
   Unsure how to shape an entity or association? **Skim a sibling example** — they share the same
   sync-payload conventions — to get the pattern before you write.

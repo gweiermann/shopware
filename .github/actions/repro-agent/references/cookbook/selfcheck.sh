@@ -27,9 +27,13 @@ for plan in "$COOK"/*/reproduction-plan.json; do
   [ -f "$plan" ] || continue
   dir=$(dirname "$plan"); name=$(basename "$dir"); n=$((n + 1))
   echo "::group::cookbook self-check — $name"
-  rm -f fixtures.json reproduction-plan.json result.json builder-result.json
+  rm -f fixtures.json reproduction-plan.json result.json builder-result.json repro.spec.ts ReproTest.php
   [ -f "$dir/fixtures.json" ] && cp "$dir/fixtures.json" fixtures.json
   cp "$plan" reproduction-plan.json
+  # Carry the executor's artifact too (playwright spec / direct PHPUnit test) so build-verify can
+  # run it — store-api/http examples have neither.
+  [ -f "$dir/repro.spec.ts" ] && cp "$dir/repro.spec.ts" repro.spec.ts
+  [ -f "$dir/ReproTest.php" ] && cp "$dir/ReproTest.php" ReproTest.php
 
   # build-verify resets to the clean snapshot (isolation) → seeds this example → runs the executor.
   TARGET=cookbook OUT=result.json bash "$BIN/execute/build-verify.sh" >/dev/null 2>&1 || true

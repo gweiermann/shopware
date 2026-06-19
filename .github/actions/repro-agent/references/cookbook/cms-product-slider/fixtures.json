@@ -1,20 +1,34 @@
 {
+  "property_group": [
+    { "id": "cc000000000000000000000000000001", "name": "Color", "displayType": "text", "sortingType": "alphanumeric",
+      "options": [ { "id": "cc000000000000000000000000000002", "name": "Black" },
+                   { "id": "cc000000000000000000000000000003", "name": "White" } ] }
+  ],
   "product": [
-    { "id": "aa00000000000000000000000000aa01", "name": "Slider Product", "productNumber": "SLIDE-1", "stock": 50, "active": true,
-      "taxId": "{{TAX}}", "price": [ { "currencyId": "{{CURRENCY}}", "gross": 9.99, "net": 8.40, "linked": true } ],
+    { "id": "cc0000000000000000000000000000a1", "productNumber": "SLIDE-VAR-1", "name": "Slider Variant Product", "stock": 10, "active": true,
+      "taxId": "{{TAX}}", "price": [ { "currencyId": "{{CURRENCY}}", "gross": 19.99, "net": 16.80, "linked": true } ],
       "categories": [ { "id": "{{NAV_CAT}}" } ],
-      "visibilities": [ { "id": "aa00000000000000000000000000ee01", "salesChannelId": "{{SC}}", "visibility": 30 } ] }
+      "visibilities": [ { "id": "cc000000000000000000000000000031", "salesChannelId": "{{SC}}", "visibility": 30 } ],
+      "configuratorSettings": [ { "id": "cc000000000000000000000000000021", "optionId": "cc000000000000000000000000000002" },
+                                { "id": "cc000000000000000000000000000022", "optionId": "cc000000000000000000000000000003" } ],
+      "variantListingConfig": { "displayParent": false, "mainVariantId": "cc0000000000000000000000000000c1" } },
+    { "id": "cc0000000000000000000000000000b1", "productNumber": "SLIDE-VAR-1.1", "parentId": "cc0000000000000000000000000000a1", "stock": 10, "active": true,
+      "options": [ { "id": "cc000000000000000000000000000002" } ],
+      "visibilities": [ { "id": "cc000000000000000000000000000032", "salesChannelId": "{{SC}}", "visibility": 30 } ] },
+    { "id": "cc0000000000000000000000000000c1", "productNumber": "SLIDE-VAR-1.2", "parentId": "cc0000000000000000000000000000a1", "stock": 10, "active": true,
+      "options": [ { "id": "cc000000000000000000000000000003" } ],
+      "visibilities": [ { "id": "cc000000000000000000000000000033", "salesChannelId": "{{SC}}", "visibility": 30 } ] }
   ],
   "cms_page": [
-    { "id": "aa00000000000000000000000000cc01", "name": "Repro slider page", "type": "landingpage",
-      "sections": [ { "id": "aa00000000000000000000000000cc02", "type": "default", "position": 0,
-        "blocks": [ { "id": "aa00000000000000000000000000cc03", "type": "product-slider", "position": 0, "sectionPosition": "main",
-          "slots": [ { "id": "aa00000000000000000000000000cc04", "type": "product-slider", "slot": "productSlider",
-            "config": { "products": { "source": "static", "value": [ "aa00000000000000000000000000aa01" ] },
+    { "id": "cc000000000000000000000000000041", "name": "Repro slider page", "type": "landingpage",
+      "sections": [ { "id": "cc000000000000000000000000000042", "type": "default", "position": 0,
+        "blocks": [ { "id": "cc000000000000000000000000000043", "type": "product-slider", "position": 0, "sectionPosition": "main",
+          "slots": [ { "id": "cc000000000000000000000000000044", "type": "product-slider", "slot": "productSlider",
+            "config": { "products": { "source": "static", "value": [ "cc0000000000000000000000000000a1" ] },
                         "title": { "source": "static", "value": "Repro" } } } ] } ] } ] }
   ],
   "landing_page": [
-    { "id": "aa00000000000000000000000000dd01", "name": "Repro LP", "url": "repro-landing", "active": true,
-      "cmsPageId": "aa00000000000000000000000000cc01", "salesChannels": [ { "id": "{{SC}}" } ] }
+    { "id": "cc000000000000000000000000000051", "name": "Repro LP", "url": "repro-variant-slider", "active": true,
+      "cmsPageId": "cc000000000000000000000000000041", "salesChannels": [ { "id": "{{SC}}" } ] }
   ]
 }

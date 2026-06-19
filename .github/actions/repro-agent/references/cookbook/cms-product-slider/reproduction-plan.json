@@ -1,17 +1,12 @@
 {
   "schema_version": "1",
   "issue": 0,
-  "_about": "landing page → CMS page → product-slider slot resolving a static product (the issue-#30 family). NB the slot's resolved products live at `.data.products[]` — a plain ARRAY, NOT `.data.products.elements[]`.",
-  "layer": "store-api",
-  "executor": "http",
+  "_about": "VERIFIED storefront render: a variant product in a STATIC product-slider on a landing page (the issue-#30 family — 'X not displayed in CMS product slider'). executor=playwright (visual). Copy fixtures.json's NESTED cms_page→sections→blocks→slots verbatim — hand-rolling flat cms_section/cms_block/cms_slot with the wrong FK names is the #1 way these runs fail. Reach the page at `/landingPage/<id>` (301-redirects to the SEO url). A variant parent in a static slider renders ONE card linking to the PARENT — the slider does not expand variants.",
+  "layer": "storefront",
+  "executor": "playwright",
   "version": "selfcheck",
-  "build_profile": { "admin_build": false, "storefront_build": false, "theme_build": false },
+  "build_profile": { "admin_build": false, "storefront_build": true, "theme_build": true },
   "fixtures": { "demodata": false, "sync_payload_path": "fixtures.json" },
-  "request": { "method": "POST", "path": "/store-api/landing-page/aa00000000000000000000000000dd01", "headers": {}, "body": "{}" },
-  "assertions": [
-    { "role": "precondition", "kind": "http_status", "expect": "200" },
-    { "role": "precondition", "field": ".cmsPage.sections[0].blocks[0].slots[0].type", "op": "equals", "expect": "product-slider" },
-    { "field": ".cmsPage.sections[0].blocks[0].slots[0].data.products[0].productNumber", "op": "equals", "expect": "SLIDE-1" }
-  ],
+  "script_path": "repro.spec.ts",
   "confidence": 1
 }
