@@ -32,6 +32,7 @@ fixpr_section () { [ -f fixpr.diff ] || return 0; printf -- '\n---\n\n# LINKED F
 sed -e "s/{{ISSUE}}/$ISSUE/g" -e "s/{{MAX_TURNS}}/$MAX_TURNS/g" "$TPL" | while IFS= read -r line; do
   case "$line" in
     '{{BUILD_MD}}')      cat "$SKILL/BUILD.md" ;;
+    '{{COOKBOOK}}')      cat "$SKILL/fixtures-cookbook.md" ;;
     '{{EXECUTOR_MD}}')   cat "$CONTRACT" ;;
     '{{ANALYSIS_JSON}}') printf '```json\n'; cat analysis.json; printf '\n```\n' ;;
     '{{ISSUE_MD}}')      cat issue.md ;;

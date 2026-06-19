@@ -65,13 +65,21 @@ allowed set, **STOP** and explain in plain text (not a JSON file) — never hand
 
 ## Procedure
 
-1. **Pick the executor YOURSELF** — the cheapest faithful surface (`service`→`direct`,
-   `*-api`→`http`, `*-ui`→`playwright`). There is no Analyze phase: you author the SINGLE
-   `reproduction-plan.json` yourself (`layer`/`executor`/`build_profile`/`version`/…). The Admin and
-   Storefront are **already built** on this instance, so any executor works immediately — you never
-   run or wait on a build. Still **record the matching `build_profile` flag** (step 3) for the
-   surface your repro uses, so the deterministic trunk leg builds only that. Prefer the cheapest
-   layer that shows the symptom; only escalate to a UI surface when a cheaper layer cannot fire it.
+1. **Pick the executor YOURSELF — FAITHFUL first, then cheapest.** Cheapest faithful surface:
+   `service`→`direct`, `*-api`→`http`, `*-ui`→`playwright`. There is no Analyze phase: you author
+   the SINGLE `reproduction-plan.json` yourself (`layer`/`executor`/`build_profile`/`version`/…).
+   The Admin and Storefront are **already built**, so any executor works immediately — record the
+   matching `build_profile` flag (step 3) for the surface you use.
+   - **VISUAL symptoms → `playwright`, no exceptions.** If the bug is about what the page *shows* —
+     something missing/blank/mis-rendered/misaligned/wrong text or color, "doesn't display", "is
+     cut off" — only `playwright` is faithful. An `http`/API check of the underlying data is **NOT**
+     a substitute: the API can return correct data while the template renders it wrong (and vice
+     versa), so an API assertion neither confirms nor denies a rendering bug.
+   - **Never downgrade to a layer that can't show the reported symptom.** A hard Playwright setup
+     (empty page, element won't appear) is a **fixture/precondition problem to fix** (seed the right
+     data, force the viewport, use the technical route) — or, if you truly can't, stop with
+     `blocked`/lower `confidence`. It is **never** a reason to switch to `http` "because it's more
+     stable." Reproduce the SYMPTOM AS REPORTED; do not switch layers to chase a root-cause theory.
 2. **Write `reproduction-plan.json` + the executor's artifact:**
    - `http`: `request`/`requests` + `assertion`.
    - `playwright`: `script_path: "repro.spec.ts"` + the spec.

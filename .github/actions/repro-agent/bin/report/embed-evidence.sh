@@ -33,6 +33,11 @@ NAMES=(); PNGS=(); VIDS=(); STS=()
 for d in "$ART"/repro-*/; do
   [ -d "$d" ] || continue # unmatched glob
   leg=$(basename "$d" | sed 's/^repro-//')
+  # Only embed a screenshot for a leg that ACTUALLY ran playwright. An http/direct leg never
+  # produces verified evidence; guarding on the leg's own executor stops a stale screenshot from an
+  # abandoned playwright attempt (left in test-results/) being embedded as if it were this leg's.
+  ex=$(jq -r '.executor // ""' "$d/result.json" 2>/dev/null || echo "")
+  [ "$ex" = playwright ] || continue
   png=$(find "$d" -name 'test-*.png' 2>/dev/null | head -1)
   [ -n "$png" ] || continue
   NAMES+=("$leg"); PNGS+=("$png"); STS+=("$(jq -r '.status // "?"' "$d/result.json" 2>/dev/null || echo '?')")

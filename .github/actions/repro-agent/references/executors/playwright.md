@@ -1,7 +1,14 @@
 # Executor: `playwright` (UI — storefront / admin)
 
-Use ONLY for a genuine UI bug (rendered state, interaction). The most expensive layer —
-escalate here only when neither `http` nor `direct` can fire the symptom.
+Use for any **visual / rendered-state / interaction** bug — it is the ONLY faithful layer for
+"what the page shows" (missing/blank/mis-rendered/misaligned/wrong on screen). It's the most
+expensive layer, so don't use it for a pure API/service bug — but for a visual symptom it is
+**required**, and an `http` check of the underlying data is not an acceptable substitute.
+
+**If the page comes up empty or a precondition won't appear, that is a FIXTURE problem to FIX
+(seed the right visible+indexed data, force the viewport, use the technical route below), or a
+`blocked`/low-confidence stop — NEVER a reason to switch to `http`.** Switching to an API check for
+a visual bug produces an unfaithful reproduction.
 
 ## Hard rules (the rest of this file is the WHY)
 1. **Semantic locators only** — `getByRole`/`getByLabel`/`getByText`/`getByPlaceholder`

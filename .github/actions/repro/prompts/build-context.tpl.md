@@ -13,6 +13,12 @@ of the budget, STOP with a `blocked`/`inconclusive` result + a plain-text reason
 
 ---
 
+# FIXTURES COOKBOOK — verified seed graphs + why "seeded but empty" is a seed gap, not the bug (references/fixtures-cookbook.md)
+
+{{COOKBOOK}}
+
+---
+
 # EXECUTOR CONTRACT — chosen for this run (switch only if live verification proves you must)
 
 {{EXECUTOR_MD}}

@@ -1,7 +1,12 @@
 # Executor: `http` (store-/admin-API)
 
 Use when the symptom surfaces on a store-api or admin-api **response**. Cheapest faithful
-layer for most API bugs. Builds neither storefront nor theme.
+layer for most API bugs.
+
+> **Not for visual bugs.** If the symptom is what the page *renders* (something missing, blank,
+> mis-laid-out, wrong text/color on screen), `http` is **not faithful** — the API response can be
+> correct while the template renders wrong, and vice versa. Use `playwright`. Do **not** fall back
+> to `http` because the Playwright setup is hard; fix the fixture or stop. (See BUILD.md step 1.)
 
 ## What you author
 Put the request(s) in `reproduction-plan.json` — there is **no** separate script file (the executor

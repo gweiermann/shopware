@@ -76,6 +76,10 @@ allowed set, **STOP** and explain in plain text (not a JSON file) — never hand
    - `direct`: `script_path: "ReproTest.php"` + the PHPUnit test.
    - fixtures: `fixtures.sync_payload_path: "fixtures.json"` + the file, when seeded data is needed.
 3. **Fixtures rules:**
+   - **If your symptom reads from a listing / search / slider / aggregation, see the FIXTURES
+     COOKBOOK** (next section) — and treat an empty/`null`/absent result as a SEED gap, not the
+     symptom: confirm your entity appears in the simplest (unfiltered) query first, then add the
+     constraint that triggers the bug.
    - **`demodata` is set by analysis — mirror it, never flip it.** Copy `analysis.demodata` into
      `repro-plan.json` as `fixtures.demodata` unchanged. The reported leg's instance was ALREADY
      provisioned from `analysis.demodata` before you ran, so changing it here only desyncs the

@@ -65,6 +65,11 @@ else
   echo "== build-verify ($TARGET): no fixtures.json — skipping seed =="
 fi
 
+# Clear any leftover run artifacts BEFORE running, so a screenshot/report from a PRIOR attempt
+# (e.g. the agent tried `playwright` then switched the plan to `http`) can never be uploaded or
+# embedded as if it were THIS leg's evidence. Only the executor that actually runs now writes new ones.
+rm -rf test-results playwright-report phpunit-output.txt 2>/dev/null || true
+
 echo "== build-verify ($TARGET): running the executor =="
 TARGET="$TARGET" OUT="$OUT" REPRO_PLAN="$PLAN" bash .github/actions/repro-agent/bin/execute/run-leg.sh
 rc=$?
