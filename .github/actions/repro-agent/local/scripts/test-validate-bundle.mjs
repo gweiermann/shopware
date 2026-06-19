@@ -40,6 +40,7 @@ const fixtures = {
 function writeBundle(spec) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'repro-agent-validate-'));
   fs.writeFileSync(path.join(dir, 'issue.md'), issue);
+  fs.writeFileSync(path.join(dir, 'issue-class.txt'), 'visual');
   fs.writeFileSync(path.join(dir, 'reproduction-plan.json'), `${JSON.stringify(plan, null, 2)}\n`);
   fs.writeFileSync(path.join(dir, 'fixtures.json'), `${JSON.stringify(fixtures, null, 2)}\n`);
   fs.writeFileSync(path.join(dir, 'repro.spec.ts'), spec);
@@ -54,6 +55,9 @@ const bad = writeBundle(`
 import { test, expect } from '@playwright/test';
 // Black appears only in a comment, so this must not count.
 test('bad generic card assertion', async ({ page }) => {
+  const card = page.getByRole('link', { name: /Slider Variant Product/i }).first();
+  await card.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: seeded product not visible'); });
   await expect(page.getByRole('link', { name: /Slider Variant Product/i }).first()).toBeVisible();
 });
 `);
@@ -67,10 +71,47 @@ if (!badResult.stdout.includes('distinguishing selected-variant value')) {
   process.exit(1);
 }
 
+const noPrecondition = writeBundle(`
+import { test, expect } from '@playwright/test';
+test('missing explicit precondition', async ({ page }) => {
+  await expect(page.getByText('Black')).toBeVisible();
+});
+`);
+const noPreconditionResult = run(noPrecondition);
+if (noPreconditionResult.status === 0) {
+  console.error('Expected missing precondition gate to be rejected');
+  process.exit(1);
+}
+if (!noPreconditionResult.stdout.includes('PRECONDITION_NOT_FOUND')) {
+  console.error(`Unexpected missing-precondition output:\n${noPreconditionResult.stdout}\n${noPreconditionResult.stderr}`);
+  process.exit(1);
+}
+
+const genericPrecondition = writeBundle(`
+import { test, expect } from '@playwright/test';
+test('generic page chrome precondition', async ({ page }) => {
+  const home = page.getByRole('link', { name: /^Home$/i });
+  await home.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: home link missing'); });
+  await expect(page.getByText('Black')).toBeVisible();
+});
+`);
+const genericPreconditionResult = run(genericPrecondition);
+if (genericPreconditionResult.status === 0) {
+  console.error('Expected generic page chrome precondition to be rejected');
+  process.exit(1);
+}
+if (!genericPreconditionResult.stdout.includes('controlled seeded fixture marker')) {
+  console.error(`Unexpected generic-precondition output:\n${genericPreconditionResult.stdout}\n${genericPreconditionResult.stderr}`);
+  process.exit(1);
+}
+
 const good = writeBundle(`
 import { test, expect } from '@playwright/test';
 test('good selected variant assertion', async ({ page }) => {
-  await expect(page.getByRole('link', { name: /Slider Variant Product/i }).first()).toBeVisible();
+  const card = page.getByRole('link', { name: /Slider Variant Product/i }).first();
+  await card.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: seeded product not visible'); });
   await expect(page.getByText('Black')).toBeVisible();
 });
 `);

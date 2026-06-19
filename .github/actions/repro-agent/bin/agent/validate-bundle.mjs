@@ -16,6 +16,7 @@ const issue = read('issue.md');
 const plan = readJson('reproduction-plan.json') ?? {};
 const fixtures = readJson('fixtures.json') ?? {};
 const executor = String(plan.executor ?? '');
+const issueClass = read('issue-class.txt').trim();
 
 function fail(reason) {
   console.log(`== validate-bundle: REFUSED — ${reason} ==`);
@@ -40,6 +41,25 @@ function selectedVariantIssue(text) {
   return /\b(selected|specific|assigned|preselected)\b/i.test(text)
     && /\b(variant|option|property|configuration|configurator|cms product slider|product slider)\b/i.test(text)
     && /\b(displayed|visible|rendered|shown|appears?)\b/i.test(text);
+}
+
+function collectControlledTerms(value, terms = new Set(), key = '') {
+  if (Array.isArray(value)) {
+    for (const item of value) collectControlledTerms(item, terms, key);
+    return terms;
+  }
+  if (!value || typeof value !== 'object') return terms;
+
+  for (const [childKey, childValue] of Object.entries(value)) {
+    if (typeof childValue === 'string') {
+      if (/(^|\.)(name|title|label|productNumber|url)$/i.test(childKey) || /(^|\.)(name|title|label|productNumber|url)$/i.test(key)) {
+        terms.add(childValue);
+      }
+    } else {
+      collectControlledTerms(childValue, terms, childKey);
+    }
+  }
+  return terms;
 }
 
 function collectVariantTerms(data) {
@@ -68,6 +88,56 @@ function collectVariantTerms(data) {
     .map((term) => term.trim())
     .filter((term) => term.length >= 3)
     .filter((term) => !/^slider variant product$/i.test(term));
+}
+
+function normalizeTerms(terms) {
+  const generic = /^(home|dashboard|demo ?store|default|standard|main|repro|test|true|false|null|0|1)$/i;
+  return [...terms]
+    .map((term) => String(term).trim())
+    .filter((term) => term.length >= 3)
+    .filter((term) => !generic.test(term));
+}
+
+function preconditionSnippet(source) {
+  const lines = source.split('\n');
+  const picked = new Set();
+  lines.forEach((line, index) => {
+    if (/PRECONDITION_NOT_FOUND|\.waitFor\s*\(/.test(line)) {
+      const maxOffset = /PRECONDITION_NOT_FOUND/.test(line) ? 0 : 1;
+      for (let offset = -4; offset <= maxOffset; offset += 1) {
+        const target = index + offset;
+        if (target >= 0 && target < lines.length) picked.add(target);
+      }
+    }
+  });
+  return [...picked].sort((a, b) => a - b).map((index) => lines[index]).join('\n');
+}
+
+if (executor === 'playwright') {
+  const specPath = String(plan.script_path || 'repro.spec.ts');
+  const spec = read(specPath);
+  if (!spec) fail(`playwright executor but ${specPath} is missing`);
+
+  const executable = stripComments(spec);
+  if (!executable.includes('PRECONDITION_NOT_FOUND')) {
+    fail('playwright spec has no PRECONDITION_NOT_FOUND precondition gate; missing setup must be inconclusive, not a reproduced/not_reproduced verdict');
+  }
+  if (!/\.waitFor\s*\(\s*\{[^}]*state\s*:\s*['"]visible['"]/s.test(executable)) {
+    fail('playwright spec has no visible waitFor precondition; gate the rendered setup with locator.waitFor({ state: "visible", ... }) before the symptom expect');
+  }
+
+  const fixtureTerms = normalizeTerms(collectControlledTerms(fixtures));
+  if (issueClass === 'visual' && fixtureTerms.length > 0) {
+    const preconditions = preconditionSnippet(executable);
+    const matched = fixtureTerms.filter((term) => preconditions.includes(term));
+    if (matched.length === 0) {
+      fail([
+        'visual playwright spec preconditions do not wait for any controlled seeded fixture marker',
+        `derived candidate markers: ${fixtureTerms.slice(0, 20).join(', ')}`,
+        'precondition on the exact seeded entity/container that makes the symptom possible, not generic page chrome'
+      ].join(' — '));
+    }
+  }
 }
 
 if (executor === 'playwright' && selectedVariantIssue(issue)) {

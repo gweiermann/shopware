@@ -18,6 +18,9 @@ a visual bug produces an unfaithful reproduction.
 3. **Preconditions** wait via `locator.waitFor({state:'visible',timeout})` and throw
    `PRECONDITION_NOT_FOUND: <what>` on miss. NEVER gate them on `isVisible()`/`isHidden()`
    or on `expect()`.
+   The verifier rejects fixture-backed visual specs whose preconditions only wait for generic page
+   chrome. Gate on a controlled seeded marker that makes the symptom possible: the exact product,
+   CMS title/container, row, option, media, or other entity you created.
 4. **Exactly ONE `await expect(...)`** — the symptom, asserting the HEALTHY behaviour. It is
    the only failure allowed to mean `reproduced`.
 5. **Make the precondition actually hold** — force a viewport for overflow/cut-off bugs;
@@ -98,6 +101,10 @@ await locator.waitFor({ state: 'visible', timeout })
   and the missing label scored `reproduced` though nothing was there. Instead, gate on the
   seeded product's own name, e.g. `getByRole('link', {name:/Live-Film Repro/i})` scoped to the
   slider — so an empty/wrong page fails the precondition (→ `inconclusive`), never fakes a repro.
+- **The precondition must prove the trigger, not just the page.** If the bug needs a selected
+  variant, a long dropdown, a configured CMS block, assigned media, a specific rule, or a seeded
+  entity relationship, wait for a controlled marker from that trigger before the single symptom
+  `expect`. A page heading, `Home`, dashboard chrome, or a generic product card is not enough.
 - **For Admin dashboard/bootstrap checks, precondition on a real page marker and assert the
   reported interaction.** Do not use guessed headings like `/^dashboard$/i`; Shopware may show
   time-based greetings (`Hi!`, `Good evening.`) or cards instead. If the screenshot shows the
