@@ -192,7 +192,9 @@ has_fixtures=0; [ -f "$FX" ] && has_fixtures=1
   # HERE — right under the verdict, above the collapsible details. Invisible if it never runs.
   echo; echo "<!-- EVIDENCE -->"
   if [ "$has_script" = 1 ]; then
-    echo; echo "### Test case"; echo "<details><summary>repro source (\`${LANG}\`)</summary>"; echo
+    # Label by the TOOL (obvious: curl / Playwright / PHPUnit), not the raw fence language.
+    case "$EX" in http) tctool=curl ;; playwright) tctool=Playwright ;; direct) tctool=PHPUnit ;; *) tctool="$LANG" ;; esac
+    echo; echo "### Test case"; echo "<details><summary>repro source (${tctool})</summary>"; echo
     echo "\`\`\`${LANG}"; printf '%s\n' "$SCRIPT"; echo '```'; echo; echo "</details>"
   fi
   if [ "$has_fixtures" = 1 ]; then
