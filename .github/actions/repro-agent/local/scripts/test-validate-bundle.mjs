@@ -206,6 +206,57 @@ if (!wrongAccountAddressMethodResult.stdout.includes('POST /store-api/account/ad
   process.exit(1);
 }
 
+const responseFieldWithoutStatusPreconditionDir = fs.mkdtempSync(path.join(os.tmpdir(), 'repro-agent-validate-'));
+fs.writeFileSync(path.join(responseFieldWithoutStatusPreconditionDir, 'issue.md'), '# store-api product listing returns product ids\n');
+fs.writeFileSync(path.join(responseFieldWithoutStatusPreconditionDir, 'issue-class.txt'), 'api');
+fs.writeFileSync(path.join(responseFieldWithoutStatusPreconditionDir, 'reproduction-plan.json'), `${JSON.stringify({
+  schema_version: '1',
+  issue: 98,
+  executor: 'http',
+  request: {
+    method: 'POST',
+    path: '/store-api/product-listing/{{NAV_CAT}}',
+    body: '{}',
+  },
+  assertions: [
+    { field: '.elements | length', op: 'gt', expect: '0' },
+  ],
+}, null, 2)}\n`);
+fs.writeFileSync(path.join(responseFieldWithoutStatusPreconditionDir, 'fixtures.json'), '{}\n');
+const responseFieldWithoutStatusPreconditionResult = run(responseFieldWithoutStatusPreconditionDir);
+if (responseFieldWithoutStatusPreconditionResult.status === 0) {
+  console.error('Expected response-field HTTP assertion without status precondition to be rejected');
+  process.exit(1);
+}
+if (!responseFieldWithoutStatusPreconditionResult.stdout.includes('final 2xx http_status precondition')) {
+  console.error(`Unexpected response-field-status-precondition output:\n${responseFieldWithoutStatusPreconditionResult.stdout}\n${responseFieldWithoutStatusPreconditionResult.stderr}`);
+  process.exit(1);
+}
+
+const responseFieldWithStatusPreconditionDir = fs.mkdtempSync(path.join(os.tmpdir(), 'repro-agent-validate-'));
+fs.writeFileSync(path.join(responseFieldWithStatusPreconditionDir, 'issue.md'), '# store-api product listing returns product ids\n');
+fs.writeFileSync(path.join(responseFieldWithStatusPreconditionDir, 'issue-class.txt'), 'api');
+fs.writeFileSync(path.join(responseFieldWithStatusPreconditionDir, 'reproduction-plan.json'), `${JSON.stringify({
+  schema_version: '1',
+  issue: 98,
+  executor: 'http',
+  request: {
+    method: 'POST',
+    path: '/store-api/product-listing/{{NAV_CAT}}',
+    body: '{}',
+  },
+  assertions: [
+    { role: 'precondition', kind: 'http_status', expect: '200' },
+    { field: '.elements | length', op: 'gt', expect: '0' },
+  ],
+}, null, 2)}\n`);
+fs.writeFileSync(path.join(responseFieldWithStatusPreconditionDir, 'fixtures.json'), '{}\n');
+const responseFieldWithStatusPreconditionResult = run(responseFieldWithStatusPreconditionDir);
+if (responseFieldWithStatusPreconditionResult.status !== 0) {
+  console.error(`Expected response-field HTTP assertion with status precondition to pass:\n${responseFieldWithStatusPreconditionResult.stdout}\n${responseFieldWithStatusPreconditionResult.stderr}`);
+  process.exit(1);
+}
+
 const wishlistIssue = `# Wishlist add to cart button cannot be clicked
 
 The wishlist product card renders, but clicking Add to shopping cart from the wishlist does not open the off-canvas cart.

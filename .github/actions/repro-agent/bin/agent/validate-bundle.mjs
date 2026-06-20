@@ -291,6 +291,12 @@ function validateOrderFixtures(data) {
   }
 }
 
+function assertionsFromPlan(data) {
+  if (Array.isArray(data.assertions)) return data.assertions;
+  if (data.assertion && typeof data.assertion === 'object') return [data.assertion];
+  return [];
+}
+
 function collectPlaceholders(value, found = new Set()) {
   if (typeof value === 'string') {
     for (const match of value.matchAll(/\{\{([A-Z0-9_]+)\}\}/g)) found.add(match[1]);
@@ -451,6 +457,20 @@ if (executor === 'playwright' && selectedVariantIssue(issue)) {
 }
 
 if (executor === 'http') {
+  const assertions = assertionsFromPlan(plan);
+  const responseFieldAssertions = assertions.filter((assertion) => (
+    String(assertion?.role ?? 'assert') !== 'precondition'
+      && (assertion?.field || assertion?.kind === 'response_field')
+  ));
+  const hasFinalStatusPrecondition = assertions.some((assertion) => (
+    assertion?.role === 'precondition'
+      && String(assertion?.kind ?? (assertion?.field ? 'response_field' : 'http_status')) === 'http_status'
+      && /^2\d\d$/.test(String(assertion?.expect ?? ''))
+  ));
+  if (responseFieldAssertions.length > 0 && !hasFinalStatusPrecondition) {
+    fail('http response-field symptom assertions must include a final 2xx http_status precondition; otherwise a setup/route/auth failure can be misclassified as the reported symptom');
+  }
+
   const requests = Array.isArray(plan.requests) ? plan.requests : [plan.request].filter(Boolean);
   for (const request of requests) {
     const method = String(request?.method ?? 'GET').toUpperCase();

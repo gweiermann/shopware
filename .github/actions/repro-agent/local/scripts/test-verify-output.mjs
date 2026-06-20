@@ -1,0 +1,46 @@
+#!/usr/bin/env node
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+
+const repo = path.resolve(import.meta.dirname, '../../../../..');
+const verifier = path.join(repo, '.github/actions/repro-agent/local/scripts/verify-output.mjs');
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'repro-agent-output-'));
+
+fs.writeFileSync(path.join(dir, 'reproduction-plan.json'), `${JSON.stringify({
+  schema_version: '1',
+  issue: 15,
+  executor: 'playwright',
+  version: '6.7.11.0',
+  script_path: 'repro.spec.ts',
+}, null, 2)}\n`);
+fs.writeFileSync(path.join(dir, 'issue.md'), '# Product detail page should return not found for inactive variants\n');
+fs.writeFileSync(path.join(dir, 'issue-class.txt'), 'visual\n');
+fs.writeFileSync(path.join(dir, 'fixtures.json'), '{}\n');
+fs.writeFileSync(path.join(dir, 'repro.spec.ts'), `
+import { test, expect } from '@playwright/test';
+test('expect poll counts as the single symptom assertion', async ({ page }) => {
+  await page.goto('/detail/15000000000000000000000000000101');
+  const marker = page.getByText(/Product number:/i);
+  await marker.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: product detail page missing'); });
+  const response = await page.goto('/detail/15000000000000000000000000000101');
+  await expect.poll(async () => response?.status(), { timeout: 30_000 }).toBe(404);
+});
+`);
+fs.writeFileSync(path.join(dir, 'builder-result.json'), `${JSON.stringify({
+  executor: 'playwright',
+  evidence: {
+    artifacts: [{ kind: 'playwright-results', name: 'test-results/' }],
+  },
+}, null, 2)}\n`);
+
+const result = spawnSync('node', [verifier, '--root', dir], { cwd: repo, encoding: 'utf8' });
+if (result.status !== 0) {
+  console.error(result.stdout);
+  console.error(result.stderr);
+  process.exit(result.status ?? 1);
+}
+
+console.log('verify-output tests passed');

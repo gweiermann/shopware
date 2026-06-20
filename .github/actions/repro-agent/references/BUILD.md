@@ -188,6 +188,9 @@ set, **STOP** and explain in plain text (not a JSON file) — never hand-roll a 
      can cause a FALSE `reproduced` — assert only the symptom field(s); put state-validity (status,
      "row exists", counts) under preconditions; never assert volatile values (timestamps, generated
      ids, demodata-dependent counts). A single `assertion: {…}` object is still accepted.
+     If any symptom assertion reads a response field, add a final 2xx `http_status` precondition
+     first. A missing route, validation error, or auth failure can still return JSON-shaped output;
+     the status precondition makes that `inconclusive` instead of a false verdict.
    - `playwright`/`direct` carry their checks in the spec/test code instead, so assert as many
      things as you need there directly.
    - `assertion.symptom_pattern` (optional; `direct` + `kind: exception`) — a distinctive

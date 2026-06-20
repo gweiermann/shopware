@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
+import { spawnSync } from 'node:child_process';
 
 function arg(name, fallback = null) {
   const index = process.argv.indexOf(name);
@@ -34,6 +35,18 @@ const plan = readJson(planPath);
 const fixtures = readJson(fixturesPath, false);
 const spec = fs.existsSync(specPath) ? fs.readFileSync(specPath, 'utf8') : '';
 
+const validator = path.join(process.cwd(), '.github/actions/repro-agent/bin/agent/validate-bundle.mjs');
+if (fs.existsSync(validator)) {
+  const result = spawnSync('node', [validator], {
+    cwd: root,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  if (result.status !== 0) {
+    failures.push(`validate-bundle rejected the reproduction bundle:\n${result.stdout}${result.stderr}`);
+  }
+}
+
 if (plan) {
   if (!['playwright', 'http', 'direct'].includes(plan.executor)) {
     failures.push(`Invalid executor '${plan.executor}'`);
@@ -49,7 +62,7 @@ if (plan) {
 }
 
 if (plan?.executor === 'playwright' && spec) {
-  const expectCount = [...spec.matchAll(/\bawait\s+expect\s*\(/g)].length;
+  const expectCount = [...spec.matchAll(/\bawait\s+expect\s*(?:\.\s*poll)?\s*\(/g)].length;
   if (expectCount !== 1) {
     failures.push(`Playwright specs must contain exactly one awaited expect(); found ${expectCount}`);
   }

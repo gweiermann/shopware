@@ -208,6 +208,10 @@ for (const issue of issues) {
   const summary = archiveIssue(issue);
   summary.agent_exit = agent.status;
   summary.contract_exit = contract.status;
+  if (contract.status !== 0) {
+    summary.status = 'contract_failed';
+    summary.reporter_output = contract.stderr || contract.stdout || summary.reporter_output;
+  }
   summaries.push(summary);
   console.log(`== issue #${issue}: ${summary.status} (${summary.executor || 'unknown'}) ==`);
 

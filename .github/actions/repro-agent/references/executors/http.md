@@ -74,6 +74,11 @@ Split your checks by intent:
 - **`role: "assert"`** (default) — "the healthy behaviour holds". This is the actual symptom; a
   failure means **`reproduced`**.
 
+If the symptom assertion reads a response body field, always include a final
+`{ "role": "precondition", "kind": "http_status", "expect": "200" }` (or the other healthy 2xx
+status). A field assertion on an error body, missing route, auth page, or validation failure is not
+evidence about the reported bug; it is a bad setup and must become `inconclusive`.
+
 Decision order: `blocked` (setup/transport) → **any precondition fails ⇒ `inconclusive`** →
 all preconditions hold ⇒ symptom asserts decide (all pass ⇒ `not_reproduced`, any fails ⇒
 `reproduced`).
