@@ -150,12 +150,13 @@ await locator.waitFor({ state: 'visible', timeout })
   ```
   Only after that should the spec click the target link and make the single symptom assertion.
 - **For wishlist storefront bugs, prove the wishlist state before testing the card interaction.**
-  Guest wishlist state can be version/session-sensitive. Prefer a seeded customer and a normal
-  storefront login when the issue is about registered-customer wishlist behavior. If you add from a
-  product detail page, wait for the header wishlist count/link to reflect the addition, then go to
-  `/wishlist` and precondition on the seeded product card. An empty wishlist page is setup failure,
-  not the symptom. Do not click `Add to shopping cart` until the seeded product is visibly present
-  on `/wishlist`.
+  First seed `system_config` with `core.cart.wishlistEnabled=true`; otherwise the product detail
+  page can render without any wishlist control. Guest wishlist state can be version/session-sensitive.
+  Prefer a seeded customer and a normal storefront login when the issue is about registered-customer
+  wishlist behavior. If you add from a product detail page, wait for the header wishlist count/link
+  to reflect the addition, then go to `/wishlist` and precondition on the seeded product card. An
+  empty wishlist page or a missing wishlist button is setup failure, not the symptom. Do not click
+  `Add to shopping cart` until the seeded product is visibly present on `/wishlist`.
 
 **(2) Symptom** — exactly ONE `await expect(...)` of the HEALTHY behaviour, with a generous
 timeout. This is the ONLY failure that may mean `reproduced`.

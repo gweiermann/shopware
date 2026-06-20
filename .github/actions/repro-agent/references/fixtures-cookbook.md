@@ -135,7 +135,17 @@ on a heart icon as the setup by itself. The wishlist page can stay empty when gu
 not established, and that is a setup failure, not the reported symptom.
 
 Use the same customer shape as `cookbook/customer-addresses/` when the issue can involve a logged-in
-customer, and add a deterministic password:
+customer, and add a deterministic password. Also explicitly enable the wishlist feature:
+
+```json
+"system_config": [
+  { "id": "aa00000000000000000000000000cf01",
+    "configurationKey": "core.cart.wishlistEnabled",
+    "configurationValue": true }
+]
+```
+
+Customer fixture:
 
 ```json
 "customer": [

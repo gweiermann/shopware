@@ -70,6 +70,17 @@ function selectedVariantIssue(text) {
     && /\b(displayed|visible|rendered|shown|appears?)\b/i.test(text);
 }
 
+function wishlistIssue(text) {
+  return /\bwishlist\b/i.test(text);
+}
+
+function hasEnabledWishlistConfig(data) {
+  return entityRows(data, 'system_config').some((row) => (
+    row?.configurationKey === 'core.cart.wishlistEnabled'
+      && (row.configurationValue === true || row.configurationValue === 1 || row.configurationValue === 'true')
+  ));
+}
+
 function collectControlledTerms(value, terms = new Set(), key = '') {
   if (Array.isArray(value)) {
     for (const item of value) collectControlledTerms(item, terms, key);
@@ -253,6 +264,10 @@ if (executor === 'playwright') {
   }
   if (!/\.waitFor\s*\(\s*\{[^}]*state\s*:\s*['"]visible['"]/s.test(executable)) {
     fail('playwright spec has no visible waitFor precondition; gate the rendered setup with locator.waitFor({ state: "visible", ... }) before the symptom expect');
+  }
+
+  if (wishlistIssue(issue) && !hasEnabledWishlistConfig(fixtures)) {
+    fail('wishlist Playwright repro must seed system_config core.cart.wishlistEnabled=true; a missing wishlist button/page is setup failure, not the symptom');
   }
 
   if (adminUiPlan()) {

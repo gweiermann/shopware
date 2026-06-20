@@ -125,6 +125,71 @@ if (!unsupportedPlaceholderResult.stdout.includes('unsupported placeholder')) {
   process.exit(1);
 }
 
+const wishlistIssue = `# Wishlist add to cart button cannot be clicked
+
+The wishlist product card renders, but clicking Add to shopping cart from the wishlist does not open the off-canvas cart.
+`;
+const wishlistFixturesWithoutConfig = {
+  product: [
+    {
+      id: 'ab000000000000000000000000000001',
+      name: 'Wishlist Product',
+      productNumber: 'WISH-1',
+    },
+  ],
+};
+const wishlistWithoutConfig = fs.mkdtempSync(path.join(os.tmpdir(), 'repro-agent-validate-'));
+fs.writeFileSync(path.join(wishlistWithoutConfig, 'issue.md'), wishlistIssue);
+fs.writeFileSync(path.join(wishlistWithoutConfig, 'issue-class.txt'), 'visual');
+fs.writeFileSync(path.join(wishlistWithoutConfig, 'reproduction-plan.json'), `${JSON.stringify({
+  ...plan,
+  issue: 1,
+}, null, 2)}\n`);
+fs.writeFileSync(path.join(wishlistWithoutConfig, 'fixtures.json'), `${JSON.stringify(wishlistFixturesWithoutConfig, null, 2)}\n`);
+fs.writeFileSync(path.join(wishlistWithoutConfig, 'repro.spec.ts'), `
+import { test, expect } from '@playwright/test';
+test('bad wishlist setup', async ({ page }) => {
+  const product = page.getByRole('heading', { name: /^Wishlist Product$/i });
+  await product.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: product missing'); });
+  await expect(page.getByRole('button', { name: /Add to shopping cart/i })).toBeVisible();
+});
+`);
+const wishlistWithoutConfigResult = run(wishlistWithoutConfig);
+if (wishlistWithoutConfigResult.status === 0) {
+  console.error('Expected wishlist repro without enabled wishlist config to be rejected');
+  process.exit(1);
+}
+if (!wishlistWithoutConfigResult.stdout.includes('core.cart.wishlistEnabled')) {
+  console.error(`Unexpected wishlist-without-config output:\n${wishlistWithoutConfigResult.stdout}\n${wishlistWithoutConfigResult.stderr}`);
+  process.exit(1);
+}
+
+const wishlistWithConfig = writeBundle(`
+import { test, expect } from '@playwright/test';
+test('good wishlist setup', async ({ page }) => {
+  const product = page.getByRole('heading', { name: /^Wishlist Product$/i });
+  await product.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: product missing'); });
+  await expect(page.getByRole('button', { name: /Add to shopping cart/i })).toBeVisible();
+});
+`, {
+  system_config: [
+    {
+      id: 'ac000000000000000000000000000001',
+      configurationKey: 'core.cart.wishlistEnabled',
+      configurationValue: true,
+    },
+  ],
+  product: wishlistFixturesWithoutConfig.product,
+});
+fs.writeFileSync(path.join(wishlistWithConfig, 'issue.md'), wishlistIssue);
+const wishlistWithConfigResult = run(wishlistWithConfig);
+if (wishlistWithConfigResult.status !== 0) {
+  console.error(`Expected wishlist repro with enabled wishlist config to pass:\n${wishlistWithConfigResult.stdout}\n${wishlistWithConfigResult.stderr}`);
+  process.exit(1);
+}
+
 const bad = writeBundle(`
 import { test, expect } from '@playwright/test';
 // Black appears only in a comment, so this must not count.
