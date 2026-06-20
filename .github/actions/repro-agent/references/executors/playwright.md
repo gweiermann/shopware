@@ -114,6 +114,10 @@ await locator.waitFor({ state: 'visible', timeout })
   and the missing label scored `reproduced` though nothing was there. Instead, gate on the
   seeded product's own name, e.g. `getByRole('link', {name:/Live-Film Repro/i})` scoped to the
   slider — so an empty/wrong page fails the precondition (→ `inconclusive`), never fakes a repro.
+- On storefront product-detail pages, the seeded product title may not expose a stable `heading`
+  role across versions. Prefer text that visibly proves the detail page and product identity, such
+  as the seeded product number (`Product number: WISHLIST-REPRO-001`) or the seeded product name
+  via `getByText`, before interacting with wishlist/cart controls.
 - **The precondition must prove the trigger, not just the page.** If the bug needs a selected
   variant, a long dropdown, a configured CMS block, assigned media, a specific rule, or a seeded
   entity relationship, wait for a controlled marker from that trigger before the single symptom

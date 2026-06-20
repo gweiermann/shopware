@@ -30,9 +30,12 @@ for other files.
 **Do:** author from knowledge / screenshots / `shop-get` / docs, and verify within your first few
 turns; let each failure name the single next fix.
 **Don't:** ❌ read `src/**` before the first verify · ❌ read resolvers/processors/routes to learn
-how or why the feature works · ❌ spelunk the entity graph with `shop-get` · ❌ keep "researching
+how or why the feature works · ❌ read global Codex skills/AGENTS files (`~/.codex/skills/**`,
+`~/.agents/**`, `AGENTS.md`) · ❌ spelunk the entity graph with `shop-get` · ❌ keep "researching
 to be sure". A real run broke all four — 34 of its 40 turns spent reading source, first verify on
-the last turn, zero iterations. A wrong guess you can verify beats source you study.
+the last turn, zero iterations. Another run burned its verifier budget reading a global repro
+skill that did not apply to this build-author task. A wrong guess you can verify beats source you
+study.
 
 ## Environment — already set, do NOT probe
 
@@ -56,7 +59,9 @@ printenv / discover them.
 
 **BLOCKED — never attempt (each only burns a turn):** `python3`/`node`, raw `curl`/`wget`,
 inline scripts / here-docs, any `VAR=value`-prefixed command, sub-agents (`Task`/`Agent`), and
-editing anything under `.github/actions/repro-agent/`. **Piping an allowed command INTO a blocked
+editing anything under `.github/actions/repro-agent/`. Do not read global instructions or skills
+outside this task (`~/.codex/skills/**`, `~/.agents/**`, `AGENTS.md`); the build context plus the
+referenced repro-agent docs are the complete contract. **Piping an allowed command INTO a blocked
 one denies the WHOLE pipeline** — the permission check splits on `|`/`&&`/`||` and any blocked
 sub-command fails it (a real wasted turn was `shop-get … | python3 -c …`). To drill into JSON, use
 `jq` or shop-get's `--jq`, never `python3`. If you genuinely cannot proceed within the allowed
