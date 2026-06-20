@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import { spawnSync } from 'node:child_process';
@@ -11,6 +12,18 @@ function readConfig() {
 function option(name, fallback = null) {
   const index = process.argv.indexOf(name);
   return index === -1 ? fallback : process.argv[index + 1];
+}
+
+function prepareIsolatedCodexHome() {
+  const sourceHome = process.env.CODEX_HOME || path.join(os.homedir(), '.codex');
+  const sourceAuth = path.join(sourceHome, 'auth.json');
+  const isolatedHome = fs.mkdtempSync(path.join(os.tmpdir(), 'repro-agent-codex-home-'));
+
+  if (fs.existsSync(sourceAuth)) {
+    fs.copyFileSync(sourceAuth, path.join(isolatedHome, 'auth.json'));
+  }
+
+  return isolatedHome;
 }
 
 const config = readConfig();
@@ -55,10 +68,17 @@ if (dryRun) {
   process.exit(0);
 }
 
-const codexCheck = spawnSync('codex', ['--version'], { encoding: 'utf8' });
+const isolatedCodexHome = prepareIsolatedCodexHome();
+const codexEnv = {
+  ...process.env,
+  CODEX_HOME: isolatedCodexHome,
+};
+
+const codexCheck = spawnSync('codex', ['--version'], { encoding: 'utf8', env: codexEnv });
 if (codexCheck.status !== 0) {
   console.error('Codex CLI is not runnable. Run `codex --version` and fix the installation before using this runner.');
   if (codexCheck.stderr) process.stderr.write(codexCheck.stderr);
+  fs.rmSync(isolatedCodexHome, { recursive: true, force: true });
   process.exit(1);
 }
 
@@ -66,8 +86,6 @@ const codexArgs = [
   'exec',
   '--ephemeral',
   '--ignore-user-config',
-  '--disable',
-  'skills',
   '--sandbox',
   sandbox,
   '--config',
@@ -84,11 +102,13 @@ const codexArgs = [
 const run = spawnSync('codex', codexArgs, {
   encoding: 'utf8',
   input: prompt,
-  stdio: ['pipe', 'pipe', 'pipe']
+  stdio: ['pipe', 'pipe', 'pipe'],
+  env: codexEnv,
 });
 
 fs.writeFileSync(path.join(runDir, 'codex-stdout.log'), run.stdout || '');
 fs.writeFileSync(path.join(runDir, 'codex-stderr.log'), run.stderr || '');
+fs.rmSync(isolatedCodexHome, { recursive: true, force: true });
 
 if (run.stdout) process.stdout.write(run.stdout);
 if (run.stderr) process.stderr.write(run.stderr);
