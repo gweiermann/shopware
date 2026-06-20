@@ -137,7 +137,8 @@ set, **STOP** and explain in plain text (not a JSON file) — never hand-roll a 
    - Reference pre-existing install entities by `{{PLACEHOLDER}}` (`{{SC}}` `{{NAV_CAT}}`
      `{{TAX}}` `{{CURRENCY}}` `{{COUNTRY}}` `{{SALUTATION}}` `{{LANGUAGE}}`
      `{{CUSTOMER_GROUP}}` `{{PAYMENT_METHOD}}` `{{SHIPPING_METHOD}}`
-     `{{ORDER_STATE_OPEN}}` `{{ORDER_DELIVERY_STATE_OPEN}}`) — NEVER a literal id
+     `{{ORDER_STATE_OPEN}}` `{{ORDER_DELIVERY_STATE_OPEN}}`
+     `{{ORDER_TRANSACTION_STATE_OPEN}}`) — NEVER a literal id
      read off this shop; every provisioned instance has different UUIDs (`seed.sh` rejects
      hardcoded install ids, because a literal seeds here but FK-fails on the reported/trunk legs).
    - Entities you create: deterministic 32-hex UUIDs, sync `upsert` (idempotent on re-seed; no

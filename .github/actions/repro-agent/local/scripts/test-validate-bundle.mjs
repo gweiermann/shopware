@@ -135,7 +135,7 @@ fs.writeFileSync(path.join(supportedInstallPlaceholdersDir, 'reproduction-plan.j
   request: {
     method: 'POST',
     path: '/api/_action/sync',
-    body: '{"stateId":"{{ORDER_STATE_OPEN}}","deliveryStateId":"{{ORDER_DELIVERY_STATE_OPEN}}","shippingMethodId":"{{SHIPPING_METHOD}}","paymentMethodId":"{{PAYMENT_METHOD}}"}',
+    body: '{"stateId":"{{ORDER_STATE_OPEN}}","deliveryStateId":"{{ORDER_DELIVERY_STATE_OPEN}}","transactionStateId":"{{ORDER_TRANSACTION_STATE_OPEN}}","shippingMethodId":"{{SHIPPING_METHOD}}","paymentMethodId":"{{PAYMENT_METHOD}}"}',
   },
   assertions: [{ kind: 'http_status', expect: '200' }],
 }, null, 2)}\n`);
@@ -143,6 +143,42 @@ fs.writeFileSync(path.join(supportedInstallPlaceholdersDir, 'fixtures.json'), '{
 const supportedInstallPlaceholdersResult = run(supportedInstallPlaceholdersDir);
 if (supportedInstallPlaceholdersResult.status !== 0) {
   console.error(`Expected supported install placeholders to pass:\n${supportedInstallPlaceholdersResult.stdout}\n${supportedInstallPlaceholdersResult.stderr}`);
+  process.exit(1);
+}
+
+const badRegisterPayloadDir = fs.mkdtempSync(path.join(os.tmpdir(), 'repro-agent-validate-'));
+fs.writeFileSync(path.join(badRegisterPayloadDir, 'issue.md'), '# store-api registration preserves shipping address salutation\n');
+fs.writeFileSync(path.join(badRegisterPayloadDir, 'issue-class.txt'), 'api');
+fs.writeFileSync(path.join(badRegisterPayloadDir, 'reproduction-plan.json'), `${JSON.stringify({
+  schema_version: '1',
+  issue: 2,
+  executor: 'http',
+  request: {
+    method: 'POST',
+    path: '/store-api/account/register',
+    body: JSON.stringify({
+      firstName: 'Max',
+      lastName: 'Mustermann',
+      email: 'max@example.com',
+      password: 'shopware',
+      billingAddress: {
+        countryId: '{{COUNTRY}}',
+        street: 'Example St 1',
+        zipcode: '12345',
+        city: 'Example City',
+      },
+    }),
+  },
+  assertions: [{ kind: 'http_status', expect: '200' }],
+}, null, 2)}\n`);
+fs.writeFileSync(path.join(badRegisterPayloadDir, 'fixtures.json'), '{}\n');
+const badRegisterPayloadResult = run(badRegisterPayloadDir);
+if (badRegisterPayloadResult.status === 0) {
+  console.error('Expected nested-only store-api account/register billing payload to be rejected');
+  process.exit(1);
+}
+if (!badRegisterPayloadResult.stdout.includes('top-level billing field')) {
+  console.error(`Unexpected bad-register-payload output:\n${badRegisterPayloadResult.stdout}\n${badRegisterPayloadResult.stderr}`);
   process.exit(1);
 }
 
@@ -529,6 +565,35 @@ if (!customFieldSentinelResult.stdout.includes('customFields text')) {
   process.exit(1);
 }
 
+const childNameMasksCmsSliderVariant = writeBundle(`
+import { test, expect } from '@playwright/test';
+test('bad cms slider child-name masking assertion', async ({ page }) => {
+  const card = page.getByRole('link', { name: /Slider Variant Product/i }).first();
+  await card.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: seeded product not visible'); });
+  await expect(page.getByText('Slider Variant Product Black')).toBeVisible();
+});
+`, {
+  ...fixtures,
+  product: [
+    fixtures.product[0],
+    {
+      ...fixtures.product[1],
+      name: 'Slider Variant Product Black',
+    },
+    fixtures.product[2],
+  ],
+});
+const childNameMasksCmsSliderVariantResult = run(childNameMasksCmsSliderVariant);
+if (childNameMasksCmsSliderVariantResult.status === 0) {
+  console.error('Expected CMS slider variant child-name masking to be rejected');
+  process.exit(1);
+}
+if (!childNameMasksCmsSliderVariantResult.stdout.includes('encodes option text into the child variant name')) {
+  console.error(`Unexpected child-name-mask output:\n${childNameMasksCmsSliderVariantResult.stdout}\n${childNameMasksCmsSliderVariantResult.stderr}`);
+  process.exit(1);
+}
+
 const good = writeBundle(`
 import { test, expect } from '@playwright/test';
 test('good selected variant assertion', async ({ page }) => {
@@ -568,6 +633,49 @@ test('good selected variant assertion from sync wrapper fixtures', async ({ page
 const goodSyncWrappedResult = run(goodSyncWrapped);
 if (goodSyncWrappedResult.status !== 0) {
   console.error(`Expected sync-wrapper selected-variant assertion to pass:\n${goodSyncWrappedResult.stdout}\n${goodSyncWrappedResult.stderr}`);
+  process.exit(1);
+}
+
+const badOrderFixture = writeBundle(`
+import { test, expect } from '@playwright/test';
+test('order fixture shape', async ({ page }) => {
+  const marker = page.getByText('Order fixture marker');
+  await marker.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: marker missing'); });
+  await expect(marker).toBeVisible();
+});
+`, {
+  order: [
+    {
+      id: '12000000000000000000000000000001',
+      lineItems: [
+        {
+          id: '12000000000000000000000000000002',
+          priceDefinition: { type: 'quantity', price: 10, quantity: 1, isCalculated: true },
+        },
+      ],
+      deliveries: [
+        {
+          id: '12000000000000000000000000000003',
+          positions: [],
+        },
+      ],
+      transactions: [
+        {
+          id: '12000000000000000000000000000004',
+          stateId: '{{ORDER_STATE_OPEN}}',
+        },
+      ],
+    },
+  ],
+});
+const badOrderFixtureResult = run(badOrderFixture);
+if (badOrderFixtureResult.status === 0) {
+  console.error('Expected malformed order fixture to be rejected');
+  process.exit(1);
+}
+if (!badOrderFixtureResult.stdout.includes('priceDefinition.taxRules')) {
+  console.error(`Unexpected bad-order-fixture output:\n${badOrderFixtureResult.stdout}\n${badOrderFixtureResult.stderr}`);
   process.exit(1);
 }
 

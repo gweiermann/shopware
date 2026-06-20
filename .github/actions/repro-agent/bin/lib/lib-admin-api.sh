@@ -17,6 +17,7 @@
 #   resolve_ids              sets globals SC NAV_CAT STOREFRONT_URL COUNTRY SALUTATION
 #                            SALUTATION2 TAX CURRENCY LANGUAGE CUSTOMER_GROUP PAYMENT_METHOD
 #                            SHIPPING_METHOD ORDER_STATE_OPEN ORDER_DELIVERY_STATE_OPEN
+#                            ORDER_TRANSACTION_STATE_OPEN
 #                            from the running shop
 #
 # Efficiency: call `ADMIN_TOKEN=$(admin_token)` (or resolve_ids, which does it) ONCE up
@@ -93,4 +94,5 @@ resolve_ids () {
   SHIPPING_METHOD=$(admin_search shipping-method '{"limit":1,"filter":[{"type":"equals","field":"active","value":true}]}' | jq -r '.data[0].id // empty')
   ORDER_STATE_OPEN=$(admin_search state-machine-state '{"limit":1,"filter":[{"type":"equals","field":"technicalName","value":"open"},{"type":"equals","field":"stateMachine.technicalName","value":"order.state"}]}' | jq -r '.data[0].id // empty')
   ORDER_DELIVERY_STATE_OPEN=$(admin_search state-machine-state '{"limit":1,"filter":[{"type":"equals","field":"technicalName","value":"open"},{"type":"equals","field":"stateMachine.technicalName","value":"order_delivery.state"}]}' | jq -r '.data[0].id // empty')
+  ORDER_TRANSACTION_STATE_OPEN=$(admin_search state-machine-state '{"limit":1,"filter":[{"type":"equals","field":"technicalName","value":"open"},{"type":"equals","field":"stateMachine.technicalName","value":"order_transaction.state"}]}' | jq -r '.data[0].id // empty')
 }

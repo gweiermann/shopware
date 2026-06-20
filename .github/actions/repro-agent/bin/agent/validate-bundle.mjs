@@ -31,6 +31,7 @@ const allowedPlaceholders = new Set([
   'SHIPPING_METHOD',
   'ORDER_STATE_OPEN',
   'ORDER_DELIVERY_STATE_OPEN',
+  'ORDER_TRANSACTION_STATE_OPEN',
   'STOREFRONT_URL',
   'SW_ACCESS_KEY',
   'SW_CONTEXT_TOKEN',
@@ -71,6 +72,10 @@ function selectedVariantIssue(text) {
   return /\b(selected|specific|assigned|preselected)\b/i.test(text)
     && /\b(variant|option|property|configuration|configurator|cms product slider|product slider)\b/i.test(text)
     && /\b(displayed|visible|rendered|shown|appears?)\b/i.test(text);
+}
+
+function cmsProductSliderVariantIssue(text) {
+  return selectedVariantIssue(text) && /\b(cms product slider|product slider)\b/i.test(text);
 }
 
 function wishlistIssue(text) {
@@ -152,6 +157,20 @@ function collectVariantTerms(data) {
     .map((term) => term.trim())
     .filter((term) => term.length >= 3)
     .filter((term) => !/^slider variant product$/i.test(term));
+}
+
+function childVariantNamesContainingOptionTerms(data) {
+  const optionNames = [];
+  for (const group of entityRows(data, 'property_group')) {
+    for (const option of entityPayload(group.options)) {
+      if (option?.name) optionNames.push(String(option.name).trim());
+    }
+  }
+
+  return entityRows(data, 'product')
+    .filter((product) => product?.parentId && product?.name)
+    .filter((product) => optionNames.some((name) => name.length >= 3 && String(product.name).toLowerCase().includes(name.toLowerCase())))
+    .map((product) => String(product.name));
 }
 
 function normalizeTerms(terms) {
@@ -249,6 +268,29 @@ function validateUuidFields(value, pathParts = []) {
   }
 }
 
+function validateOrderFixtures(data) {
+  for (const order of entityRows(data, 'order')) {
+    for (const [index, lineItem] of entityPayload(order.lineItems).entries()) {
+      const priceDefinition = lineItem?.priceDefinition;
+      if (priceDefinition && !Array.isArray(priceDefinition.taxRules)) {
+        fail(`order fixture lineItems.${index}.priceDefinition.taxRules must be an array; missing taxRules often seeds as array_map(... null ...) before the reported symptom can run`);
+      }
+    }
+
+    for (const [index, delivery] of entityPayload(order.deliveries).entries()) {
+      if (!Array.isArray(delivery?.positions) || delivery.positions.length === 0) {
+        fail(`order fixture deliveries.${index}.positions must include at least one position for the seeded line item; an order seed that cannot create delivery positions is a precondition failure`);
+      }
+    }
+
+    for (const [index, transaction] of entityPayload(order.transactions).entries()) {
+      if (transaction?.stateId === '{{ORDER_STATE_OPEN}}') {
+        fail(`order fixture transactions.${index}.stateId uses {{ORDER_STATE_OPEN}}; use {{ORDER_TRANSACTION_STATE_OPEN}} for order_transaction.state`);
+      }
+    }
+  }
+}
+
 function collectPlaceholders(value, found = new Set()) {
   if (typeof value === 'string') {
     for (const match of value.matchAll(/\{\{([A-Z0-9_]+)\}\}/g)) found.add(match[1]);
@@ -280,6 +322,7 @@ function preconditionSnippet(source) {
 }
 
 validateUuidFields(fixtures);
+validateOrderFixtures(fixtures);
 
 const unknownPlaceholders = [...collectPlaceholders(plan)]
   .filter((name) => !allowedPlaceholders.has(name));
@@ -368,6 +411,17 @@ if (executor === 'playwright' && selectedVariantIssue(issue)) {
   if (!spec) fail(`selected/specific variant issue but ${specPath} is missing`);
 
   const executable = stripComments(spec);
+  if (cmsProductSliderVariantIssue(issue)) {
+    const variantNames = childVariantNamesContainingOptionTerms(fixtures);
+    if (variantNames.length > 0) {
+      fail([
+        'CMS product-slider selected-variant repro encodes option text into the child variant name',
+        `child names: ${variantNames.join(', ')}`,
+        'this can mask an empty/missing-card bug by changing what the stock product card renders',
+        'keep the verified cookbook variant naming shape and assert the real card/field the reported UI should render'
+      ].join(' — '));
+    }
+  }
   const assertionLines = executable
     .split('\n')
     .filter((line) => /\b(expect|getByText|getByRole|getByLabel|getByTestId|locator|toContainText|toHaveText|textContent)\b/.test(line))
@@ -403,6 +457,15 @@ if (executor === 'http') {
     const path = String(request?.path ?? '');
     if (method === 'GET' && /^\/store-api\/account\/address(?:\?|$)/.test(path)) {
       fail('store-api account address listing uses POST /store-api/account/address, not GET; wrong method returns 405 and makes the repro inconclusive');
+    }
+    if (method === 'POST' && /^\/store-api\/account\/register(?:\?|$)/.test(path)) {
+      let body = null;
+      try { body = JSON.parse(String(request?.body ?? '{}')); } catch {}
+      const missingRootBillingFields = ['countryId', 'street', 'zipcode', 'city']
+        .filter((field) => !body?.[field]);
+      if (body?.billingAddress && missingRootBillingFields.length > 0) {
+        fail(`store-api account/register payload puts billingAddress in a nested object but omits required top-level billing field(s): ${missingRootBillingFields.join(', ')}; Shopware returns 400 before the symptom can run`);
+      }
     }
   }
 }

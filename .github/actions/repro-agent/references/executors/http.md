@@ -28,9 +28,18 @@ Reference pre-existing install ids via the placeholders the executor resolves ag
 running shop (see BUILD.md "Fixtures rules" for the full catalog):
 `{{SC}} {{NAV_CAT}} {{COUNTRY}} {{SALUTATION}} {{SALUTATION2}} {{TAX}} {{CURRENCY}}
 {{LANGUAGE}} {{CUSTOMER_GROUP}} {{PAYMENT_METHOD}} {{SHIPPING_METHOD}} {{ORDER_STATE_OPEN}}
-{{ORDER_DELIVERY_STATE_OPEN}} {{STOREFRONT_URL}}` — also valid inside
+{{ORDER_DELIVERY_STATE_OPEN}} {{ORDER_TRANSACTION_STATE_OPEN}} {{STOREFRONT_URL}}` — also valid inside
 an assertion's `expect`.
 Entities you create yourself go in `fixtures.json` with known 32-char hex UUIDs.
+
+`op: "present"` means a value is actually present and non-empty; `[]`, `{}`, `null`, and missing
+fields are setup failures for preconditions. If a collection must contain seeded rows, assert a
+specific id/value or a positive length, not bare `.data`.
+
+For `POST /store-api/account/register`, Shopware's Store API expects the billing address fields in
+the top-level registration payload (`countryId`, `street`, `zipcode`, `city`, plus name fields), not
+only inside a nested `billingAddress` object. A 400 with blank `countryId`/`street`/`city` is a bad
+setup payload, not the reported symptom.
 
 ## Assertions
 Author a LIST of checks in `assertions: [ … ]` (a single `assertion: { … }` is also accepted).

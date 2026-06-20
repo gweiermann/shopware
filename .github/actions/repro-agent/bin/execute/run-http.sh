@@ -9,7 +9,7 @@
 #  - install-specific placeholders in path/body/headers/expect, resolved against the shop:
 #    {{SC}} {{NAV_CAT}} {{COUNTRY}} {{SALUTATION}} {{SALUTATION2}} {{TAX}} {{CURRENCY}}
 #    {{LANGUAGE}} {{CUSTOMER_GROUP}} {{PAYMENT_METHOD}} {{SHIPPING_METHOD}}
-#    {{ORDER_STATE_OPEN}} {{ORDER_DELIVERY_STATE_OPEN}}
+#    {{ORDER_STATE_OPEN}} {{ORDER_DELIVERY_STATE_OPEN}} {{ORDER_TRANSACTION_STATE_OPEN}}
 #    {{STOREFRONT_URL}} {{SW_ACCESS_KEY}} {{SW_CONTEXT_TOKEN}}
 #  - multi-step: `requests: [...]`; sw-context-token captured + carried forward; a non-final
 #    setup request that isn't 2xx => blocked.
@@ -45,7 +45,7 @@ NREQ=$(echo "$REQS" | jq 'length')
 
 # Plain vars (no associative array → portable to bash 3.2 + the CI's bash 5).
 STOREFRONT_URL="$BASE"
-SC=""; NAV_CAT=""; COUNTRY=""; SALUTATION=""; SALUTATION2=""; TAX=""; CURRENCY=""; LANGUAGE=""; CUSTOMER_GROUP=""; PAYMENT_METHOD=""; SHIPPING_METHOD=""; ORDER_STATE_OPEN=""; ORDER_DELIVERY_STATE_OPEN=""
+SC=""; NAV_CAT=""; COUNTRY=""; SALUTATION=""; SALUTATION2=""; TAX=""; CURRENCY=""; LANGUAGE=""; CUSTOMER_GROUP=""; PAYMENT_METHOD=""; SHIPPING_METHOD=""; ORDER_STATE_OPEN=""; ORDER_DELIVERY_STATE_OPEN=""; ORDER_TRANSACTION_STATE_OPEN=""
 
 # Auth by surface: the admin API (/api/...) needs an OAuth Bearer token; the store API
 # (/store-api/...) uses sw-access-key. Detect whether ANY request targets the admin API.
@@ -101,6 +101,7 @@ resolve() { # substitute {{KEY}} placeholders (SALUTATION2 before SALUTATION)
   s="${s//\{\{SHIPPING_METHOD\}\}/$SHIPPING_METHOD}"
   s="${s//\{\{ORDER_STATE_OPEN\}\}/$ORDER_STATE_OPEN}"
   s="${s//\{\{ORDER_DELIVERY_STATE_OPEN\}\}/$ORDER_DELIVERY_STATE_OPEN}"
+  s="${s//\{\{ORDER_TRANSACTION_STATE_OPEN\}\}/$ORDER_TRANSACTION_STATE_OPEN}"
   s="${s//\{\{SW_CONTEXT_TOKEN\}\}/$CTX}"
   printf '%s' "$s"
 }
@@ -163,7 +164,7 @@ if [ -z "$blocked" ] && [ "$NASRT" -gt 0 ]; then
       equals)   [ "$actual" = "$exp" ] && ok=true ;;
       contains) case "$actual" in *"$exp"*) ok=true ;; esac ;;
       matches)  printf '%s' "$actual" | grep -qE "$exp" && ok=true ;;
-      present)  { [ "$actual" != "<unparseable>" ] && [ "$actual" != null ] && [ -n "$actual" ]; } && ok=true ;;
+      present)  { [ "$actual" != "<unparseable>" ] && [ "$actual" != null ] && [ "$actual" != "[]" ] && [ "$actual" != "{}" ] && [ -n "$actual" ]; } && ok=true ;;
       absent)   { [ "$actual" = "<unparseable>" ] || [ "$actual" = null ] || [ -z "$actual" ]; } && ok=true ;;
       gt)       awk "BEGIN{exit !(($actual)+0 > ($exp)+0)}" 2>/dev/null && ok=true ;;
       lt)       awk "BEGIN{exit !(($actual)+0 < ($exp)+0)}" 2>/dev/null && ok=true ;;

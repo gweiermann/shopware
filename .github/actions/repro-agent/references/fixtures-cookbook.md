@@ -122,6 +122,13 @@ target the distinguishing child value inside the rendered card (for example the 
 `not_reproduced` from a visible generic parent card; that misses the reported selected-variant
 symptom.
 
+For the static CMS product-slider variant-assignment bug where the reported symptom is an empty
+slider/card missing after assigning a child product id, do not make the child variant's translated
+`name` unique just to create an easy assertion. That can mask the bug by changing what the default
+product card renders. Keep the parent/child names in the verified cookbook shape and assert the
+seeded product card/link itself becomes visible; use option names or product numbers only when the
+real rendered UI is expected to show those fields.
+
 Do not seed a hidden `customFields` label just so the assertion has text to look for. The default
 product card will not render arbitrary custom fields, so that creates an artificial failing
 assertion unrelated to the reported UI. Use the default variant data that Shopware can render, and
@@ -210,7 +217,8 @@ same `order` payload and reference that order-address id from `billingAddressId`
         "quantity": 1, "label": "Repro item", "good": true, "stackable": true, "removable": true,
         "type": "custom", "price": { "unitPrice": 10, "totalPrice": 10, "quantity": 1,
           "calculatedTaxes": [], "taxRules": [] },
-        "priceDefinition": { "type": "quantity", "price": 10, "quantity": 1, "isCalculated": true } }
+        "priceDefinition": { "type": "quantity", "price": 10, "quantity": 1,
+          "taxRules": [], "isCalculated": true } }
     ],
     "deliveries": [
       { "id": "12000000000000000000000000000003",
@@ -231,7 +239,10 @@ same `order` payload and reference that order-address id from `billingAddressId`
 ```
 
 For basic open orders, use `{{ORDER_STATE_OPEN}}` and `{{ORDER_DELIVERY_STATE_OPEN}}` instead of
-literal state-machine UUIDs. If an order bug needs a non-open state, resolve it with `shop-get.sh
-state-machine-state --filter ...` before authoring the final fixture, or choose an `http` flow that
-creates/updates through the Admin API and marks state resolution as setup. An FK failure while
-seeding an order is a fixture precondition failure, never the reported symptom.
+literal state-machine UUIDs. For transactions, use `{{ORDER_TRANSACTION_STATE_OPEN}}`, not
+`{{ORDER_STATE_OPEN}}`. Every order line item's `priceDefinition` must include `taxRules: []`, and
+each delivery should include `positions` pointing at the seeded line item. If an order bug needs a
+non-open state, resolve it with `shop-get.sh state-machine-state --filter ...` before authoring the
+final fixture, or choose an `http` flow that creates/updates through the Admin API and marks state
+resolution as setup. An FK failure while seeding an order is a fixture precondition failure, never
+the reported symptom.
