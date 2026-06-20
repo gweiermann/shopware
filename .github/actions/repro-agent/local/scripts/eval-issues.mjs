@@ -77,9 +77,10 @@ function archiveIssue(issue) {
   const builder = readJson('builder-result.json');
   const result = readJson('result.json');
   const plan = readJson('reproduction-plan.json');
+  const status = builder?.status || result?.status || (plan?.blocked_reason ? 'blocked' : 'missing');
   const summary = {
     issue,
-    status: builder?.status || result?.status || 'missing',
+    status,
     executor: plan?.executor || builder?.executor || result?.executor || null,
     version: plan?.version || builder?.version || result?.version || null,
     assertion: builder?.assertion || result?.assertion || null,
