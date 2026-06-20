@@ -21,6 +21,9 @@ a visual bug produces an unfaithful reproduction.
    The verifier rejects fixture-backed visual specs whose preconditions only wait for generic page
    chrome. Gate on a controlled seeded marker that makes the symptom possible: the exact product,
    CMS title/container, row, option, media, or other entity you created.
+   For `admin-ui`, a route/shell/dashboard/toolbar wait is only a bootstrap check. The accepted
+   precondition must also wait for the issue-specific module, action, entity, field, row, or control
+   that makes the reported interaction possible.
 4. **Exactly ONE `await expect(...)`** — the symptom, asserting the HEALTHY behaviour. It is
    the only failure allowed to mean `reproduced`.
 5. **Make the precondition actually hold** — force a viewport for overflow/cut-off bugs;
@@ -52,6 +55,14 @@ Authoring a login preamble is the single most common source of broken runs (stri
 locator fumbles) — it will be redundant at best and flaky at worst. (Storefront *customer*
 login, when an issue genuinely needs it, is still yours to author — follow the locator
 rules below.)
+
+For Admin issues that are not explicitly about bootstrap/login/loading, **do not start at plain
+`/admin`**. Use the concrete hash route for the reported module/action (`/admin#/sw/product/index`,
+`/admin#/sw/settings/rule/index`, `/admin#/sw/cms/index`, ...). Then make the precondition prove
+that target, not the shell: wait for the reported field label, button, row name, module term, or
+seeded entity text. If you cannot reach a target marker semantically after one verifier-guided
+selector fix, stop as inconclusive with a low confidence reason; do not turn a missing target into
+a healthy `not_reproduced`.
 
 ## Locators — version-stable, semantic ONLY
 - Use `getByRole(role, {name})` / `getByLabel` / `getByText` / `getByPlaceholder` with
@@ -114,6 +125,12 @@ await locator.waitFor({ state: 'visible', timeout })
   reported interaction.** Do not use guessed headings like `/^dashboard$/i`; Shopware may show
   time-based greetings (`Hi!`, `Good evening.`) or cards instead. If the screenshot shows the
   Administration is usable, a missing generic heading is a locator bug, not a reproduction.
+- **For Admin module/form bugs, use two mental checkpoints.** First, the admin shell must be usable;
+  second, the issue-specific target must be present. Only the second checkpoint belongs in the
+  decisive `PRECONDITION_NOT_FOUND` gate. Examples of good target gates: a seeded product name in
+  the Products grid, a field label like `Gross price`, a named rule in Rule Builder, the exact
+  module-filter row from the issue, or the action button the bug says cannot be reached. Bad gates:
+  `Dashboard`, `Home`, `navigation`, `toolbar`, `Administration`, or a generic row/card/button.
 
 **(2) Symptom** — exactly ONE `await expect(...)` of the HEALTHY behaviour, with a generous
 timeout. This is the ONLY failure that may mean `reproduced`.

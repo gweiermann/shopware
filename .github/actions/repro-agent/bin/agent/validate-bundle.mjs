@@ -143,6 +143,37 @@ function normalizeTerms(terms) {
     .filter((term) => !generic.test(term));
 }
 
+function adminUiPlan() {
+  const layer = String(plan.layer ?? '');
+  return executor === 'playwright'
+    && (layer.includes('admin') || plan.build_profile?.admin_build === true);
+}
+
+function adminBootstrapIssue(text) {
+  return /\b(admin|administration|login|dashboard)\b/i.test(text)
+    && /\b(loads?|loading|bootstrap|startup|start[- ]?up|login|authentication|slow|network|timeout|blank|stuck)\b/i.test(text);
+}
+
+function collectIssueTerms(text) {
+  const terms = new Set();
+  for (const match of text.matchAll(/[`"“”']([^`"“”']{4,80})[`"“”']/g)) terms.add(match[1]);
+  for (const match of text.matchAll(/\b[A-Z][A-Za-z0-9]+(?:[- ][A-Za-z0-9]+){1,5}\b/g)) terms.add(match[0]);
+  for (const match of text.matchAll(/\b(?:sw-[a-z0-9-]+|[a-z0-9]+(?:-[a-z0-9]+){1,5})\b/gi)) terms.add(match[0]);
+  return normalizeTerms(terms);
+}
+
+function hasTargetedAdminPrecondition(source) {
+  const preconditions = preconditionSnippet(source);
+  const terms = [
+    ...normalizeTerms(collectControlledTerms(fixtures)),
+    ...collectIssueTerms(issue),
+  ];
+  if (terms.some((term) => preconditions.toLowerCase().includes(term.toLowerCase()))) return true;
+
+  return /\b(getByRole|getByLabel|getByText|getByPlaceholder)\s*\([^)]*\{\s*name\s*:\s*(\/|\{|\[|'|")/s.test(preconditions)
+    && !/\b(dashboard|home|navigation|toolbar|main navigation|administration shell|admin shell)\b/i.test(preconditions);
+}
+
 function isPlaceholder(value) {
   const match = String(value).match(/^\{\{([A-Z0-9_]+)\}\}$/);
   return match && allowedPlaceholders.has(match[1]);
@@ -216,6 +247,20 @@ if (executor === 'playwright') {
   }
   if (!/\.waitFor\s*\(\s*\{[^}]*state\s*:\s*['"]visible['"]/s.test(executable)) {
     fail('playwright spec has no visible waitFor precondition; gate the rendered setup with locator.waitFor({ state: "visible", ... }) before the symptom expect');
+  }
+
+  if (adminUiPlan()) {
+    const bootstrapIssue = adminBootstrapIssue(issue);
+    if (!bootstrapIssue && /page\.goto\s*\(\s*['"`]\/admin\/?['"`]/.test(executable)) {
+      fail('admin-ui Playwright spec navigates only to the generic Administration shell; use the concrete /admin#/sw/... route for the reported module/action, then precondition on that target state');
+    }
+    if (!hasTargetedAdminPrecondition(executable)) {
+      fail([
+        'admin-ui Playwright spec preconditions are too generic',
+        'wait for the issue-specific module/action/entity/control before the symptom expect',
+        'dashboard, shell, navigation, toolbar, or Home chrome can prove the admin loaded but cannot prove the reported state is exercisable'
+      ].join(' — '));
+    }
   }
 
   const fixtureTerms = normalizeTerms(collectControlledTerms(fixtures));

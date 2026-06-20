@@ -51,6 +51,30 @@ function run(dir) {
   return spawnSync('node', [validator], { cwd: dir, encoding: 'utf8' });
 }
 
+function writeAdminBundle(spec, adminIssue = `# Gross price field is not editable in Administration
+
+The Products module should allow editing the Gross price field, but the field is not usable.
+`) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'repro-agent-validate-'));
+  fs.writeFileSync(path.join(dir, 'issue.md'), adminIssue);
+  fs.writeFileSync(path.join(dir, 'issue-class.txt'), 'visual');
+  fs.writeFileSync(path.join(dir, 'reproduction-plan.json'), `${JSON.stringify({
+    schema_version: '1',
+    issue: 99,
+    layer: 'admin-ui',
+    executor: 'playwright',
+    script_path: 'repro.spec.ts',
+    build_profile: {
+      admin_build: true,
+      storefront_build: false,
+      theme_build: false,
+    },
+  }, null, 2)}\n`);
+  fs.writeFileSync(path.join(dir, 'fixtures.json'), '{}\n');
+  fs.writeFileSync(path.join(dir, 'repro.spec.ts'), spec);
+  return dir;
+}
+
 const invalidUuid = writeBundle(`
 import { test, expect } from '@playwright/test';
 test('bad fixture uuid', async ({ page }) => {
@@ -153,6 +177,62 @@ if (genericPreconditionResult.status === 0) {
 }
 if (!genericPreconditionResult.stdout.includes('controlled seeded fixture marker')) {
   console.error(`Unexpected generic-precondition output:\n${genericPreconditionResult.stdout}\n${genericPreconditionResult.stderr}`);
+  process.exit(1);
+}
+
+const genericAdminShell = writeAdminBundle(`
+import { test, expect } from '@playwright/test';
+test('bad generic admin shell precondition', async ({ page }) => {
+  await page.goto('/admin');
+  const navigation = page.getByRole('navigation');
+  await navigation.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: admin navigation missing'); });
+  await expect(page.getByRole('textbox', { name: /^Gross price$/i })).toBeVisible();
+});
+`);
+const genericAdminShellResult = run(genericAdminShell);
+if (genericAdminShellResult.status === 0) {
+  console.error('Expected generic admin shell precondition to be rejected');
+  process.exit(1);
+}
+if (!genericAdminShellResult.stdout.includes('generic Administration shell')) {
+  console.error(`Unexpected generic-admin-shell output:\n${genericAdminShellResult.stdout}\n${genericAdminShellResult.stderr}`);
+  process.exit(1);
+}
+
+const genericAdminPrecondition = writeAdminBundle(`
+import { test, expect } from '@playwright/test';
+test('bad generic admin module precondition', async ({ page }) => {
+  await page.goto('/admin#/sw/product/index');
+  const toolbar = page.getByRole('toolbar');
+  await toolbar.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: product toolbar missing'); });
+  await expect(page.getByRole('textbox', { name: /^Gross price$/i })).toBeVisible();
+});
+`);
+const genericAdminPreconditionResult = run(genericAdminPrecondition);
+if (genericAdminPreconditionResult.status === 0) {
+  console.error('Expected generic admin module precondition to be rejected');
+  process.exit(1);
+}
+if (!genericAdminPreconditionResult.stdout.includes('admin-ui Playwright spec preconditions are too generic')) {
+  console.error(`Unexpected generic-admin-precondition output:\n${genericAdminPreconditionResult.stdout}\n${genericAdminPreconditionResult.stderr}`);
+  process.exit(1);
+}
+
+const goodAdminPrecondition = writeAdminBundle(`
+import { test, expect } from '@playwright/test';
+test('good targeted admin precondition', async ({ page }) => {
+  await page.goto('/admin#/sw/product/index');
+  const grossPrice = page.getByRole('textbox', { name: /^Gross price$/i });
+  await grossPrice.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: Gross price field missing'); });
+  await expect(grossPrice).toBeEnabled();
+});
+`);
+const goodAdminPreconditionResult = run(goodAdminPrecondition);
+if (goodAdminPreconditionResult.status !== 0) {
+  console.error(`Expected targeted admin precondition to pass:\n${goodAdminPreconditionResult.stdout}\n${goodAdminPreconditionResult.stderr}`);
   process.exit(1);
 }
 
