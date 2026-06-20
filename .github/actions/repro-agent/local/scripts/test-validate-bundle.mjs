@@ -125,6 +125,30 @@ if (!unsupportedPlaceholderResult.stdout.includes('unsupported placeholder')) {
   process.exit(1);
 }
 
+const wrongAccountAddressMethodDir = fs.mkdtempSync(path.join(os.tmpdir(), 'repro-agent-validate-'));
+fs.writeFileSync(path.join(wrongAccountAddressMethodDir, 'issue.md'), '# store-api registration preserves shipping address salutation\n');
+fs.writeFileSync(path.join(wrongAccountAddressMethodDir, 'issue-class.txt'), 'api');
+fs.writeFileSync(path.join(wrongAccountAddressMethodDir, 'reproduction-plan.json'), `${JSON.stringify({
+  schema_version: '1',
+  issue: 2,
+  executor: 'http',
+  requests: [
+    { method: 'POST', path: '/store-api/account/register', body: '{}' },
+    { method: 'GET', path: '/store-api/account/address' },
+  ],
+  assertions: [{ role: 'precondition', kind: 'http_status', expect: '200' }],
+}, null, 2)}\n`);
+fs.writeFileSync(path.join(wrongAccountAddressMethodDir, 'fixtures.json'), '{}\n');
+const wrongAccountAddressMethodResult = run(wrongAccountAddressMethodDir);
+if (wrongAccountAddressMethodResult.status === 0) {
+  console.error('Expected GET /store-api/account/address to be rejected');
+  process.exit(1);
+}
+if (!wrongAccountAddressMethodResult.stdout.includes('POST /store-api/account/address')) {
+  console.error(`Unexpected account-address-method output:\n${wrongAccountAddressMethodResult.stdout}\n${wrongAccountAddressMethodResult.stderr}`);
+  process.exit(1);
+}
+
 const wishlistIssue = `# Wishlist add to cart button cannot be clicked
 
 The wishlist product card renders, but clicking Add to shopping cart from the wishlist does not open the off-canvas cart.

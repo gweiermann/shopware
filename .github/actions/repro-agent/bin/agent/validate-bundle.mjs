@@ -355,4 +355,15 @@ if (executor === 'playwright' && selectedVariantIssue(issue)) {
   }
 }
 
+if (executor === 'http') {
+  const requests = Array.isArray(plan.requests) ? plan.requests : [plan.request].filter(Boolean);
+  for (const request of requests) {
+    const method = String(request?.method ?? 'GET').toUpperCase();
+    const path = String(request?.path ?? '');
+    if (method === 'GET' && /^\/store-api\/account\/address(?:\?|$)/.test(path)) {
+      fail('store-api account address listing uses POST /store-api/account/address, not GET; wrong method returns 405 and makes the repro inconclusive');
+    }
+  }
+}
+
 console.log('== validate-bundle: ok ==');

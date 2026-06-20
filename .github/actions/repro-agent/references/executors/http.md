@@ -83,6 +83,13 @@ return 2xx (a non-2xx setup request → `blocked`). The assertions always run on
 asserted call in the middle is the most common authoring error: its result is discarded and
 a later setup response gets asserted instead.
 
+## Account address follow-up requests
+Store API account-address listing is `POST /store-api/account/address` with an optional JSON body,
+not `GET`. A `GET /store-api/account/address` returns HTTP 405 on supported versions and proves
+only that the repro used the wrong route contract. For registration/address bugs, make the register
+request a setup step, carry the context token automatically, then use `POST /store-api/account/address`
+as the final asserted request and select the distinguishing address in the response.
+
 ## Worked example — multi-step store-api flow
 A cart-total bug: create a context, add two products, read the cart; assert the healthy
 total on the final response.
