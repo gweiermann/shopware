@@ -59,6 +59,7 @@ function copyIfExists(from, to) {
 function archiveIssue(issue) {
   const runDir = `.scratch/repro-agent-local/runs/issue-${issue}`;
   const artifactDir = `${runDir}/artifacts`;
+  fs.rmSync(path.join(root, artifactDir), { recursive: true, force: true });
   fs.mkdirSync(path.join(root, artifactDir), { recursive: true });
 
   for (const artifact of config.generatedArtifacts) {

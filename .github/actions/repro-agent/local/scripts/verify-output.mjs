@@ -69,7 +69,9 @@ if (plan?.executor === 'playwright' && spec) {
   if (!spec.includes('PRECONDITION_NOT_FOUND')) {
     failures.push('Playwright spec must mark missing setup with PRECONDITION_NOT_FOUND');
   }
-  if (!/page\.goto\(['"]\/(landingPage|detail|navigation)\//.test(spec)) {
+  const layer = String(plan.layer ?? '');
+  const isStorefrontPlan = !layer.includes('admin') && /page\.goto\(['"]\/(?!admin\b)/.test(spec);
+  if (isStorefrontPlan && !/page\.goto\(['"]\/(landingPage|detail|navigation)\//.test(spec)) {
     warnings.push('Storefront specs should navigate by a technical route (/landingPage, /detail, /navigation)');
   }
   if (/locator\(|\$\(|data-testid|querySelector|\.[a-zA-Z0-9_-]+/.test(spec)) {
