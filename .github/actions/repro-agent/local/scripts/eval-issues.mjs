@@ -97,7 +97,9 @@ function archiveIssue(issue) {
 
 function extractGiveupReason(agent) {
   const output = `${agent.stdout}\n${agent.stderr}`.trim();
-  if (!/\bverify-reproduction\.sh\s+giveup\b|\bgiveup\b/.test(output)) return null;
+  const ranGiveupCommand = /^exec\r?\n[^\n]*\bverify-reproduction\.sh\s+giveup\b/m.test(output);
+  const verifierGaveUp = /== verify-reproduction: giving up\b/.test(output);
+  if (!ranGiveupCommand && !verifierGaveUp) return null;
 
   const reason = output
     .split(/\r?\n/)
@@ -107,6 +109,8 @@ function extractGiveupReason(agent) {
       && !line.includes('verify-reproduction.sh giveup')
       && !line.includes('Verifier result:')
       && !line.includes('STOP')
+      && !line.startsWith('exec')
+      && !line.startsWith('/bin/')
     ));
 
   return reason || 'Agent used verify-reproduction.sh giveup before producing a reproduction bundle.';
@@ -220,8 +224,9 @@ for (const issue of issues) {
     console.error(`agent issue #${issue} timed out after ${agentTimeoutMs}ms`);
   }
 
+  const classifiedResult = readJson('builder-result.json') || readJson('result.json');
   const giveupReason = extractGiveupReason(agent);
-  if (giveupReason) {
+  if (giveupReason && !['reproduced', 'not_reproduced'].includes(classifiedResult?.status)) {
     const summary = archiveIssue(issue);
     summary.status = 'blocked';
     summary.blocked_reason = summary.blocked_reason || giveupReason;

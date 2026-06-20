@@ -63,7 +63,11 @@ login fields to the returning-customer form before filling them. Do not use a pa
 `getByRole('textbox', { name: /^email address$/i })`: it can fill the registration email field on
 some versions and leave the real login form empty. First find the form/region that contains the
 login submit button (`Sign in`, `Log in`, `Login`) or the already-customer heading, then fill
-`Email address` and `Password` inside that scope and precondition on an account marker after submit.
+`/^(your )?email address$/i` and `/^(your )?password$/i` inside that scope. After submit,
+precondition on a stable account state: the `/account` URL plus a seeded customer marker, the
+seeded customer email/name, the account sidebar (`Overview`, `Your profile`, `Log out`), or a
+personal-profile/account marker. Do not require one exact phrase such as `My account` or
+`Account overview`; Shopware versions split and translate that wording differently.
 
 For Admin issues that are not explicitly about bootstrap/login/loading, **do not start at plain
 `/admin`**. Use the concrete hash route for the reported module/action (`/admin#/sw/product/index`,
@@ -78,6 +82,10 @@ a healthy `not_reproduced`.
   case-insensitive regex and accessible/visible names. `getByRole` and `getByLabel` both
   resolve `aria-label` / `aria-labelledby` / associated `<label>` — Shopware's `mt-*`
   fields expose their label as the accessible name, so both work for inputs.
+  `getByDisplayValue` is also acceptable for Admin form-field bugs where the accessible label
+  drifts between Meteor/Administration versions but the seeded value is the reported trigger
+  (for example a price field seeded as `1.07`). Prefer the seeded value over guessed labels such
+  as `Gross` when the bug is about editing the field's current value.
 - **Scope inside the relevant landmark + use SPECIFIC names** to avoid strict-mode
   ambiguity: `getByRole('navigation').getByRole('link', {name:/^Products$/i})`, NOT a broad
   regex with `.first()`.
@@ -145,21 +153,42 @@ await locator.waitFor({ state: 'visible', timeout })
   make the symptom assertion about the shell becoming usable or the reported timeout/error state.
   Arbitrary module links create false negatives when responsive chrome or permissions differ.
 - **For Admin module/form bugs, use two mental checkpoints.** First, the admin shell must be usable;
-  second, the issue-specific target must be present. Only the second checkpoint belongs in the
-  decisive `PRECONDITION_NOT_FOUND` gate. Examples of good target gates: a seeded product name in
-  the Products grid, a field label like `Gross price`, a named rule in Rule Builder, the exact
-  module-filter row from the issue, or the action button the bug says cannot be reached. Bad gates:
+  second, the issue-specific target must be present. Only the issue-specific target checkpoint should
+  decide `PRECONDITION_NOT_FOUND`; generic shell/chrome waits should be best-effort or skipped when
+  the target itself is visible. Examples of good target gates: a seeded product name/value in the
+  Products grid/detail, `getByDisplayValue(/1[,.]07/)` for a seeded price-field edit bug, a named
+  rule in Rule Builder, the exact module-filter row from the issue, a seeded CMS page title/block,
+  or the action button the bug says cannot be reached. Bad decisive gates: `Back`, `Save`,
   `Dashboard`, `Home`, `navigation`, `toolbar`, `Administration`, or a generic row/card/button.
+  A screenshot where the seeded target is present but `Back`/`Save`/dashboard chrome was not found
+  means the chrome locator was wrong; change the precondition to the seeded target, not to
+  `giveup`.
+- **For Admin product price/form editing, locate by the seeded value first.** The product detail
+  form scrolls inside the Administration content area, and labels such as `Price (gross)` drift
+  across Meteor/Admin versions. After gating on the seeded product name/number, hover or focus the
+  scrollable detail content and use `getByDisplayValue(/1[,.]07/)`, `getByDisplayValue(/50[,.]01/)`,
+  or another value you seeded as the precondition for the exact field. A screenshot that still shows
+  the General information card means the price section was not reached; fix the scroll/container or
+  switch to a seeded display value, do not conclude the field is missing.
 - **For Admin multi-step actions, keep going through every confirmation modal.** Bulk edit,
   delete, import/export, media replacement, and assignment flows often have an initial action,
   then a start/confirm/apply modal, then the real network request. A screenshot showing a confirm
   dialog means the symptom has not run yet. Wait for the modal's issue-specific confirm button,
   click it, and precondition on the resulting request or target state before the single symptom
   assertion.
+- **For CMS/media editor actions, anchor on the CMS block/sidebar state, not the first image or a
+  guessed global button.** Gate first on the seeded CMS page title/block text and the visible media
+  element. Then select the block/image and wait for the issue-specific settings sidebar or media
+  field to appear before uploading/replacing. Use the visible seeded media filename/title as the
+  precondition in the Media module. A page screenshot where the CMS block is visible but no settings
+  sidebar/control is open means the selection step is wrong; adjust that step instead of giving up
+  from a generic `button: Replace` or `button: Save` locator.
 - **For mobile Admin sidebar/off-canvas bugs, do not click nested menu text until the menu is open.**
   A narrow viewport collapses the menu behind the header hamburger icon, and some builds do not give
   that icon a stable accessible name. Use the banner-scoped icon button, wait for it, click it, then
-  wait for the issue-specific link:
+  wait for the issue-specific link in the opened menu. If the issue is about route navigation, click
+  that link and precondition on the destination route/title before the single off-canvas assertion;
+  do not replace the reported menu-item click with a generic outside click.
   ```ts
   test.use({ viewport: { width: 375, height: 812 } });
   await page.goto('/admin#/sw/dashboard/index');
@@ -170,8 +199,12 @@ await locator.waitFor({ state: 'visible', timeout })
   const products = page.getByRole('link', { name: /^Products$/i });
   await products.waitFor({ state: 'visible', timeout: 30_000 })
     .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: Products link did not render in the open mobile menu'); });
+  await products.click();
+  await page.getByText(/^Products$/i).waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: Products route did not render after mobile menu click'); });
   ```
-  Only after that should the spec click the target link and make the single symptom assertion.
+  Only after the destination route is visible should the spec make the single symptom assertion
+  against the menu/off-canvas state, usually `await expect(openMenu).not.toBeInViewport()`.
 - **For wishlist storefront bugs, prove the wishlist state before testing the card interaction.**
   First seed `system_config` with `core.cart.wishlistEnabled=true`; otherwise the product detail
   page can render without any wishlist control. Guest wishlist state can be version/session-sensitive.

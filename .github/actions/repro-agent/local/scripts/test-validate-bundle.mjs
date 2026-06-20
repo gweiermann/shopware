@@ -257,6 +257,108 @@ if (responseFieldWithStatusPreconditionResult.status !== 0) {
   process.exit(1);
 }
 
+const badNavigationRootIdPreconditionDir = fs.mkdtempSync(path.join(os.tmpdir(), 'repro-agent-validate-'));
+fs.writeFileSync(path.join(badNavigationRootIdPreconditionDir, 'issue.md'), '# includes parameter from encoded _criteria ignored for Store API GET requests\n');
+fs.writeFileSync(path.join(badNavigationRootIdPreconditionDir, 'issue-class.txt'), 'api');
+fs.writeFileSync(path.join(badNavigationRootIdPreconditionDir, 'reproduction-plan.json'), `${JSON.stringify({
+  schema_version: '1',
+  issue: 24,
+  executor: 'http',
+  request: {
+    method: 'GET',
+    path: '/store-api/navigation/main-navigation/main-navigation?depth=2&_criteria=encoded',
+  },
+  assertions: [
+    { role: 'precondition', kind: 'http_status', expect: '200' },
+    { role: 'precondition', field: '.id', op: 'present' },
+    { field: '.description', op: 'absent' },
+  ],
+}, null, 2)}\n`);
+fs.writeFileSync(path.join(badNavigationRootIdPreconditionDir, 'fixtures.json'), `${JSON.stringify({
+  category: [
+    {
+      id: '24000000000000000000000000000001',
+      parentId: '{{NAV_CAT}}',
+      name: 'Repro Navigation Category',
+      type: 'page',
+      active: true,
+      visible: true,
+    },
+  ],
+}, null, 2)}\n`);
+const badNavigationRootIdPreconditionResult = run(badNavigationRootIdPreconditionDir);
+if (badNavigationRootIdPreconditionResult.status === 0) {
+  console.error('Expected root .id Store API navigation precondition to be rejected');
+  process.exit(1);
+}
+if (!badNavigationRootIdPreconditionResult.stdout.includes('Store API navigation responses')) {
+  console.error(`Unexpected navigation-root-id output:\n${badNavigationRootIdPreconditionResult.stdout}\n${badNavigationRootIdPreconditionResult.stderr}`);
+  process.exit(1);
+}
+
+const goodNavigationTreePreconditionDir = fs.mkdtempSync(path.join(os.tmpdir(), 'repro-agent-validate-'));
+fs.writeFileSync(path.join(goodNavigationTreePreconditionDir, 'issue.md'), '# includes parameter from encoded _criteria ignored for Store API GET requests\n');
+fs.writeFileSync(path.join(goodNavigationTreePreconditionDir, 'issue-class.txt'), 'api');
+fs.writeFileSync(path.join(goodNavigationTreePreconditionDir, 'reproduction-plan.json'), `${JSON.stringify({
+  schema_version: '1',
+  issue: 24,
+  executor: 'http',
+  request: {
+    method: 'GET',
+    path: '/store-api/navigation/main-navigation/main-navigation?depth=2&_criteria=encoded',
+  },
+  assertions: [
+    { role: 'precondition', kind: 'http_status', expect: '200' },
+    { role: 'precondition', field: '[.. | objects | select(has("id"))] | length', op: 'gt', expect: '0' },
+    { field: '[.. | objects | select(has("description"))] | length', expect: '0' },
+  ],
+}, null, 2)}\n`);
+fs.writeFileSync(path.join(goodNavigationTreePreconditionDir, 'fixtures.json'), `${JSON.stringify({
+  category: [
+    {
+      id: '24000000000000000000000000000001',
+      parentId: '{{NAV_CAT}}',
+      name: 'Repro Navigation Category',
+      type: 'page',
+      active: true,
+      visible: true,
+    },
+  ],
+}, null, 2)}\n`);
+const goodNavigationTreePreconditionResult = run(goodNavigationTreePreconditionDir);
+if (goodNavigationTreePreconditionResult.status !== 0) {
+  console.error(`Expected tree-tolerant Store API navigation assertions to pass:\n${goodNavigationTreePreconditionResult.stdout}\n${goodNavigationTreePreconditionResult.stderr}`);
+  process.exit(1);
+}
+
+const badNavigationWithoutSeededCategoryDir = fs.mkdtempSync(path.join(os.tmpdir(), 'repro-agent-validate-'));
+fs.writeFileSync(path.join(badNavigationWithoutSeededCategoryDir, 'issue.md'), '# includes parameter from encoded _criteria ignored for Store API GET requests\n');
+fs.writeFileSync(path.join(badNavigationWithoutSeededCategoryDir, 'issue-class.txt'), 'api');
+fs.writeFileSync(path.join(badNavigationWithoutSeededCategoryDir, 'reproduction-plan.json'), `${JSON.stringify({
+  schema_version: '1',
+  issue: 24,
+  executor: 'http',
+  request: {
+    method: 'GET',
+    path: '/store-api/navigation/main-navigation/main-navigation?depth=2&_criteria=encoded',
+  },
+  assertions: [
+    { role: 'precondition', kind: 'http_status', expect: '200' },
+    { role: 'precondition', field: '[.. | objects | select(has("id"))] | length', op: 'gt', expect: '0' },
+    { field: '[.. | objects | select(has("description"))] | length', expect: '0' },
+  ],
+}, null, 2)}\n`);
+fs.writeFileSync(path.join(badNavigationWithoutSeededCategoryDir, 'fixtures.json'), '{}\n');
+const badNavigationWithoutSeededCategoryResult = run(badNavigationWithoutSeededCategoryDir);
+if (badNavigationWithoutSeededCategoryResult.status === 0) {
+  console.error('Expected Store API navigation repro without seeded category to be rejected');
+  process.exit(1);
+}
+if (!badNavigationWithoutSeededCategoryResult.stdout.includes('seed a concrete active category')) {
+  console.error(`Unexpected navigation-without-seeded-category output:\n${badNavigationWithoutSeededCategoryResult.stdout}\n${badNavigationWithoutSeededCategoryResult.stderr}`);
+  process.exit(1);
+}
+
 const wishlistIssue = `# Wishlist add to cart button cannot be clicked
 
 The wishlist product card renders, but clicking Add to shopping cart from the wishlist does not open the off-canvas cart.
@@ -267,6 +369,15 @@ const wishlistFixturesWithoutConfig = {
       id: 'ab000000000000000000000000000001',
       name: 'Wishlist Product',
       productNumber: 'WISH-1',
+      active: true,
+      categories: [{ id: '{{NAV_CAT}}' }],
+      visibilities: [
+        {
+          id: 'ab000000000000000000000000000002',
+          salesChannelId: '{{SC}}',
+          visibility: 30,
+        },
+      ],
     },
   ],
 };
@@ -319,6 +430,42 @@ fs.writeFileSync(path.join(wishlistWithConfig, 'issue.md'), wishlistIssue);
 const wishlistWithConfigResult = run(wishlistWithConfig);
 if (wishlistWithConfigResult.status !== 0) {
   console.error(`Expected wishlist repro with enabled wishlist config to pass:\n${wishlistWithConfigResult.stdout}\n${wishlistWithConfigResult.stderr}`);
+  process.exit(1);
+}
+
+const wishlistWithoutVisibleProduct = writeBundle(`
+import { test, expect } from '@playwright/test';
+test('bad wishlist storefront product seed', async ({ page }) => {
+  const product = page.getByRole('heading', { name: /^Wishlist Product$/i });
+  await product.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: product missing'); });
+  await expect(page.getByRole('button', { name: /Add to shopping cart/i })).toBeVisible();
+});
+`, {
+  system_config: [
+    {
+      id: 'ac000000000000000000000000000001',
+      configurationKey: 'core.cart.wishlistEnabled',
+      configurationValue: true,
+    },
+  ],
+  product: [
+    {
+      id: 'ab000000000000000000000000000001',
+      name: 'Wishlist Product',
+      productNumber: 'WISH-1',
+      active: true,
+    },
+  ],
+});
+fs.writeFileSync(path.join(wishlistWithoutVisibleProduct, 'issue.md'), wishlistIssue);
+const wishlistWithoutVisibleProductResult = run(wishlistWithoutVisibleProduct);
+if (wishlistWithoutVisibleProductResult.status === 0) {
+  console.error('Expected wishlist repro without storefront-visible product fixture to be rejected');
+  process.exit(1);
+}
+if (!wishlistWithoutVisibleProductResult.stdout.includes('storefront-visible')) {
+  console.error(`Unexpected wishlist-without-visible-product output:\n${wishlistWithoutVisibleProductResult.stdout}\n${wishlistWithoutVisibleProductResult.stderr}`);
   process.exit(1);
 }
 
@@ -510,13 +657,66 @@ if (!genericAdminPreconditionResult.stdout.includes('admin-ui Playwright spec pr
   process.exit(1);
 }
 
+const genericAdminChromeGate = writeAdminBundle(`
+import { test, expect } from '@playwright/test';
+test('bad generic admin chrome precondition', async ({ page }) => {
+  await page.goto('/admin#/sw/cms/detail/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+  const back = page.getByText(/^Back$/i);
+  await back.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: admin shell Back control never rendered'); });
+  const pageTitle = page.getByText('Repro Wide Image Test');
+  await pageTitle.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: seeded CMS page title missing'); });
+  await expect(pageTitle).toBeVisible();
+});
+`, `# CMS editor image is too wide
+
+An oversized img tag in a CMS text block makes the settings button inaccessible.
+`);
+const genericAdminChromeGateResult = run(genericAdminChromeGate);
+if (genericAdminChromeGateResult.status === 0) {
+  console.error('Expected generic admin chrome PRECONDITION_NOT_FOUND gate to be rejected');
+  process.exit(1);
+}
+if (!genericAdminChromeGateResult.stdout.includes('generic Admin chrome')
+  && !genericAdminChromeGateResult.stdout.includes('admin-ui Playwright spec preconditions are too generic')) {
+  console.error(`Unexpected generic-admin-chrome-gate output:\n${genericAdminChromeGateResult.stdout}\n${genericAdminChromeGateResult.stderr}`);
+  process.exit(1);
+}
+
+const badAdminPriceLabelPrecondition = writeAdminBundle(`
+import { test, expect } from '@playwright/test';
+test('bad admin price label precondition', async ({ page }) => {
+  await page.goto('/admin#/sw/product/detail/99000000000000000000000000000001');
+  const productNumber = page.getByRole('textbox', { name: /^Product number$/i });
+  await productNumber.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: seeded product detail page missing'); });
+  const grossPrice = page.getByRole('textbox', { name: /^Price \\(gross\\)$/i });
+  await grossPrice.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: gross price field missing'); });
+  await expect(grossPrice).toHaveValue(/^1[,.]0$/);
+});
+`, `# Gross price editing loses trailing decimal zero
+
+Editing the gross price field with Backspace removes the decimal zero while focused.
+`);
+const badAdminPriceLabelPreconditionResult = run(badAdminPriceLabelPrecondition);
+if (badAdminPriceLabelPreconditionResult.status === 0) {
+  console.error('Expected admin price edit repro with guessed gross label precondition to be rejected');
+  process.exit(1);
+}
+if (!badAdminPriceLabelPreconditionResult.stdout.includes('getByDisplayValue')) {
+  console.error(`Unexpected bad-admin-price-label output:\n${badAdminPriceLabelPreconditionResult.stdout}\n${badAdminPriceLabelPreconditionResult.stderr}`);
+  process.exit(1);
+}
+
 const goodAdminPrecondition = writeAdminBundle(`
 import { test, expect } from '@playwright/test';
 test('good targeted admin precondition', async ({ page }) => {
   await page.goto('/admin#/sw/product/index');
-  const grossPrice = page.getByRole('textbox', { name: /^Gross price$/i });
+  const grossPrice = page.getByDisplayValue(/1[,.]07/);
   await grossPrice.waitFor({ state: 'visible', timeout: 30_000 })
-    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: Gross price field missing'); });
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: seeded gross price value missing'); });
   await expect(grossPrice).toBeEnabled();
 });
 `);
@@ -578,6 +778,7 @@ test('bad mobile admin navigation precondition', async ({ page }) => {
   const products = page.getByRole('link', { name: /^Products$/i });
   await products.waitFor({ state: 'visible', timeout: 30_000 })
     .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: Products link missing'); });
+  await products.click();
   await expect(products).not.toBeInViewport();
 });
 `, `# Administration sidebar does not close on mobile
@@ -615,6 +816,32 @@ On a mobile viewport, opening the Administration sidebar and navigating to Produ
 const goodMobileAdminNavigationResult = run(goodMobileAdminNavigation);
 if (goodMobileAdminNavigationResult.status !== 0) {
   console.error(`Expected mobile admin navigation with hamburger/menu precondition to pass:\n${goodMobileAdminNavigationResult.stdout}\n${goodMobileAdminNavigationResult.stderr}`);
+  process.exit(1);
+}
+
+const badMobileAdminOutsideClick = writeAdminBundle(`
+import { test, expect } from '@playwright/test';
+test.use({ viewport: { width: 375, height: 812 } });
+test('bad mobile admin outside-click trigger', async ({ page }) => {
+  await page.goto('/admin#/sw/dashboard/index');
+  const menuButton = page.getByRole('banner').getByRole('button').first();
+  await menuButton.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: mobile menu button missing'); });
+  await menuButton.click();
+  await page.mouse.click(300, 300);
+  await expect(page.getByRole('navigation')).not.toBeInViewport();
+});
+`, `# Administration sidebar does not close on mobile
+
+On a mobile viewport, opening the Administration sidebar and navigating to Products leaves the off-canvas menu over the page.
+`);
+const badMobileAdminOutsideClickResult = run(badMobileAdminOutsideClick);
+if (badMobileAdminOutsideClickResult.status === 0) {
+  console.error('Expected mobile admin route-navigation repro with outside-click trigger to be rejected');
+  process.exit(1);
+}
+if (!badMobileAdminOutsideClickResult.stdout.includes('outside click')) {
+  console.error(`Unexpected bad-mobile-admin-outside-click output:\n${badMobileAdminOutsideClickResult.stdout}\n${badMobileAdminOutsideClickResult.stderr}`);
   process.exit(1);
 }
 

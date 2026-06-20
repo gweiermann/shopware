@@ -83,6 +83,11 @@ function wishlistIssue(text) {
 }
 
 function cartOffcanvasIssue(text) {
+  if (/\b(admin|administration|sidebar|menu)\b/i.test(text)
+    && !/\b(add to (shopping )?cart|shopping cart|checkout|wishlist|cart)\b/i.test(text)) {
+    return false;
+  }
+
   return /\b(add to (shopping )?cart|shopping cart|off[- ]?canvas)\b/i.test(text)
     && /\b(click|opens?|shown|visible|rendered|appears?|add(ed)?|wishlist|product card)\b/i.test(text);
 }
@@ -92,6 +97,27 @@ function hasEnabledWishlistConfig(data) {
     row?.configurationKey === 'core.cart.wishlistEnabled'
       && (row.configurationValue === true || row.configurationValue === 1 || row.configurationValue === 'true')
   ));
+}
+
+function productHasCategory(data, product) {
+  if (entityPayload(product?.categories).length > 0) return true;
+  return entityRows(data, 'product_category').some((row) => String(row?.productId ?? '') === String(product?.id ?? ''));
+}
+
+function productHasVisibility(data, product) {
+  if (entityPayload(product?.visibilities).length > 0) return true;
+  return entityRows(data, 'product_visibility').some((row) => String(row?.productId ?? '') === String(product?.id ?? ''));
+}
+
+function storefrontProductFixtureGaps(data) {
+  return entityRows(data, 'product')
+    .filter((product) => product?.id && product?.active !== false)
+    .flatMap((product) => {
+      const gaps = [];
+      if (!productHasCategory(data, product)) gaps.push(`${product.id}: missing category assignment`);
+      if (!productHasVisibility(data, product)) gaps.push(`${product.id}: missing sales-channel visibility`);
+      return gaps;
+    });
 }
 
 function collectControlledTerms(value, terms = new Set(), key = '') {
@@ -197,6 +223,16 @@ function adminMobileNavigationIssue(text) {
     && /\b(mobile|small viewport|narrow|sidebar|off[- ]?canvas|hamburger)\b/i.test(text);
 }
 
+function adminMobileRouteNavigationIssue(text) {
+  return adminMobileNavigationIssue(text)
+    && /\b(click(?:ing)?|select(?:ing)?|open(?:ing)?|navigate|navigation|route|module|menu item|link)\b/i.test(text);
+}
+
+function adminPriceEditIssue(text) {
+  return /\b(admin|administration|product|price|gross|net|decimal|trailing|edit|editing|field)\b/i.test(text)
+    && /\b(price|gross|net|decimal|trailing zero|backspace|field)\b/i.test(text);
+}
+
 function collectIssueTerms(text) {
   const terms = new Set();
   for (const match of text.matchAll(/[`"“”']([^`"“”']{4,80})[`"“”']/g)) terms.add(match[1]);
@@ -242,6 +278,22 @@ function hasUnrelatedAdminModulePrecondition(source, text) {
     const reported = new RegExp(`\\b${module}\\b`, 'i').test(text);
     return used && !reported;
   });
+}
+
+function hasGenericAdminChromeFailure(source, text) {
+  const preconditions = preconditionSnippet(source);
+  const genericChrome = /\bPRECONDITION_NOT_FOUND:[^\n]*(?:back|save|dashboard|toolbar|admin shell|administration shell)\b/i.test(preconditions);
+  const reported = /\b(back|save|dashboard|toolbar|admin shell|administration shell)\b/i.test(text);
+  return genericChrome && !reported;
+}
+
+function hasSeededNavigationCategory(data) {
+  return entityRows(data, 'category').some((row) => (
+    row?.id
+      && row.id !== '{{NAV_CAT}}'
+      && (row.parentId === '{{NAV_CAT}}' || row.parentId)
+      && (row.name || row.translated?.name)
+  ));
 }
 
 function isPlaceholder(value) {
@@ -352,6 +404,16 @@ if (executor === 'playwright') {
   if (wishlistIssue(issue) && !hasEnabledWishlistConfig(fixtures)) {
     fail('wishlist Playwright repro must seed system_config core.cart.wishlistEnabled=true; a missing wishlist button/page is setup failure, not the symptom');
   }
+  if (wishlistIssue(issue)) {
+    const productGaps = storefrontProductFixtureGaps(fixtures);
+    if (productGaps.length > 0) {
+      fail([
+        'wishlist/storefront Playwright repro must seed products as storefront-visible before using /detail/<productId>',
+        `fixture gaps: ${productGaps.slice(0, 5).join('; ')}`,
+        'add both a {{NAV_CAT}} category assignment and sales-channel visibility; a blank product detail page is a seed gap, not the symptom'
+      ].join(' — '));
+    }
+  }
 
   if (cartOffcanvasIssue(`${issue}\n${JSON.stringify(plan.scenario ?? [])}`)) {
     const assertionLines = executable
@@ -387,12 +449,32 @@ if (executor === 'playwright') {
       if (!/getByRole\s*\(\s*['"]banner['"]\s*\)[\s\S]{0,160}getByRole\s*\(\s*['"]button['"]/s.test(executable)) {
         fail('mobile admin navigation repro must open the actual header hamburger/menu button before interacting with sidebar links; do not click nested menu text before proving the menu is open');
       }
+      if (adminMobileRouteNavigationIssue(`${issue}\n${JSON.stringify(plan.scenario ?? [])}`)
+        && !/getByRole\s*\(\s*['"]link['"]/s.test(executable)) {
+        fail('mobile admin route-navigation repro must click the issue-specific link inside the opened off-canvas menu; an outside click does not exercise the reported menu-item navigation path');
+      }
+      if (adminMobileRouteNavigationIssue(`${issue}\n${JSON.stringify(plan.scenario ?? [])}`)
+        && /page\.mouse\.click\s*\(/s.test(executable)) {
+        fail('mobile admin route-navigation repro must not replace the reported menu-item/link click with a generic outside click; click the opened menu link and then assert the off-canvas state');
+      }
+    }
+    if (adminPriceEditIssue(`${issue}\n${JSON.stringify(plan.scenario ?? [])}`)
+      && /\bprice\s*\(gross\)|\bgross price\b|\bgross\b/i.test(preconditionSnippet(executable))
+      && !/\bgetByDisplayValue\s*\(/s.test(executable)) {
+      fail('admin price/form editing repro must precondition on the seeded field value with getByDisplayValue when labels drift; a guessed Gross/Price label can false-negative before the edit symptom runs');
     }
     if (!bootstrapIssue && !hasTargetedAdminPrecondition(executable)) {
       fail([
         'admin-ui Playwright spec preconditions are too generic',
         'wait for the issue-specific module/action/entity/control before the symptom expect',
         'dashboard, shell, navigation, toolbar, or Home chrome can prove the admin loaded but cannot prove the reported state is exercisable'
+      ].join(' — '));
+    }
+    if (!bootstrapIssue && hasGenericAdminChromeFailure(executable, issue)) {
+      fail([
+        'admin-ui Playwright spec uses generic Admin chrome as a decisive PRECONDITION_NOT_FOUND gate',
+        'Back/Save/dashboard/toolbar waits are version-specific shell checks and must not decide the run unless the issue is about that chrome',
+        'gate on the seeded issue target instead, such as the product value, CMS page/block, row, field value, modal action, or media item'
       ].join(' — '));
     }
   }
@@ -472,6 +554,13 @@ if (executor === 'http') {
   }
 
   const requests = Array.isArray(plan.requests) ? plan.requests : [plan.request].filter(Boolean);
+  const navigationRequest = requests.some((request) => /^\/store-api\/navigation\//.test(String(request?.path ?? '')));
+  if (navigationRequest && !hasSeededNavigationCategory(fixtures)) {
+    fail('Store API navigation repros must seed a concrete active category below {{NAV_CAT}} and precondition on that seeded id/name; relying on the default install tree can return an empty HTTP 200 and false inconclusive');
+  }
+  if (navigationRequest && assertions.some((assertion) => assertion?.role === 'precondition' && String(assertion?.field ?? '') === '.id')) {
+    fail('Store API navigation responses can be trees/arrays/wrapped objects; do not use root `.id` as a precondition. Use a recursive/tree-tolerant jq expression such as `[.. | objects | select(has("id"))] | length`.');
+  }
   for (const request of requests) {
     const method = String(request?.method ?? 'GET').toUpperCase();
     const path = String(request?.path ?? '');

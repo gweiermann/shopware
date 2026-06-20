@@ -36,6 +36,21 @@ Entities you create yourself go in `fixtures.json` with known 32-char hex UUIDs.
 fields are setup failures for preconditions. If a collection must contain seeded rows, assert a
 specific id/value or a positive length, not bare `.data`.
 
+For Store API endpoints that return trees or collections (`/store-api/navigation/...`,
+category trees, menu structures, nested CMS/category payloads), do not assume the final body is a
+single root object with `.id`. First choose a jq expression that tolerates the response shape, e.g.
+`[.. | objects | select(has("id"))] | length` as a precondition, or target a concrete nested field
+with recursive descent. For includes/excludes bugs, assert the field family directly:
+`[.. | objects | select(has("description"))] | length` should be `0` on a healthy filtered response.
+A precondition like `.id present` on a valid tree/array response turns a real API symptom into an
+inconclusive setup failure.
+
+Do not rely on the install's default navigation tree containing a category with the field you want
+to inspect. For navigation response-field bugs, seed a small active category below `{{NAV_CAT}}`
+with a known id/name/description, then request the navigation tree for that root/active category and
+precondition on the seeded id or name via recursive descent. An empty `HTTP 200` navigation payload
+is a seed gap, not evidence about includes/excludes behaviour.
+
 For `POST /store-api/account/register`, Shopware's Store API expects the billing address fields in
 the top-level registration payload (`countryId`, `street`, `zipcode`, `city`, plus name fields), not
 only inside a nested `billingAddress` object. A 400 with blank `countryId`/`street`/`city` is a bad
