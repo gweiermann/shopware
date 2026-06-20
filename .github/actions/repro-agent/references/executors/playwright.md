@@ -157,6 +157,10 @@ await locator.waitFor({ state: 'visible', timeout })
   to reflect the addition, then go to `/wishlist` and precondition on the seeded product card. An
   empty wishlist page or a missing wishlist button is setup failure, not the symptom. Do not click
   `Add to shopping cart` until the seeded product is visibly present on `/wishlist`.
+  The symptom assertion for an add-to-cart issue must prove the cart/off-canvas opened, e.g. a
+  visible `dialog`/cart heading/container plus the seeded product scoped inside it. Do not assert
+  only that the product link is visible again; that link is already visible on the wishlist card and
+  can create a false `not_reproduced`.
 
 **(2) Symptom** — exactly ONE `await expect(...)` of the HEALTHY behaviour, with a generous
 timeout. This is the ONLY failure that may mean `reproduced`.

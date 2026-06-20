@@ -74,6 +74,11 @@ function wishlistIssue(text) {
   return /\bwishlist\b/i.test(text);
 }
 
+function cartOffcanvasIssue(text) {
+  return /\b(add to (shopping )?cart|shopping cart|cart|off[- ]?canvas)\b/i.test(text)
+    && /\b(click|opens?|shown|visible|rendered|appears?|add(ed)?|wishlist|product card)\b/i.test(text);
+}
+
 function hasEnabledWishlistConfig(data) {
   return entityRows(data, 'system_config').some((row) => (
     row?.configurationKey === 'core.cart.wishlistEnabled'
@@ -268,6 +273,16 @@ if (executor === 'playwright') {
 
   if (wishlistIssue(issue) && !hasEnabledWishlistConfig(fixtures)) {
     fail('wishlist Playwright repro must seed system_config core.cart.wishlistEnabled=true; a missing wishlist button/page is setup failure, not the symptom');
+  }
+
+  if (cartOffcanvasIssue(`${issue}\n${JSON.stringify(plan.scenario ?? [])}`)) {
+    const assertionLines = executable
+      .split('\n')
+      .filter((line) => /\bexpect\s*\(/.test(line))
+      .join('\n');
+    if (!/\b(cart|off[- ]?canvas|dialog|modal|lineItems?|checkout)\b/i.test(assertionLines)) {
+      fail('cart/off-canvas Playwright repro must assert the cart/off-canvas/dialog state; a repeated product link can already be visible on the source card and is only a precondition');
+    }
   }
 
   if (adminUiPlan()) {

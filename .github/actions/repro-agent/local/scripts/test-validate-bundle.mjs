@@ -190,6 +190,62 @@ if (wishlistWithConfigResult.status !== 0) {
   process.exit(1);
 }
 
+const weakCartOffcanvasAssertion = writeBundle(`
+import { test, expect } from '@playwright/test';
+test('bad cart offcanvas assertion', async ({ page }) => {
+  const product = page.getByRole('link', { name: /^Wishlist Product$/i }).first();
+  await product.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: wishlist product missing'); });
+  await page.getByRole('button', { name: /Add to shopping cart/i }).click();
+  await expect(page.getByRole('link', { name: /^Wishlist Product$/i }).last()).toBeVisible();
+});
+`, {
+  system_config: [
+    {
+      id: 'ac000000000000000000000000000001',
+      configurationKey: 'core.cart.wishlistEnabled',
+      configurationValue: true,
+    },
+  ],
+  product: wishlistFixturesWithoutConfig.product,
+});
+fs.writeFileSync(path.join(weakCartOffcanvasAssertion, 'issue.md'), wishlistIssue);
+const weakCartOffcanvasAssertionResult = run(weakCartOffcanvasAssertion);
+if (weakCartOffcanvasAssertionResult.status === 0) {
+  console.error('Expected cart/off-canvas repro with only a product-link assertion to be rejected');
+  process.exit(1);
+}
+if (!weakCartOffcanvasAssertionResult.stdout.includes('cart/off-canvas')) {
+  console.error(`Unexpected weak-cart-offcanvas output:\n${weakCartOffcanvasAssertionResult.stdout}\n${weakCartOffcanvasAssertionResult.stderr}`);
+  process.exit(1);
+}
+
+const goodCartOffcanvasAssertion = writeBundle(`
+import { test, expect } from '@playwright/test';
+test('good cart offcanvas assertion', async ({ page }) => {
+  const product = page.getByRole('link', { name: /^Wishlist Product$/i }).first();
+  await product.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: wishlist product missing'); });
+  await page.getByRole('button', { name: /Add to shopping cart/i }).click();
+  await expect(page.getByRole('dialog', { name: /shopping cart/i })).toBeVisible();
+});
+`, {
+  system_config: [
+    {
+      id: 'ac000000000000000000000000000001',
+      configurationKey: 'core.cart.wishlistEnabled',
+      configurationValue: true,
+    },
+  ],
+  product: wishlistFixturesWithoutConfig.product,
+});
+fs.writeFileSync(path.join(goodCartOffcanvasAssertion, 'issue.md'), wishlistIssue);
+const goodCartOffcanvasAssertionResult = run(goodCartOffcanvasAssertion);
+if (goodCartOffcanvasAssertionResult.status !== 0) {
+  console.error(`Expected cart/off-canvas dialog assertion to pass:\n${goodCartOffcanvasAssertionResult.stdout}\n${goodCartOffcanvasAssertionResult.stderr}`);
+  process.exit(1);
+}
+
 const bad = writeBundle(`
 import { test, expect } from '@playwright/test';
 // Black appears only in a comment, so this must not count.
