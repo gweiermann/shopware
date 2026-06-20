@@ -36,6 +36,7 @@ const manifest = {
   model,
   reasoning: { effort: reasoningEffort },
   sandbox,
+  isolatedCodexContext: true,
   maxTurns,
   promptPath: contextPath,
   allowedCommands: [
@@ -64,6 +65,9 @@ if (codexCheck.status !== 0) {
 const codexArgs = [
   'exec',
   '--ephemeral',
+  '--ignore-user-config',
+  '--disable',
+  'skills',
   '--sandbox',
   sandbox,
   '--config',
