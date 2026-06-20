@@ -327,6 +327,43 @@ if (goodCartOffcanvasAssertionResult.status !== 0) {
   process.exit(1);
 }
 
+const inactiveVariantsNotCartIssue = fs.mkdtempSync(path.join(os.tmpdir(), 'repro-agent-validate-'));
+fs.writeFileSync(path.join(inactiveVariantsNotCartIssue, 'issue.md'), `# Parent product should be considered inactive when all its variants are inactive
+
+Visitors land on a product page with no way to add anything to their cart. The expected behavior is a 404 product detail response.
+`);
+fs.writeFileSync(path.join(inactiveVariantsNotCartIssue, 'issue-class.txt'), 'visual');
+fs.writeFileSync(path.join(inactiveVariantsNotCartIssue, 'reproduction-plan.json'), `${JSON.stringify({
+  schema_version: '1',
+  issue: 15,
+  layer: 'storefront-ui',
+  executor: 'playwright',
+  script_path: 'repro.spec.ts',
+}, null, 2)}\n`);
+fs.writeFileSync(path.join(inactiveVariantsNotCartIssue, 'fixtures.json'), `${JSON.stringify({
+  product: [
+    {
+      id: '15000000000000000000000000000001',
+      name: 'Inactive Variant Parent',
+      productNumber: 'INACTIVE-PARENT-1',
+    },
+  ],
+}, null, 2)}\n`);
+fs.writeFileSync(path.join(inactiveVariantsNotCartIssue, 'repro.spec.ts'), `
+import { test, expect } from '@playwright/test';
+test('inactive variant parent returns not found', async ({ page }) => {
+  const marker = page.getByText(/Inactive Variant Parent/i);
+  await marker.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: seeded product marker missing'); });
+  await expect(page.getByText(/not found/i)).toBeVisible();
+});
+`);
+const inactiveVariantsNotCartIssueResult = run(inactiveVariantsNotCartIssue);
+if (inactiveVariantsNotCartIssueResult.status !== 0) {
+  console.error(`Expected inactive-variants product detail issue not to be treated as cart/off-canvas:\n${inactiveVariantsNotCartIssueResult.stdout}\n${inactiveVariantsNotCartIssueResult.stderr}`);
+  process.exit(1);
+}
+
 const bad = writeBundle(`
 import { test, expect } from '@playwright/test';
 // Black appears only in a comment, so this must not count.

@@ -83,7 +83,7 @@ function wishlistIssue(text) {
 }
 
 function cartOffcanvasIssue(text) {
-  return /\b(add to (shopping )?cart|shopping cart|cart|off[- ]?canvas)\b/i.test(text)
+  return /\b(add to (shopping )?cart|shopping cart|off[- ]?canvas)\b/i.test(text)
     && /\b(click|opens?|shown|visible|rendered|appears?|add(ed)?|wishlist|product card)\b/i.test(text);
 }
 
