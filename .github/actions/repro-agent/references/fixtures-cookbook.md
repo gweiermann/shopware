@@ -127,3 +127,40 @@ product card will not render arbitrary custom fields, so that creates an artific
 assertion unrelated to the reported UI. Use the default variant data that Shopware can render, and
 if the real issue screenshot shows a line such as `Live-Film: Stream`, model that as actual variant
 configuration/name data rather than a custom-field sentinel.
+
+## Wishlist storefront flows — prove state before the card symptom
+
+Wishlist bugs are visual/storefront interaction bugs, so use `playwright`, but do not trust a click
+on a heart icon as the setup by itself. The wishlist page can stay empty when guest/session state was
+not established, and that is a setup failure, not the reported symptom.
+
+Use the same customer shape as `cookbook/customer-addresses/` when the issue can involve a logged-in
+customer, and add a deterministic password:
+
+```json
+"customer": [
+  { "id": "aa00000000000000000000000000c001", "customerNumber": "REPRO-C-1",
+    "firstName": "Repro", "lastName": "Customer", "email": "repro-c1@example.com",
+    "password": "shopware",
+    "salesChannelId": "{{SC}}", "groupId": "{{CUSTOMER_GROUP}}",
+    "defaultPaymentMethodId": "{{PAYMENT_METHOD}}", "salutationId": "{{SALUTATION}}",
+    "defaultBillingAddressId": "aa00000000000000000000000000c002",
+    "defaultShippingAddressId": "aa00000000000000000000000000c002",
+    "addresses": [
+      { "id": "aa00000000000000000000000000c002", "firstName": "Repro", "lastName": "Customer",
+        "street": "Test St 1", "zipcode": "12345", "city": "Test",
+        "countryId": "{{COUNTRY}}", "salutationId": "{{SALUTATION}}" }
+    ] }
+]
+```
+
+For the spec, use three preconditions before the symptom assertion:
+
+1. The seeded product detail page rendered by technical route (`/detail/<productId>`).
+2. After clicking the wishlist control, the storefront shows the wishlist state changed (header
+   wishlist count/link or product wishlist button state).
+3. `/wishlist` visibly contains the seeded product card.
+
+Only then click the wishlist card's `Add to shopping cart` button and assert the healthy off-canvas
+state. If `/wishlist` shows the empty-state illustration or text, fix the login/session/wishlist
+setup or stop as inconclusive; never score that as the product-card bug.

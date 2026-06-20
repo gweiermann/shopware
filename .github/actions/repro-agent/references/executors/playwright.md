@@ -28,6 +28,8 @@ a visual bug produces an unfaithful reproduction.
    the only failure allowed to mean `reproduced`.
 5. **Make the precondition actually hold** — force a viewport for overflow/cut-off bugs;
    scroll like a user (`mouse.wheel`), never `scrollIntoViewIfNeeded()`.
+   For mobile Admin sidebar/off-canvas bugs, force the viewport before `page.goto()`, open the
+   real header hamburger button, wait for the target sidebar link, then trigger the symptom.
 6. For hidden/off-canvas symptoms assert explicit state (`not.toBeInViewport()` /
    `toHaveAttribute(...)`), NOT `not.toBeVisible()`.
 7. **Reach a seeded storefront page by its TECHNICAL route** — `/landingPage/<id>`,
@@ -131,6 +133,29 @@ await locator.waitFor({ state: 'visible', timeout })
   the Products grid, a field label like `Gross price`, a named rule in Rule Builder, the exact
   module-filter row from the issue, or the action button the bug says cannot be reached. Bad gates:
   `Dashboard`, `Home`, `navigation`, `toolbar`, `Administration`, or a generic row/card/button.
+- **For mobile Admin sidebar/off-canvas bugs, do not click nested menu text until the menu is open.**
+  A narrow viewport collapses the menu behind the header hamburger icon, and some builds do not give
+  that icon a stable accessible name. Use the banner-scoped icon button, wait for it, click it, then
+  wait for the issue-specific link:
+  ```ts
+  test.use({ viewport: { width: 375, height: 812 } });
+  await page.goto('/admin#/sw/dashboard/index');
+  const menuButton = page.getByRole('banner').getByRole('button').first();
+  await menuButton.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: mobile Admin menu button did not render'); });
+  await menuButton.click();
+  const products = page.getByRole('link', { name: /^Products$/i });
+  await products.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: Products link did not render in the open mobile menu'); });
+  ```
+  Only after that should the spec click the target link and make the single symptom assertion.
+- **For wishlist storefront bugs, prove the wishlist state before testing the card interaction.**
+  Guest wishlist state can be version/session-sensitive. Prefer a seeded customer and a normal
+  storefront login when the issue is about registered-customer wishlist behavior. If you add from a
+  product detail page, wait for the header wishlist count/link to reflect the addition, then go to
+  `/wishlist` and precondition on the seeded product card. An empty wishlist page is setup failure,
+  not the symptom. Do not click `Add to shopping cart` until the seeded product is visibly present
+  on `/wishlist`.
 
 **(2) Symptom** — exactly ONE `await expect(...)` of the HEALTHY behaviour, with a generous
 timeout. This is the ONLY failure that may mean `reproduced`.

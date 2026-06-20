@@ -154,10 +154,16 @@ function adminBootstrapIssue(text) {
     && /\b(loads?|loading|bootstrap|startup|start[- ]?up|login|authentication|slow|network|timeout|blank|stuck)\b/i.test(text);
 }
 
+function adminMobileNavigationIssue(text) {
+  return /\b(admin|administration|sidebar|off[- ]?canvas|menu|navigation)\b/i.test(text)
+    && /\b(mobile|small viewport|narrow|sidebar|off[- ]?canvas|hamburger|menu|navigation)\b/i.test(text);
+}
+
 function collectIssueTerms(text) {
   const terms = new Set();
   for (const match of text.matchAll(/[`"“”']([^`"“”']{4,80})[`"“”']/g)) terms.add(match[1]);
   for (const match of text.matchAll(/\b[A-Z][A-Za-z0-9]+(?:[- ][A-Za-z0-9]+){1,5}\b/g)) terms.add(match[0]);
+  for (const match of text.matchAll(/\b[A-Z][A-Za-z0-9]{3,}\b/g)) terms.add(match[0]);
   for (const match of text.matchAll(/\b(?:sw-[a-z0-9-]+|[a-z0-9]+(?:-[a-z0-9]+){1,5})\b/gi)) terms.add(match[0]);
   return normalizeTerms(terms);
 }
@@ -253,6 +259,14 @@ if (executor === 'playwright') {
     const bootstrapIssue = adminBootstrapIssue(issue);
     if (!bootstrapIssue && /page\.goto\s*\(\s*['"`]\/admin\/?['"`]/.test(executable)) {
       fail('admin-ui Playwright spec navigates only to the generic Administration shell; use the concrete /admin#/sw/... route for the reported module/action, then precondition on that target state');
+    }
+    if (adminMobileNavigationIssue(`${issue}\n${JSON.stringify(plan.scenario ?? [])}`)) {
+      if (!/test\.use\s*\(\s*\{[^}]*viewport\s*:\s*\{[^}]*width\s*:\s*(?:[1-5]\d{2}|600)\b/s.test(executable)) {
+        fail('mobile admin navigation repro must force a narrow viewport before loading the admin route');
+      }
+      if (!/getByRole\s*\(\s*['"]banner['"]\s*\)[\s\S]{0,160}getByRole\s*\(\s*['"]button['"]/s.test(executable)) {
+        fail('mobile admin navigation repro must open the actual header hamburger/menu button before interacting with sidebar links; do not click nested menu text before proving the menu is open');
+      }
     }
     if (!hasTargetedAdminPrecondition(executable)) {
       fail([

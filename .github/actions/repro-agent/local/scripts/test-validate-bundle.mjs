@@ -236,6 +236,55 @@ if (goodAdminPreconditionResult.status !== 0) {
   process.exit(1);
 }
 
+const badMobileAdminNavigation = writeAdminBundle(`
+import { test, expect } from '@playwright/test';
+test.use({ viewport: { width: 375, height: 812 } });
+test('bad mobile admin navigation precondition', async ({ page }) => {
+  await page.goto('/admin#/sw/dashboard/index');
+  await page.getByText(/^Catalogues$/i).click();
+  const products = page.getByRole('link', { name: /^Products$/i });
+  await products.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: Products link missing'); });
+  await expect(products).not.toBeInViewport();
+});
+`, `# Administration sidebar does not close on mobile
+
+On a mobile viewport, opening the Administration sidebar and navigating to Products leaves the off-canvas menu over the page.
+`);
+const badMobileAdminNavigationResult = run(badMobileAdminNavigation);
+if (badMobileAdminNavigationResult.status === 0) {
+  console.error('Expected mobile admin navigation without hamburger/menu precondition to be rejected');
+  process.exit(1);
+}
+if (!badMobileAdminNavigationResult.stdout.includes('header hamburger/menu button')) {
+  console.error(`Unexpected bad-mobile-admin-navigation output:\n${badMobileAdminNavigationResult.stdout}\n${badMobileAdminNavigationResult.stderr}`);
+  process.exit(1);
+}
+
+const goodMobileAdminNavigation = writeAdminBundle(`
+import { test, expect } from '@playwright/test';
+test.use({ viewport: { width: 375, height: 812 } });
+test('good mobile admin navigation precondition', async ({ page }) => {
+  await page.goto('/admin#/sw/dashboard/index');
+  const menuButton = page.getByRole('banner').getByRole('button').first();
+  await menuButton.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: mobile menu button missing'); });
+  await menuButton.click();
+  const products = page.getByRole('link', { name: /^Products$/i });
+  await products.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: Products link missing'); });
+  await expect(products).not.toBeInViewport();
+});
+`, `# Administration sidebar does not close on mobile
+
+On a mobile viewport, opening the Administration sidebar and navigating to Products leaves the off-canvas menu over the page.
+`);
+const goodMobileAdminNavigationResult = run(goodMobileAdminNavigation);
+if (goodMobileAdminNavigationResult.status !== 0) {
+  console.error(`Expected mobile admin navigation with hamburger/menu precondition to pass:\n${goodMobileAdminNavigationResult.stdout}\n${goodMobileAdminNavigationResult.stderr}`);
+  process.exit(1);
+}
+
 const customFieldSentinel = writeBundle(`
 import { test, expect } from '@playwright/test';
 test('bad hidden custom field sentinel assertion', async ({ page }) => {
