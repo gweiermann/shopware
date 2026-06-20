@@ -106,6 +106,10 @@ set, **STOP** and explain in plain text (not a JSON file) — never hand-roll a 
      not a guessed dashboard heading.** The Administration dashboard title and greeting vary by
      version and time of day. A screenshot of a usable dashboard means a slow-network/bootstrap
      repro did NOT fail merely because a `Dashboard` heading locator missed.
+     For login/bootstrap/slow-network issues, do not turn an arbitrary module link such as
+     `Products`, `Orders`, or `Settings` into the decisive precondition unless the issue names that
+     module. The precondition should prove the reported bootstrap/login/admin-shell state; unrelated
+     downstream navigation creates false negatives when responsive chrome or permissions differ.
 2. **Write `reproduction-plan.json` + the executor's artifact:**
    - `http`: `request`/`requests` + `assertion`.
    - `playwright`: `script_path: "repro.spec.ts"` + the spec.

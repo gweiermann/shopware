@@ -381,6 +381,49 @@ if (goodAdminPreconditionResult.status !== 0) {
   process.exit(1);
 }
 
+const badBootstrapUsesModuleLink = writeAdminBundle(`
+import { test, expect } from '@playwright/test';
+test.use({ viewport: { width: 375, height: 812 } });
+test('bad admin bootstrap precondition', async ({ page }) => {
+  await page.goto('/admin#/sw/dashboard/index');
+  const products = page.getByRole('link', { name: /^Products$/i });
+  await products.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: Products link missing'); });
+  await expect(products).toBeVisible();
+});
+`, `# Admin area login is impossible on a slow throttled 3G connection
+
+Logging into the Administration over a slow but stable connection times out before the admin shell becomes usable.
+`);
+const badBootstrapUsesModuleLinkResult = run(badBootstrapUsesModuleLink);
+if (badBootstrapUsesModuleLinkResult.status === 0) {
+  console.error('Expected admin bootstrap repro with unrelated module precondition to be rejected');
+  process.exit(1);
+}
+if (!badBootstrapUsesModuleLinkResult.stdout.includes('admin bootstrap/login repro')) {
+  console.error(`Unexpected bad-bootstrap-module output:\n${badBootstrapUsesModuleLinkResult.stdout}\n${badBootstrapUsesModuleLinkResult.stderr}`);
+  process.exit(1);
+}
+
+const goodBootstrapPrecondition = writeAdminBundle(`
+import { test, expect } from '@playwright/test';
+test('good admin bootstrap precondition', async ({ page }) => {
+  await page.goto('/admin#/sw/dashboard/index');
+  const banner = page.getByRole('banner');
+  await banner.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: Administration banner missing'); });
+  await expect(banner).toBeVisible();
+});
+`, `# Admin area login is impossible on a slow throttled 3G connection
+
+Logging into the Administration over a slow but stable connection times out before the admin shell becomes usable.
+`);
+const goodBootstrapPreconditionResult = run(goodBootstrapPrecondition);
+if (goodBootstrapPreconditionResult.status !== 0) {
+  console.error(`Expected admin bootstrap shell precondition to pass:\n${goodBootstrapPreconditionResult.stdout}\n${goodBootstrapPreconditionResult.stderr}`);
+  process.exit(1);
+}
+
 const badMobileAdminNavigation = writeAdminBundle(`
 import { test, expect } from '@playwright/test';
 test.use({ viewport: { width: 375, height: 812 } });

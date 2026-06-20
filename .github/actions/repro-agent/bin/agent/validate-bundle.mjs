@@ -172,7 +172,7 @@ function adminBootstrapIssue(text) {
 
 function adminMobileNavigationIssue(text) {
   return /\b(admin|administration|sidebar|off[- ]?canvas|menu|navigation)\b/i.test(text)
-    && /\b(mobile|small viewport|narrow|sidebar|off[- ]?canvas|hamburger|menu|navigation)\b/i.test(text);
+    && /\b(mobile|small viewport|narrow|sidebar|off[- ]?canvas|hamburger)\b/i.test(text);
 }
 
 function collectIssueTerms(text) {
@@ -194,6 +194,32 @@ function hasTargetedAdminPrecondition(source) {
 
   return /\b(getByRole|getByLabel|getByText|getByPlaceholder)\s*\([^)]*\{\s*name\s*:\s*(\/|\{|\[|'|")/s.test(preconditions)
     && !/\b(dashboard|home|navigation|toolbar|main navigation|administration shell|admin shell)\b/i.test(preconditions);
+}
+
+function hasAdminBootstrapPrecondition(source) {
+  const preconditions = preconditionSnippet(source);
+  return /\b(progressbar|banner|login|administration|admin shell|main|document)\b/i.test(preconditions);
+}
+
+function hasUnrelatedAdminModulePrecondition(source, text) {
+  const preconditions = preconditionSnippet(source);
+  const modules = [
+    'Catalogues',
+    'Catalogs',
+    'Products',
+    'Orders',
+    'Customers',
+    'Content',
+    'Marketing',
+    'Extensions',
+    'Settings',
+  ];
+
+  return modules.some((module) => {
+    const used = new RegExp(`\\b${module}\\b`, 'i').test(preconditions);
+    const reported = new RegExp(`\\b${module}\\b`, 'i').test(text);
+    return used && !reported;
+  });
 }
 
 function isPlaceholder(value) {
@@ -290,6 +316,18 @@ if (executor === 'playwright') {
     if (!bootstrapIssue && /page\.goto\s*\(\s*['"`]\/admin\/?['"`]/.test(executable)) {
       fail('admin-ui Playwright spec navigates only to the generic Administration shell; use the concrete /admin#/sw/... route for the reported module/action, then precondition on that target state');
     }
+    if (bootstrapIssue) {
+      if (!/\b(mobile|small viewport|narrow|phone|responsive)\b/i.test(issue)
+        && /test\.use\s*\(\s*\{[^}]*viewport\s*:\s*\{[^}]*width\s*:\s*(?:[1-5]\d{2}|600)\b/s.test(executable)) {
+        fail('admin bootstrap/login repro must not force a mobile viewport unless the issue is about mobile/responsive behavior; viewport-specific chrome creates false setup failures');
+      }
+      if (!hasAdminBootstrapPrecondition(executable)) {
+        fail('admin bootstrap/login repro must precondition on the login/bootstrap/admin-shell state itself, not on an unrelated downstream module');
+      }
+      if (hasUnrelatedAdminModulePrecondition(executable, issue)) {
+        fail('admin bootstrap/login repro uses an unrelated module/menu link as a precondition; prove the admin shell or reported login/bootstrap state instead');
+      }
+    }
     if (adminMobileNavigationIssue(`${issue}\n${JSON.stringify(plan.scenario ?? [])}`)) {
       if (!/test\.use\s*\(\s*\{[^}]*viewport\s*:\s*\{[^}]*width\s*:\s*(?:[1-5]\d{2}|600)\b/s.test(executable)) {
         fail('mobile admin navigation repro must force a narrow viewport before loading the admin route');
@@ -298,7 +336,7 @@ if (executor === 'playwright') {
         fail('mobile admin navigation repro must open the actual header hamburger/menu button before interacting with sidebar links; do not click nested menu text before proving the menu is open');
       }
     }
-    if (!hasTargetedAdminPrecondition(executable)) {
+    if (!bootstrapIssue && !hasTargetedAdminPrecondition(executable)) {
       fail([
         'admin-ui Playwright spec preconditions are too generic',
         'wait for the issue-specific module/action/entity/control before the symptom expect',

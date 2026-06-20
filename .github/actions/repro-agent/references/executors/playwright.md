@@ -131,6 +131,12 @@ await locator.waitFor({ state: 'visible', timeout })
   reported interaction.** Do not use guessed headings like `/^dashboard$/i`; Shopware may show
   time-based greetings (`Hi!`, `Good evening.`) or cards instead. If the screenshot shows the
   Administration is usable, a missing generic heading is a locator bug, not a reproduction.
+- **For Admin login/bootstrap/slow-network bugs, the bootstrap state is the target.** Do not invent
+  a downstream module precondition such as `Products`, `Orders`, `Settings`, or a mobile menu link
+  unless the issue names that module or viewport. Use the reported network/login/bootstrap setup,
+  wait for a stable admin-shell marker such as the banner/login/admin container/progress state, and
+  make the symptom assertion about the shell becoming usable or the reported timeout/error state.
+  Arbitrary module links create false negatives when responsive chrome or permissions differ.
 - **For Admin module/form bugs, use two mental checkpoints.** First, the admin shell must be usable;
   second, the issue-specific target must be present. Only the second checkpoint belongs in the
   decisive `PRECONDITION_NOT_FOUND` gate. Examples of good target gates: a seeded product name in
