@@ -58,6 +58,13 @@ locator fumbles) — it will be redundant at best and flaky at worst. (Storefron
 login, when an issue genuinely needs it, is still yours to author — follow the locator
 rules below.)
 
+When a storefront page has both registration and returning-customer login forms, scope customer
+login fields to the returning-customer form before filling them. Do not use a page-wide
+`getByRole('textbox', { name: /^email address$/i })`: it can fill the registration email field on
+some versions and leave the real login form empty. First find the form/region that contains the
+login submit button (`Sign in`, `Log in`, `Login`) or the already-customer heading, then fill
+`Email address` and `Password` inside that scope and precondition on an account marker after submit.
+
 For Admin issues that are not explicitly about bootstrap/login/loading, **do not start at plain
 `/admin`**. Use the concrete hash route for the reported module/action (`/admin#/sw/product/index`,
 `/admin#/sw/settings/rule/index`, `/admin#/sw/cms/index`, ...). Then make the precondition prove
@@ -143,6 +150,12 @@ await locator.waitFor({ state: 'visible', timeout })
   the Products grid, a field label like `Gross price`, a named rule in Rule Builder, the exact
   module-filter row from the issue, or the action button the bug says cannot be reached. Bad gates:
   `Dashboard`, `Home`, `navigation`, `toolbar`, `Administration`, or a generic row/card/button.
+- **For Admin multi-step actions, keep going through every confirmation modal.** Bulk edit,
+  delete, import/export, media replacement, and assignment flows often have an initial action,
+  then a start/confirm/apply modal, then the real network request. A screenshot showing a confirm
+  dialog means the symptom has not run yet. Wait for the modal's issue-specific confirm button,
+  click it, and precondition on the resulting request or target state before the single symptom
+  assertion.
 - **For mobile Admin sidebar/off-canvas bugs, do not click nested menu text until the menu is open.**
   A narrow viewport collapses the menu behind the header hamburger icon, and some builds do not give
   that icon a stable accessible name. Use the banner-scoped icon button, wait for it, click it, then

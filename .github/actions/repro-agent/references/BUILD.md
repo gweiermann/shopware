@@ -87,6 +87,10 @@ set, **STOP** and explain in plain text (not a JSON file) — never hand-roll a 
      cut off" — only `playwright` is faithful. An `http`/API check of the underlying data is **NOT**
      a substitute: the API can return correct data while the template renders it wrong (and vice
      versa), so an API assertion neither confirms nor denies a rendering bug.
+   - **Raw `/api/...` or `/store-api/...` JSON endpoints are API bugs even if the report used a
+     browser URL.** If the symptom is that an API route returns the wrong JSON, status code, or
+     exception page at an `/api/...` URL, use `http`; do not open that URL with Playwright or create
+     setup data from inside a browser tab.
    - **Never downgrade to a layer that can't show the reported symptom.** A hard Playwright setup
      (empty page, element won't appear) is a **fixture/precondition problem to fix** (seed the right
      data, force the viewport, use the technical route) — or, if you truly can't, stop with
@@ -131,7 +135,9 @@ set, **STOP** and explain in plain text (not a JSON file) — never hand-roll a 
      just set `admin_build` / `storefront_build` (+ `theme_build`) to match the surface your repro
      uses, so the trunk leg builds the same. `http`/`direct` repros leave them `false`.
    - Reference pre-existing install entities by `{{PLACEHOLDER}}` (`{{SC}}` `{{NAV_CAT}}`
-     `{{TAX}}` `{{CURRENCY}}` `{{COUNTRY}}` `{{SALUTATION}}` `{{LANGUAGE}}`) — NEVER a literal id
+     `{{TAX}}` `{{CURRENCY}}` `{{COUNTRY}}` `{{SALUTATION}}` `{{LANGUAGE}}`
+     `{{CUSTOMER_GROUP}}` `{{PAYMENT_METHOD}}` `{{SHIPPING_METHOD}}`
+     `{{ORDER_STATE_OPEN}}` `{{ORDER_DELIVERY_STATE_OPEN}}`) — NEVER a literal id
      read off this shop; every provisioned instance has different UUIDs (`seed.sh` rejects
      hardcoded install ids, because a literal seeds here but FK-fails on the reported/trunk legs).
    - Entities you create: deterministic 32-hex UUIDs, sync `upsert` (idempotent on re-seed; no

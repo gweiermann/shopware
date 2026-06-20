@@ -14,6 +14,15 @@ set -uo pipefail
 md=${ISSUE_MD:-issue.md}
 assets=${ASSETS:-issue-assets}
 
+# Raw JSON endpoints are API bugs even when the reporter attached a browser screenshot of the
+# response/error page. Keep this conservative so storefront/admin URLs with screenshots still go
+# through Playwright.
+if [ -f "$md" ] \
+  && grep -qiE '(^|[^[:alnum:]_-])/(api|store-api)/[A-Za-z0-9_./{}?=&%-]+' "$md" \
+  && grep -qiE '\b(api|json|response|request|endpoint|route|http|status|status code|400|401|403|404|405|500|exception|error|payload|body|header|admin api|store api|store-api)\b' "$md"; then
+  printf 'api'; exit 0
+fi
+
 # Screenshots attached → treat as visual (a reporter shows a rendering defect with an image).
 if [ -d "$assets" ] && [ -n "$(ls -A "$assets" 2>/dev/null)" ]; then printf 'visual'; exit 0; fi
 

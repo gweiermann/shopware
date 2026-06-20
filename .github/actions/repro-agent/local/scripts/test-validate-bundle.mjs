@@ -125,6 +125,27 @@ if (!unsupportedPlaceholderResult.stdout.includes('unsupported placeholder')) {
   process.exit(1);
 }
 
+const supportedInstallPlaceholdersDir = fs.mkdtempSync(path.join(os.tmpdir(), 'repro-agent-validate-'));
+fs.writeFileSync(path.join(supportedInstallPlaceholdersDir, 'issue.md'), '# Admin order API endpoint returns a billing address\n');
+fs.writeFileSync(path.join(supportedInstallPlaceholdersDir, 'issue-class.txt'), 'api');
+fs.writeFileSync(path.join(supportedInstallPlaceholdersDir, 'reproduction-plan.json'), `${JSON.stringify({
+  schema_version: '1',
+  issue: 23,
+  executor: 'http',
+  request: {
+    method: 'POST',
+    path: '/api/_action/sync',
+    body: '{"stateId":"{{ORDER_STATE_OPEN}}","deliveryStateId":"{{ORDER_DELIVERY_STATE_OPEN}}","shippingMethodId":"{{SHIPPING_METHOD}}","paymentMethodId":"{{PAYMENT_METHOD}}"}',
+  },
+  assertions: [{ kind: 'http_status', expect: '200' }],
+}, null, 2)}\n`);
+fs.writeFileSync(path.join(supportedInstallPlaceholdersDir, 'fixtures.json'), '{}\n');
+const supportedInstallPlaceholdersResult = run(supportedInstallPlaceholdersDir);
+if (supportedInstallPlaceholdersResult.status !== 0) {
+  console.error(`Expected supported install placeholders to pass:\n${supportedInstallPlaceholdersResult.stdout}\n${supportedInstallPlaceholdersResult.stderr}`);
+  process.exit(1);
+}
+
 const wrongAccountAddressMethodDir = fs.mkdtempSync(path.join(os.tmpdir(), 'repro-agent-validate-'));
 fs.writeFileSync(path.join(wrongAccountAddressMethodDir, 'issue.md'), '# store-api registration preserves shipping address salutation\n');
 fs.writeFileSync(path.join(wrongAccountAddressMethodDir, 'issue-class.txt'), 'api');

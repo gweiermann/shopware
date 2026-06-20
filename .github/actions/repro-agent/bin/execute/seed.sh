@@ -49,7 +49,7 @@ resolve_ids || { echo "::error::could not resolve install ids"; exit 1; }
 # generates different UUIDs, so a literal id seeds fine on the builder but FK-fails (SQL 1452)
 # on the freshly-provisioned reported/trunk legs (a real failure we hit). This runs on the
 # builder too (where the ids match), so build-verify catches it before the matrix ever runs.
-for kv in "SC:$SC" "NAV_CAT:$NAV_CAT" "TAX:$TAX" "CURRENCY:$CURRENCY" "COUNTRY:$COUNTRY" "SALUTATION:$SALUTATION" "SALUTATION2:$SALUTATION2" "LANGUAGE:$LANGUAGE" "CUSTOMER_GROUP:$CUSTOMER_GROUP" "PAYMENT_METHOD:$PAYMENT_METHOD"; do
+for kv in "SC:$SC" "NAV_CAT:$NAV_CAT" "TAX:$TAX" "CURRENCY:$CURRENCY" "COUNTRY:$COUNTRY" "SALUTATION:$SALUTATION" "SALUTATION2:$SALUTATION2" "LANGUAGE:$LANGUAGE" "CUSTOMER_GROUP:$CUSTOMER_GROUP" "PAYMENT_METHOD:$PAYMENT_METHOD" "SHIPPING_METHOD:$SHIPPING_METHOD" "ORDER_STATE_OPEN:$ORDER_STATE_OPEN" "ORDER_DELIVERY_STATE_OPEN:$ORDER_DELIVERY_STATE_OPEN"; do
   k=${kv%%:*}; v=${kv#*:}
   if [ -n "$v" ] && grep -qF "$v" "$PAYLOAD"; then
     echo "::error::fixtures.json hardcodes an install-specific id ($v) — reference it with the {{$k}} placeholder instead. Each provisioned instance generates different UUIDs, so a literal id seeds on the builder but FK-fails on the reported/trunk legs."
@@ -59,7 +59,7 @@ for kv in "SC:$SC" "NAV_CAT:$NAV_CAT" "TAX:$TAX" "CURRENCY:$CURRENCY" "COUNTRY:$
 done
 
 # Fail loud if a referenced placeholder resolved to EMPTY (else we'd POST an empty UUID).
-for kv in "SC:$SC" "NAV_CAT:$NAV_CAT" "TAX:$TAX" "CURRENCY:$CURRENCY" "COUNTRY:$COUNTRY" "SALUTATION:$SALUTATION" "SALUTATION2:$SALUTATION2" "LANGUAGE:$LANGUAGE" "CUSTOMER_GROUP:$CUSTOMER_GROUP" "PAYMENT_METHOD:$PAYMENT_METHOD"; do
+for kv in "SC:$SC" "NAV_CAT:$NAV_CAT" "TAX:$TAX" "CURRENCY:$CURRENCY" "COUNTRY:$COUNTRY" "SALUTATION:$SALUTATION" "SALUTATION2:$SALUTATION2" "LANGUAGE:$LANGUAGE" "CUSTOMER_GROUP:$CUSTOMER_GROUP" "PAYMENT_METHOD:$PAYMENT_METHOD" "SHIPPING_METHOD:$SHIPPING_METHOD" "ORDER_STATE_OPEN:$ORDER_STATE_OPEN" "ORDER_DELIVERY_STATE_OPEN:$ORDER_DELIVERY_STATE_OPEN"; do
   k=${kv%%:*}; v=${kv#*:}
   if grep -q "{{$k}}" "$PAYLOAD" && [ -z "$v" ]; then
     echo "::error::could not resolve {{$k}} (admin search returned empty)"; exit 1
@@ -69,7 +69,8 @@ done
 OUT=$(mktemp)
 sed -e "s/{{SC}}/$SC/g" -e "s/{{NAV_CAT}}/$NAV_CAT/g" -e "s/{{TAX}}/$TAX/g" -e "s/{{CURRENCY}}/$CURRENCY/g" \
     -e "s/{{COUNTRY}}/$COUNTRY/g" -e "s/{{SALUTATION2}}/$SALUTATION2/g" -e "s/{{SALUTATION}}/$SALUTATION/g" -e "s/{{LANGUAGE}}/$LANGUAGE/g" \
-    -e "s/{{CUSTOMER_GROUP}}/$CUSTOMER_GROUP/g" -e "s/{{PAYMENT_METHOD}}/$PAYMENT_METHOD/g" "$PAYLOAD" > "$OUT"
+    -e "s/{{CUSTOMER_GROUP}}/$CUSTOMER_GROUP/g" -e "s/{{PAYMENT_METHOD}}/$PAYMENT_METHOD/g" -e "s/{{SHIPPING_METHOD}}/$SHIPPING_METHOD/g" \
+    -e "s/{{ORDER_STATE_OPEN}}/$ORDER_STATE_OPEN/g" -e "s/{{ORDER_DELIVERY_STATE_OPEN}}/$ORDER_DELIVERY_STATE_OPEN/g" "$PAYLOAD" > "$OUT"
 
 # Fail loud if any placeholder is still unresolved (would seed broken entities).
 if grep -q '{{' "$OUT"; then

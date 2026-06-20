@@ -8,7 +8,9 @@
 #    header the agent wrote is dropped), so an admin-api request is never sent a store key.
 #  - install-specific placeholders in path/body/headers/expect, resolved against the shop:
 #    {{SC}} {{NAV_CAT}} {{COUNTRY}} {{SALUTATION}} {{SALUTATION2}} {{TAX}} {{CURRENCY}}
-#    {{LANGUAGE}} {{STOREFRONT_URL}} {{SW_ACCESS_KEY}} {{SW_CONTEXT_TOKEN}}
+#    {{LANGUAGE}} {{CUSTOMER_GROUP}} {{PAYMENT_METHOD}} {{SHIPPING_METHOD}}
+#    {{ORDER_STATE_OPEN}} {{ORDER_DELIVERY_STATE_OPEN}}
+#    {{STOREFRONT_URL}} {{SW_ACCESS_KEY}} {{SW_CONTEXT_TOKEN}}
 #  - multi-step: `requests: [...]`; sw-context-token captured + carried forward; a non-final
 #    setup request that isn't 2xx => blocked.
 #  - MULTIPLE assertions: `assertions: [ {kind, field?, expect?, op?}, ... ]` (a single
@@ -43,7 +45,7 @@ NREQ=$(echo "$REQS" | jq 'length')
 
 # Plain vars (no associative array → portable to bash 3.2 + the CI's bash 5).
 STOREFRONT_URL="$BASE"
-SC=""; NAV_CAT=""; COUNTRY=""; SALUTATION=""; SALUTATION2=""; TAX=""; CURRENCY=""; LANGUAGE=""; CUSTOMER_GROUP=""; PAYMENT_METHOD=""
+SC=""; NAV_CAT=""; COUNTRY=""; SALUTATION=""; SALUTATION2=""; TAX=""; CURRENCY=""; LANGUAGE=""; CUSTOMER_GROUP=""; PAYMENT_METHOD=""; SHIPPING_METHOD=""; ORDER_STATE_OPEN=""; ORDER_DELIVERY_STATE_OPEN=""
 
 # Auth by surface: the admin API (/api/...) needs an OAuth Bearer token; the store API
 # (/store-api/...) uses sw-access-key. Detect whether ANY request targets the admin API.
@@ -96,6 +98,9 @@ resolve() { # substitute {{KEY}} placeholders (SALUTATION2 before SALUTATION)
   s="${s//\{\{LANGUAGE\}\}/$LANGUAGE}"
   s="${s//\{\{CUSTOMER_GROUP\}\}/$CUSTOMER_GROUP}"
   s="${s//\{\{PAYMENT_METHOD\}\}/$PAYMENT_METHOD}"
+  s="${s//\{\{SHIPPING_METHOD\}\}/$SHIPPING_METHOD}"
+  s="${s//\{\{ORDER_STATE_OPEN\}\}/$ORDER_STATE_OPEN}"
+  s="${s//\{\{ORDER_DELIVERY_STATE_OPEN\}\}/$ORDER_DELIVERY_STATE_OPEN}"
   s="${s//\{\{SW_CONTEXT_TOKEN\}\}/$CTX}"
   printf '%s' "$s"
 }

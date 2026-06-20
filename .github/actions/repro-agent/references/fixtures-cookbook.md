@@ -174,3 +174,64 @@ For the spec, use three preconditions before the symptom assertion:
 Only then click the wishlist card's `Add to shopping cart` button and assert the healthy off-canvas
 state. If `/wishlist` shows the empty-state illustration or text, fix the login/session/wishlist
 setup or stop as inconclusive; never score that as the product-card bug.
+
+## Order fixtures — keep order addresses inside the order aggregate
+
+Order graphs are FK-heavy. Do not reuse a `customer_address` id as an
+`order_delivery.shippingOrderAddressId` or `order.billingAddressId`; those fields point to
+`order_address`, not `customer_address`. The portable pattern is to create the address inside the
+same `order` payload and reference that order-address id from `billingAddressId` and each delivery:
+
+```json
+"order": [
+  {
+    "id": "12000000000000000000000000000001",
+    "orderNumber": "REPRO-ORDER-1",
+    "salesChannelId": "{{SC}}",
+    "currencyId": "{{CURRENCY}}",
+    "languageId": "{{LANGUAGE}}",
+    "currencyFactor": 1,
+    "orderDateTime": "2024-01-01T00:00:00+00:00",
+    "stateId": "{{ORDER_STATE_OPEN}}",
+    "billingAddressId": "1200000000000000000000000000000a",
+    "price": { "netPrice": 10, "totalPrice": 10, "positionPrice": 10, "rawTotal": 10,
+      "taxStatus": "gross", "calculatedTaxes": [], "taxRules": [] },
+    "shippingCosts": { "unitPrice": 0, "totalPrice": 0, "quantity": 1,
+      "calculatedTaxes": [], "taxRules": [] },
+    "itemRounding": { "decimals": 2, "interval": 0.01, "roundForNet": true },
+    "totalRounding": { "decimals": 2, "interval": 0.01, "roundForNet": true },
+    "addresses": [
+      { "id": "1200000000000000000000000000000a", "firstName": "Order", "lastName": "Billing",
+        "street": "Order St 1", "zipcode": "12345", "city": "Order City",
+        "countryId": "{{COUNTRY}}", "salutationId": "{{SALUTATION}}" }
+    ],
+    "lineItems": [
+      { "id": "12000000000000000000000000000002", "identifier": "repro-line-1",
+        "quantity": 1, "label": "Repro item", "good": true, "stackable": true, "removable": true,
+        "type": "custom", "price": { "unitPrice": 10, "totalPrice": 10, "quantity": 1,
+          "calculatedTaxes": [], "taxRules": [] },
+        "priceDefinition": { "type": "quantity", "price": 10, "quantity": 1, "isCalculated": true } }
+    ],
+    "deliveries": [
+      { "id": "12000000000000000000000000000003",
+        "shippingOrderAddressId": "1200000000000000000000000000000a",
+        "shippingCosts": { "unitPrice": 0, "totalPrice": 0, "quantity": 1,
+          "calculatedTaxes": [], "taxRules": [] },
+        "stateId": "{{ORDER_DELIVERY_STATE_OPEN}}",
+        "shippingMethodId": "{{SHIPPING_METHOD}}",
+        "positions": [
+          { "id": "12000000000000000000000000000004",
+            "orderLineItemId": "12000000000000000000000000000002",
+            "price": { "unitPrice": 10, "totalPrice": 10, "quantity": 1,
+              "calculatedTaxes": [], "taxRules": [] } }
+        ] }
+    ]
+  }
+]
+```
+
+For basic open orders, use `{{ORDER_STATE_OPEN}}` and `{{ORDER_DELIVERY_STATE_OPEN}}` instead of
+literal state-machine UUIDs. If an order bug needs a non-open state, resolve it with `shop-get.sh
+state-machine-state --filter ...` before authoring the final fixture, or choose an `http` flow that
+creates/updates through the Admin API and marks state resolution as setup. An FK failure while
+seeding an order is a fixture precondition failure, never the reported symptom.
