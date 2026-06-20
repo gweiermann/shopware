@@ -95,6 +95,23 @@ function archiveIssue(issue) {
   return summary;
 }
 
+function extractGiveupReason(agent) {
+  const output = `${agent.stdout}\n${agent.stderr}`.trim();
+  if (!/\bverify-reproduction\.sh\s+giveup\b|\bgiveup\b/.test(output)) return null;
+
+  const reason = output
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => (
+      line
+      && !line.includes('verify-reproduction.sh giveup')
+      && !line.includes('Verifier result:')
+      && !line.includes('STOP')
+    ));
+
+  return reason || 'Agent used verify-reproduction.sh giveup before producing a reproduction bundle.';
+}
+
 function parseIssues(value) {
   if (!value) return [];
   return value.split(',').flatMap((part) => {
@@ -201,6 +218,23 @@ for (const issue of issues) {
   fs.rmSync(localRestoreFlag, { force: true });
   if (agent.timedOut) {
     console.error(`agent issue #${issue} timed out after ${agentTimeoutMs}ms`);
+  }
+
+  const giveupReason = extractGiveupReason(agent);
+  if (giveupReason) {
+    const summary = archiveIssue(issue);
+    summary.status = 'blocked';
+    summary.blocked_reason = summary.blocked_reason || giveupReason;
+    summary.agent_exit = agent.status;
+    summary.contract_exit = null;
+    summaries.push(summary);
+    fs.writeFileSync(path.join(root, `.scratch/repro-agent-local/runs/issue-${issue}/summary.json`), `${JSON.stringify(summary, null, 2)}\n`);
+    console.log(`== issue #${issue}: ${summary.status} (${summary.executor || 'unknown'}) ==`);
+
+    if (stopOnFailure) {
+      break;
+    }
+    continue;
   }
 
   const contract = run(`contract issue #${issue}`, 'node', [
