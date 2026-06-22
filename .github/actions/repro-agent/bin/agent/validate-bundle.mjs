@@ -522,6 +522,18 @@ function validateOrderFixtures(data) {
   }
 }
 
+function validateProductPriceCurrency(data) {
+  for (const product of entityRows(data, 'product')) {
+    const prices = entityPayload(product.price);
+    if (prices.length === 0) continue;
+
+    if (!prices.some((price) => price?.currencyId === '{{CURRENCY}}')) {
+      const label = product.productNumber || product.name || product.id || 'unknown product';
+      fail(`product fixture '${label}' defines price entries but no default {{CURRENCY}} price; use "currencyId": "{{CURRENCY}}" so the provisioned shop can seed the default-currency price`);
+    }
+  }
+}
+
 function assertionsFromPlan(data) {
   if (Array.isArray(data.assertions)) return data.assertions;
   if (data.assertion && typeof data.assertion === 'object') return [data.assertion];
@@ -581,6 +593,7 @@ function groupedPreconditionCatch(source) {
 
 validateUuidFields(fixtures);
 validateOrderFixtures(fixtures);
+validateProductPriceCurrency(fixtures);
 
 const unknownPlaceholders = [...collectPlaceholders(plan)]
   .filter((name) => !allowedPlaceholders.has(name));

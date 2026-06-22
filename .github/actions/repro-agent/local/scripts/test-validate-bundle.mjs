@@ -1788,6 +1788,44 @@ if (goodSyncWrappedResult.status !== 0) {
   process.exit(1);
 }
 
+const badProductPriceCurrency = writeAdminBundle(`
+import { test, expect } from '@playwright/test';
+test('bad product price currency fixture', async ({ page }) => {
+  await page.goto('/admin#/sw/product/index');
+  const marker = page.getByText('Product fixture marker');
+  await marker.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: product marker missing'); });
+  await expect(marker).toBeVisible();
+});
+`);
+fs.writeFileSync(path.join(badProductPriceCurrency, 'fixtures.json'), `${JSON.stringify({
+  product: [
+    {
+      id: '11000000000000000000000000000001',
+      productNumber: 'PRICE-CURRENCY-MISSING',
+      name: 'Product fixture marker',
+      taxId: '{{TAX}}',
+      price: [
+        {
+          currencyId: '019ee0de90d973a4a2331ca2a2cb6fbf',
+          gross: 19.99,
+          net: 18.68,
+          linked: true,
+        },
+      ],
+    },
+  ],
+}, null, 2)}\n`);
+const badProductPriceCurrencyResult = run(badProductPriceCurrency);
+if (badProductPriceCurrencyResult.status === 0) {
+  console.error('Expected product price without {{CURRENCY}} to be rejected');
+  process.exit(1);
+}
+if (!badProductPriceCurrencyResult.stdout.includes('no default {{CURRENCY}} price')) {
+  console.error(`Unexpected bad-product-price-currency output:\n${badProductPriceCurrencyResult.stdout}\n${badProductPriceCurrencyResult.stderr}`);
+  process.exit(1);
+}
+
 const badOrderFixture = writeBundle(`
 import { test, expect } from '@playwright/test';
 test('order fixture shape', async ({ page }) => {

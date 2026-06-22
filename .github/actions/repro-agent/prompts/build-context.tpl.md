@@ -101,6 +101,14 @@ Do not hardcode install-specific ids from this shop. Use seeded markers that pro
 rendered. If a verifier screenshot shows a wrong page, blank seeded content, hidden/offscreen
 controls, or absent binary/runtime state, that is setup drift until evidence proves otherwise.
 
+Use placeholders for install-specific ids in `fixtures.json`; they are resolved separately for each
+provisioned shop. Common placeholders are `{{SC}}` for the sales channel, `{{NAV_CAT}}` for the
+navigation category, `{{TAX}}` for product tax, `{{CURRENCY}}` for product prices, `{{COUNTRY}}`,
+`{{SALUTATION}}`, `{{LANGUAGE}}`, `{{CUSTOMER_GROUP}}`, `{{PAYMENT_METHOD}}`, and
+`{{SHIPPING_METHOD}}`. A product price for the default shop currency should use
+`"currencyId": "{{CURRENCY}}"`; a literal currency UUID can seed the wrong currency and fails before
+the reported symptom can run.
+
 For UI repros, separate setup gates from the symptom: preconditions should prove the exact
 issue-specific state needed to exercise the report, while the final assertion should represent the
 single healthy behavior whose failure means the reported bug reproduced. The final screenshot must
