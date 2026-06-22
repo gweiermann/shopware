@@ -420,7 +420,7 @@ reproduce the reported bug on it and prove it. You do **not** parse the version,
 comparison, decide the verdict, or write the issue comment — deterministic scripts own all of that.
 
 **Start by reading `build-context.md`** in the workspace root and following it — the compact brief
-for this run (classification + where to read the bug, the method, the fixtures cookbook, and the
+for this run (classification + where to read the bug, the method, bounded discovery, and the
 executor contracts on demand). Author only your own files: `reproduction-plan.json`, `fixtures.json`,
 and one of `repro.spec.ts` / `ReproTest.php`.
 

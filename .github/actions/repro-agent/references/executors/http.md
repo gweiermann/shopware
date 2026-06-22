@@ -161,10 +161,10 @@ Body filters take **comma-separated strings** of ids, NOT JSON arrays:
 `{"properties":"<optionId1>,<optionId2>","manufacturer":"<id>"}`. An array
 (`"properties":["..."]`) returns **HTTP 400 "contains a non-scalar value"** — a harness mistake,
 not the bug. The response is `{ elements:[…products…], total, aggregations:{ properties:{entities:[…]} } }`.
-A variant only appears here if it's seeded to surface (see the **fixtures cookbook**: the
-filterable property must be on the variant, `visibility`+`categories` set, and reindexed). If the
-listing is empty, that's the seed — verify the UNFILTERED listing returns your product before
-trusting a filtered one.
+A variant only appears here if it is seeded to surface: the filterable property must be on the
+variant, `visibility`+`categories` must make it storefront-visible, and the index must be refreshed.
+If the listing is empty, that's the seed — verify the UNFILTERED listing returns your product
+before trusting a filtered one.
 
 ## Failure semantics (no false positives)
 - A non-2xx on a **non-final** request → `blocked` (setup broke; body shown).

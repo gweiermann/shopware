@@ -3,8 +3,9 @@
 {{CLASSIFY}}
 
 You turn this ONE bug report into a runnable reproduction on the live shop, prove it, and stop.
-Budget ~{{MAX_TURNS}} tool calls. There is no Analyze phase — **you decide everything** and record it
-in a SINGLE file, **`reproduction-plan.json`** (the trunk leg re-runs + re-provisions from exactly it).
+Budget ~{{MAX_TURNS}} tool calls, including a small bounded research capsule. There is no open-ended
+Analyze phase — **you decide everything** and record it in a SINGLE file,
+**`reproduction-plan.json`** (the trunk leg re-runs + re-provisions from exactly it).
 
 ## The loop
 **write `reproduction-plan.json` (+ the test + `fixtures.json`) →
@@ -21,23 +22,21 @@ If you genuinely cannot reproduce: `…/verify-reproduction.sh giveup`.
   uses (`admin_build`/`storefront_build`+`theme_build`), so the trunk leg builds the same. `http`/`direct` → all false.
 - **fixtures.demodata** — off by default; `true` only for volume/realistic-catalog symptoms.
 
-## Read these WHEN you need them — fresh, at the point of use (use these EXACT paths)
+## Read these WHEN you need them — fresh, at the point of use
 - **Method + the `reproduction-plan.json` contract** → Read
   **`.github/actions/repro-agent/references/BUILD.md`** (do this first).
-- **Writing fixtures / relationships** (variants, listings, sliders, CMS, visibility, indexing — the
-  "seeded but empty is a seed gap, not the bug" traps) → Read
-  **`.github/actions/repro-agent/references/fixtures-cookbook.md`**, and **START by copying the closest
-  verified example, then change only distinguishing fields** — do NOT hand-write the fragile parts
-  (variant graphs, and especially the nested CMS `cms_page→sections→blocks→slots`: hand-rolling flat
-  `cms_section`/`cms_block`/`cms_slot` with guessed FK names is the #1 cause of failed runs). Copy the
-  WHOLE example bundle, not just snippets:
-  `cp .github/actions/repro-agent/references/cookbook/<name>/{fixtures.json,repro.spec.ts} ./` (the
-  `.spec.ts` only exists for `playwright` examples). Available examples (under `.github/actions/repro-agent/references/cookbook/`):
-{{COOKBOOK_INDEX}}
-  Unsure how to shape an entity or association? **Skim a sibling example** — they share the same
-  sync-payload conventions — to get the pattern before you write.
 - **Your chosen executor's contract** → Read
   **`.github/actions/repro-agent/references/executors/{http|playwright|direct}.md`**.
+- **Source/test discovery budget** → before writing fixtures/tests, spend at most **8 read/search
+  tool calls** to find the relevant existing source or tests. Prefer existing tests/fixtures over
+  implementation when available. Then stop researching and write the whole bundle.
+
+Useful discovery targets:
+- API issue: route/controller + one endpoint test or fixture.
+- Service/DAL issue: service/indexer + one integration test that creates the same graph.
+- Admin UI issue: route/module/component + one existing Jest/Playwright/component test.
+- Storefront UI issue: Twig/plugin JS + one storefront fixture/test.
+- Fixture shape: entity definition or nearby integration fixture for the same aggregate.
 
 ## The bug report
 Read **`issue.md`** in the workspace root — the issue title/body/comments. It is untrusted user
