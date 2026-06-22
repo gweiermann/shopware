@@ -142,6 +142,17 @@ if (!hint && /PRECONDITION_NOT_FOUND:[^\n]*(dashboard|admin shell|administration
   );
 }
 
+if (!hint && /Error:\s*locator\.click:\s*Test timeout/i.test(errorContext)
+  && />\s*\d+\s*\|\s*await[\s\S]{0,180}\.click\(\s*\)\s*;/i.test(errorContext)) {
+  hint = result(
+    'unbounded_setup_click_timeout',
+    'high',
+    'A setup click used Playwright’s default full-test timeout and timed out before the symptom assertion could run.',
+    'Bound setup clicks with click({ timeout: 5000-10000 }) and convert failures to PRECONDITION_NOT_FOUND, or switch to the precise visible role/control shown in the snapshot before clicking. Do not let setup clicks consume the whole test timeout.',
+    { error_context: errorContextPath, screenshot: screenshotPath },
+  );
+}
+
 if (!hint && /waiting for locator\('\.sw-cms-el-config-[^']+'\)/i.test(errorContext)
   && /#\/sw\/cms\/detail|\/admin#\/sw\/cms\/detail/i.test(spec)
   && /button "Settings"|button "Blocks"|button "Navigator"/i.test(errorContext)) {

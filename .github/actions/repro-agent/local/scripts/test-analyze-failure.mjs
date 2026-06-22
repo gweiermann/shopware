@@ -109,6 +109,35 @@ runCase('generic-chrome', {
   'test-results/repro/error-context.md': 'Error: PRECONDITION_NOT_FOUND: dashboard heading Howdy!',
 }, 'generic_chrome_precondition');
 
+const unboundedClickHint = runCase('unbounded-click-timeout', {
+  'reproduction-plan.json': basePlan,
+  'repro.spec.ts': `
+    await page.getByText(/^Full width$/i).click();
+  `,
+  'builder-result.json': {
+    status: 'inconclusive',
+    evidence: { reporter_output: 'failure was not a value assertion — Test timeout of 120000ms exceeded.' },
+  },
+  'test-results/repro/error-context.md': `
+Error: locator.click: Test timeout of 120000ms exceeded.
+Call log:
+  - waiting for getByText(/^Full width$/i)
+
+# Page snapshot
+- button "Full width"
+
+# Test source
+  24 | async function createPage(page) {
+> 25 |     await page.getByText(/^Full width$/i).click();
+     |                                           ^ Error: locator.click: Test timeout of 120000ms exceeded.
+  26 | }
+  `,
+}, 'unbounded_setup_click_timeout');
+if (!unboundedClickHint.repair.includes('Bound setup clicks')) {
+  console.error(`Expected unbounded click hint to mention bounded setup clicks:\n${JSON.stringify(unboundedClickHint, null, 2)}`);
+  process.exit(1);
+}
+
 const cmsConfigHint = runCase('cms-config-not-open', {
   'reproduction-plan.json': basePlan,
   'repro.spec.ts': `
