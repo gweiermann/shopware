@@ -222,6 +222,11 @@ function adminUiPlan() {
     && (layer.includes('admin') || plan.build_profile?.admin_build === true);
 }
 
+function playwrightUsesAdminRoute(source) {
+  return /\bpage\.goto\s*\(\s*['"`]\/admin(?:#\/sw\/|\/|\b|['"`])/s.test(source)
+    || /['"`]\/admin#\/sw\//.test(source);
+}
+
 function adminBootstrapIssue(text) {
   return /\b(admin|administration|login|dashboard)\b/i.test(text)
     && /\b(loads?|loading|bootstrap|startup|start[- ]?up|login|authentication|slow|network|timeout|blank|stuck)\b/i.test(text);
@@ -586,6 +591,12 @@ if (executor === 'playwright') {
   }
   if (groupedPreconditionCatch(executable)) {
     fail('Playwright preconditions must not group multiple distinct waits in one PRECONDITION_NOT_FOUND catch; wrap each required marker/control separately so verifier failures name the exact missing state');
+  }
+  if (playwrightUsesAdminRoute(executable)) {
+    const layer = String(plan.layer ?? '');
+    if (!layer.includes('admin') || plan.build_profile?.admin_build !== true) {
+      fail('Playwright spec navigates to the Administration, so reproduction-plan.json must declare layer "admin-ui" and build_profile.admin_build=true; storefront/theme builds do not provision the Admin surface the spec exercises');
+    }
   }
 
   if (wishlistIssue(issue) && !hasEnabledWishlistConfig(fixtures)) {

@@ -75,6 +75,45 @@ The Products module should allow editing the Gross price field, but the field is
   return dir;
 }
 
+const adminRouteWithStorefrontPlan = fs.mkdtempSync(path.join(os.tmpdir(), 'repro-agent-validate-'));
+fs.writeFileSync(path.join(adminRouteWithStorefrontPlan, 'issue.md'), `# Media replacement button stays disabled in Administration
+
+Replacing media in the Administration should enable the replace button.
+`);
+fs.writeFileSync(path.join(adminRouteWithStorefrontPlan, 'issue-class.txt'), 'visual');
+fs.writeFileSync(path.join(adminRouteWithStorefrontPlan, 'reproduction-plan.json'), `${JSON.stringify({
+  schema_version: '1',
+  issue: 27,
+  layer: 'storefront-ui',
+  executor: 'playwright',
+  script_path: 'repro.spec.ts',
+  build_profile: {
+    admin_build: false,
+    storefront_build: true,
+    theme_build: true,
+  },
+}, null, 2)}\n`);
+fs.writeFileSync(path.join(adminRouteWithStorefrontPlan, 'fixtures.json'), '{}\n');
+fs.writeFileSync(path.join(adminRouteWithStorefrontPlan, 'repro.spec.ts'), `
+import { test, expect } from '@playwright/test';
+test('bad admin surface plan', async ({ page }) => {
+  const marker = page.getByText('Media');
+  await page.goto('/admin#/sw/media/index');
+  await marker.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: Media module missing'); });
+  await expect(page.getByRole('button', { name: /Replace/i })).toBeEnabled();
+});
+`);
+const adminRouteWithStorefrontPlanResult = run(adminRouteWithStorefrontPlan);
+if (adminRouteWithStorefrontPlanResult.status === 0) {
+  console.error('Expected Admin route with storefront-ui/no-admin-build plan to be rejected');
+  process.exit(1);
+}
+if (!adminRouteWithStorefrontPlanResult.stdout.includes('must declare layer "admin-ui"')) {
+  console.error(`Unexpected admin-route-surface output:\n${adminRouteWithStorefrontPlanResult.stdout}\n${adminRouteWithStorefrontPlanResult.stderr}`);
+  process.exit(1);
+}
+
 const invalidUuid = writeBundle(`
 import { test, expect } from '@playwright/test';
 test('bad fixture uuid', async ({ page }) => {

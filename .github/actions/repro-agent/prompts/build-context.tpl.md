@@ -56,7 +56,8 @@ the current Shopware source/tests.
 - `playwright`: any rendered UI, visual, interaction, screenshot, missing text, layout, or browser
   state symptom. A visual issue must stay Playwright even if setup is hard.
 
-Admin and Storefront are already built. Record the surface you use in `build_profile`; `http` and
+Admin and Storefront are already built. Record the surface you use in `build_profile`: any spec that
+navigates to `/admin...` is `admin-ui` and must set `build_profile.admin_build=true`. `http` and
 `direct` normally leave all build flags false. Keep `fixtures.demodata` false unless a realistic
 catalog/search/listing volume is required; still anchor on your own seeded marker when demodata is
 enabled.
