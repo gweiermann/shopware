@@ -1,0 +1,122 @@
+#!/usr/bin/env node
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+
+const root = process.cwd();
+const analyzer = path.join(root, '.github/actions/repro-agent/bin/agent/analyze-failure.mjs');
+
+function writeJson(dir, file, value) {
+  fs.writeFileSync(path.join(dir, file), `${JSON.stringify(value, null, 2)}\n`);
+}
+
+function mkdirp(dir) {
+  fs.mkdirSync(dir, { recursive: true });
+}
+
+function runCase(name, files, expectedKind) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), `repro-agent-analyze-${name}-`));
+  try {
+    for (const [file, content] of Object.entries(files)) {
+      const target = path.join(dir, file);
+      mkdirp(path.dirname(target));
+      if (typeof content === 'string') {
+        fs.writeFileSync(target, content);
+      } else {
+        writeJson(dir, file, content);
+      }
+    }
+
+    const result = spawnSync('node', [analyzer, dir], {
+      cwd: root,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    if (result.status !== 0) {
+      console.error(`Analyzer failed for ${name}:\n${result.stdout}\n${result.stderr}`);
+      process.exit(1);
+    }
+
+    const hint = JSON.parse(result.stdout);
+    if (hint.kind !== expectedKind) {
+      console.error(`Expected ${name} to emit ${expectedKind}, got ${hint.kind}:\n${result.stdout}`);
+      process.exit(1);
+    }
+
+    return hint;
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+const basePlan = {
+  schema_version: '1',
+  issue: 1,
+  layer: 'admin-ui',
+  executor: 'playwright',
+  version: '6.7.9.0',
+  script_path: 'repro.spec.ts',
+  confidence: 0.75,
+};
+
+runCase('route', {
+  'reproduction-plan.json': basePlan,
+  'repro.spec.ts': `
+    await Promise.all([
+      page.waitForURL('**#/sw/settings/index', { timeout: 10000 }),
+      settingsLink.click({ timeout: 10000 }),
+    ]);
+  `,
+  'builder-result.json': {
+    status: 'inconclusive',
+    evidence: { reporter_output: 'precondition absent on this version — Error: PRECONDITION_NOT_FOUND: route change to Settings' },
+  },
+  'test-results/repro/error-context.md': `
+# Error details
+Error: PRECONDITION_NOT_FOUND: route change to Settings
+
+# Page snapshot
+- link "Go back":
+  - /url: "#/sw/settings/index/system"
+- heading "System Shopware Services"
+  `,
+  'test-results/repro/test-failed-1.png': 'not really an image',
+}, 'over_exact_route_gate');
+
+runCase('offscreen', {
+  'reproduction-plan.json': basePlan,
+  'repro.spec.ts': 'await page.getByText("Catalogues").click();',
+  'builder-result.json': {
+    status: 'inconclusive',
+    evidence: { reporter_output: 'failure was not a value assertion' },
+  },
+  'test-results/repro/error-context.md': `
+TimeoutError: locator.click: Timeout 10000ms exceeded.
+  - element is visible, enabled and stable
+  - element is outside of the viewport
+  `,
+}, 'offscreen_click_target');
+
+runCase('generic-chrome', {
+  'reproduction-plan.json': basePlan,
+  'repro.spec.ts': 'await page.getByRole("heading", { name: "Howdy!" }).waitFor();',
+  'builder-result.json': {
+    status: 'inconclusive',
+    evidence: { reporter_output: 'Error: PRECONDITION_NOT_FOUND: dashboard heading Howdy!' },
+  },
+  'test-results/repro/error-context.md': 'Error: PRECONDITION_NOT_FOUND: dashboard heading Howdy!',
+}, 'generic_chrome_precondition');
+
+runCase('unknown', {
+  'reproduction-plan.json': basePlan,
+  'repro.spec.ts': 'await expect(page.getByText("Specific value")).toBeVisible();',
+  'builder-result.json': {
+    status: 'inconclusive',
+    evidence: { reporter_output: 'ambiguous custom failure' },
+  },
+  'test-results/repro/error-context.md': 'Something unusual happened.',
+}, 'unknown');
+
+console.log('analyze-failure tests passed');

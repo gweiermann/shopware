@@ -57,6 +57,7 @@ const manifest = {
     config.agentVerifyCommand,
     config.agentShopGetCommand,
     'bash .github/actions/repro-agent/bin/agent/probe-ui.sh',
+    'node .github/actions/repro-agent/bin/agent/analyze-failure.mjs',
     'jq', 'rg', 'grep', 'find', 'cat', 'ls', 'head', 'tail', 'sed', 'wc',
     'git log', 'git show', 'git diff', 'git blame', 'cp', 'mkdir'
   ],
