@@ -92,8 +92,9 @@ spec/test.
   browser-executed test code. Put placeholder-backed static state in `fixtures.json`.
 - Media binary state is not static DAL state. A sync-seeded `media` row is only metadata, not a
   replaceable file with uploaded bytes. For Admin media replacement flows, create product/CMS usage
-  relations in `fixtures.json`, but create the actual media file through a real UI upload before
-  replacing it.
+  relations in `fixtures.json`, but create the actual media file through a real UI upload in
+  `/admin#/sw/media/index` before replacing it. Do not use product detail or CMS editor upload
+  controls to create the initial file for a Media-library replacement repro.
 
 ## Playwright Rules
 - Use semantic locators (`getByRole`, `getByLabel`, `getByText`, `getByPlaceholder`,

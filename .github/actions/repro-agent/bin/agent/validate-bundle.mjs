@@ -426,6 +426,13 @@ function usesUnsupportedPageDisplayValueLocator(source) {
   return /\bpage\.getByDisplayValue\s*\(/.test(source);
 }
 
+function uploadsBeforeMediaLibraryForMediaReplacement(source) {
+  const firstFileChooser = source.search(/\.waitForEvent\s*\(\s*['"]filechooser['"]/);
+  if (firstFileChooser === -1) return false;
+  const firstMediaLibraryNavigation = source.search(/\/admin#\/sw\/media(?:\/index)?/);
+  return firstMediaLibraryNavigation === -1 || firstFileChooser < firstMediaLibraryNavigation;
+}
+
 function hasSeededNavigationCategory(data) {
   return entityRows(data, 'category').some((row) => (
     row?.id
@@ -665,6 +672,10 @@ if (executor === 'playwright') {
       && specUsesMediaLibraryReplaceFlow(executable)
       && productLayoutPreconditionForMediaReplacement(executable)) {
       fail('admin media replacement repro must not make the product layout/CMS assignment screen a decisive PRECONDITION_NOT_FOUND gate before the Media-library replacement flow. Use source-derived fixtures to create the usage relation, optionally sanity-check the marker, then gate the actual setup on the replaceable media item/control in /admin#/sw/media/index');
+    }
+    if (adminMediaReplacementIssue(`${issue}\n${JSON.stringify(plan.scenario ?? [])}`)
+      && uploadsBeforeMediaLibraryForMediaReplacement(executable)) {
+      fail('admin media replacement repros must create the initial uploaded file in /admin#/sw/media/index, not through product-detail or CMS-editor upload controls. Encode product/CMS usage relations from fixtures, use product/CMS pages only as optional state gates, then exercise upload and replacement in the media library');
     }
     if (adminMediaReplacementIssue(`${issue}\n${JSON.stringify(plan.scenario ?? [])}`)
       && cmsEditorTextClick(executable)) {

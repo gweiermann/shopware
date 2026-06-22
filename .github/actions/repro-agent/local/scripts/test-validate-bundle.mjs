@@ -995,6 +995,58 @@ if (!badCmsTextClickResult.stdout.includes('must not click visible CMS block tex
   process.exit(1);
 }
 
+const badMediaReplacementUploadBeforeLibrary = writeAdminBundle(`
+import { test, expect } from '@playwright/test';
+test('bad media replacement product upload', async ({ page }) => {
+  await page.goto('/admin#/sw/product/detail/99000000000000000000000000000001/base');
+  const product = page.getByText('Repro Issue 27 Product', { exact: true });
+  await product.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: product entity Repro Issue 27 Product'); });
+  const chooserPromise = page.waitForEvent('filechooser', { timeout: 10_000 });
+  await page.getByRole('button', { name: /^Upload files$/i }).click({ timeout: 5_000 });
+  const chooser = await chooserPromise;
+  await chooser.setFiles('issue-assets/img-1.png');
+  await page.goto('/admin#/sw/media/index');
+  await expect(page.getByRole('button', { name: /^Replace$/i })).toBeEnabled();
+});
+`, `# getEntityName is not a function when trying to replace an image that is used in a teaser
+
+When trying to replace an image via media gallery that is used in a product teaser slot, the Replace button stays gray.
+`);
+const badMediaReplacementUploadBeforeLibraryResult = run(badMediaReplacementUploadBeforeLibrary);
+if (badMediaReplacementUploadBeforeLibraryResult.status === 0) {
+  console.error('Expected media replacement upload before media library to be rejected');
+  process.exit(1);
+}
+if (!badMediaReplacementUploadBeforeLibraryResult.stdout.includes('must create the initial uploaded file in /admin#/sw/media/index')) {
+  console.error(`Unexpected bad-media-replacement-upload-before-library output:\n${badMediaReplacementUploadBeforeLibraryResult.stdout}\n${badMediaReplacementUploadBeforeLibraryResult.stderr}`);
+  process.exit(1);
+}
+
+const goodMediaReplacementLibraryUpload = writeAdminBundle(`
+import { test, expect } from '@playwright/test';
+test('good media replacement library upload', async ({ page }) => {
+  await page.goto('/admin#/sw/product/detail/99000000000000000000000000000001/base');
+  const product = page.getByText('Repro Issue 27 Product', { exact: true });
+  await product.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: product entity Repro Issue 27 Product'); });
+  await page.goto('/admin#/sw/media/index');
+  const chooserPromise = page.waitForEvent('filechooser', { timeout: 10_000 });
+  await page.getByRole('button', { name: /^Upload files$/i }).click({ timeout: 5_000 });
+  const chooser = await chooserPromise;
+  await chooser.setFiles('issue-assets/img-1.png');
+  await expect(page.getByRole('button', { name: /^Replace$/i })).toBeEnabled();
+});
+`, `# getEntityName is not a function when trying to replace an image that is used in a teaser
+
+When trying to replace an image via media gallery that is used in a product teaser slot, the Replace button stays gray.
+`);
+const goodMediaReplacementLibraryUploadResult = run(goodMediaReplacementLibraryUpload);
+if (goodMediaReplacementLibraryUploadResult.status !== 0) {
+  console.error(`Expected media replacement upload in media library to pass:\n${goodMediaReplacementLibraryUploadResult.stdout}\n${goodMediaReplacementLibraryUploadResult.stderr}`);
+  process.exit(1);
+}
+
 const badBootstrapUsesModuleLink = writeAdminBundle(`
 import { test, expect } from '@playwright/test';
 test.use({ viewport: { width: 375, height: 812 } });
