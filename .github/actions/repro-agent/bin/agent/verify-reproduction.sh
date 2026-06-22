@@ -63,9 +63,9 @@ if [ "$(cat issue-class.txt 2>/dev/null)" = visual ]; then
    executor '$EXV'. An http/direct check cannot faithfully show a rendering defect and would post a
    FALSE verdict, so it will NOT be run or handed off.
    → Use the 'playwright' executor against the rendered page. If your seeded data renders blank
-     (empty slider/page), that is a FIXTURE problem — fix visibility / cms-page version /
-     variantListingConfig.displayParent (see references/fixtures-cookbook.md + the playwright
-     contract). Do NOT switch to http to "diagnose".
+     (empty slider/page), that is a FIXTURE problem — use the bounded source/test discovery
+     budget to derive the relationship shape, visibility/indexing requirements, and technical
+     route from nearby tests/entity definitions. Do NOT switch to http to "diagnose".
    → If you genuinely cannot make it render after honest attempts, run:
      bash .github/actions/repro-agent/bin/agent/verify-reproduction.sh giveup
 ==

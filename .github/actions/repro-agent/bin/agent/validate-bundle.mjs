@@ -519,7 +519,7 @@ if (executor === 'playwright' && selectedVariantIssue(issue)) {
         'CMS product-slider selected-variant repro encodes option text into the child variant name',
         `child names: ${variantNames.join(', ')}`,
         'this can mask an empty/missing-card bug by changing what the stock product card renders',
-        'keep the verified cookbook variant naming shape and assert the real card/field the reported UI should render'
+        'keep variant names faithful to the source/test-derived product graph and assert the real card/field the reported UI should render'
       ].join(' — '));
     }
   }

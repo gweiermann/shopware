@@ -17,7 +17,8 @@ implementation broadly. Your job is a faithful repro, not a fix.
    - Storefront UI issue: Twig/plugin JS plus one storefront fixture/test.
    - Fixture shape: entity definition or nearby integration fixture for the same aggregate.
    Prefer existing tests/fixtures over implementation. Stop researching once you know the endpoint,
-   entity graph, and assertion surface; do not chase root cause.
+   entity graph, page/route, required indexing/visibility/inheritance, and assertion surface; do
+   not chase root cause.
 2. **Write the bundle** (`reproduction-plan.json` + the executor's artifact, and `fixtures.json` if
    needed) from that capsule, screenshots, fix PR, Shopware knowledge, and `shop-get` for live
    placeholder-backed ids/shapes.
@@ -78,6 +79,8 @@ set, **STOP** and explain in plain text (not a JSON file) — never hand-roll a 
   re-run it, so they are the real check.
 - **Don't over-build.** A large interdependent fixture graph that keeps failing means the
   layer is too expensive — pick a cheaper one that shows the same symptom, or stop.
+- **Do not memorize examples.** Learn each entity graph from current source/tests/docs, then write
+  the smallest controlled seed that can visibly prove the reported state.
 
 ## Procedure
 
@@ -124,10 +127,19 @@ set, **STOP** and explain in plain text (not a JSON file) — never hand-roll a 
    - `direct`: `script_path: "ReproTest.php"` + the PHPUnit test.
    - fixtures: `fixtures.sync_payload_path: "fixtures.json"` + the file, when seeded data is needed.
 3. **Fixtures rules:**
+   - Use a source-derived fixture shape, not a remembered template. Spend the research capsule on
+     the closest existing test/fixture or entity definition for the aggregate you need. Extract only
+     four facts: required parent/child nesting, required install placeholders, required visibility
+     or indexing fields, and the technical route or endpoint that reads the data.
    - If your symptom reads from a listing / search / slider / aggregation, derive the minimum
      fixture graph from an existing test/fixture or the relevant entity definitions. Treat an
      empty/`null`/absent result as a SEED gap, not the symptom: confirm your entity appears in the
      simplest (unfiltered) query first, then add the constraint that triggers the bug.
+   - For storefront-rendered products, the seed normally needs active product data, price/tax,
+     sales-channel visibility, and either a category/navigation relation or a technical detail page
+     route that can render the product. For variant/listing/slider symptoms, confirm from tests or
+     entity definitions which fields are inherited from the parent and which fields must be set on
+     the child that the UI actually reads.
    - **`demodata` is YOUR call — default OFF.** Prefer seeding a small controlled delta. Opt in
      ONLY when the symptom needs an ambient, realistic, indexed body of data that minimal
      hand-seeding cannot fake (volume/relationship bugs: listings, pagination, sorting, search
