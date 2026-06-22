@@ -92,11 +92,13 @@ const specPath = plan?.script_path || 'repro.spec.ts';
 const spec = readText(specPath);
 const errorContextPath = newest(walkFiles('test-results', (file) => file.endsWith('error-context.md')));
 const errorContext = errorContextPath ? readText(errorContextPath) : '';
+const errorSummary = errorContext.split(/\n# Page snapshot\b/)[0] || errorContext;
 const errorEvidence = errorContext.split(/\n# Test source\b/)[0] || errorContext;
 const screenshotPath = newest(walkFiles('test-results', (file) => /\.(png|jpe?g|webp)$/i.test(file)));
 const reporter = builder?.evidence?.reporter_output || builder?.blocked_reason || '';
 const status = builder?.status || 'missing';
 const combined = [reporter, errorContext].filter(Boolean).join('\n\n');
+const failureSummary = [reporter, errorSummary].filter(Boolean).join('\n\n');
 
 let hint = null;
 
@@ -119,7 +121,7 @@ if (!hint && /element is outside of the viewport/i.test(combined)) {
   );
 }
 
-if (!hint && /PRECONDITION_NOT_FOUND:[^\n]*(route change|route|URL)/i.test(combined)) {
+if (!hint && /PRECONDITION_NOT_FOUND:[^\n]*(route change|route|URL)/i.test(failureSummary)) {
   const families = routeFamiliesFromSpec(spec);
   const matchedFamily = families.find((family) => containsRouteFamily(errorEvidence, family));
   if (matchedFamily) {
@@ -133,7 +135,7 @@ if (!hint && /PRECONDITION_NOT_FOUND:[^\n]*(route change|route|URL)/i.test(combi
   }
 }
 
-if (!hint && /PRECONDITION_NOT_FOUND:[^\n]*(dashboard|admin shell|administration shell|header|toolbar|generic chrome|home)/i.test(combined)) {
+if (!hint && /PRECONDITION_NOT_FOUND:[^\n]*(dashboard|admin shell|administration shell|header|toolbar|generic chrome|home)/i.test(failureSummary)) {
   hint = result(
     'generic_chrome_precondition',
     'high',

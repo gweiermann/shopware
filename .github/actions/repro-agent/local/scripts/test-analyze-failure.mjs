@@ -106,6 +106,35 @@ Error: PRECONDITION_NOT_FOUND: CMS detail route did not open
   `,
 }, 'unknown');
 
+runCase('route-only-after-snapshot', {
+  'reproduction-plan.json': basePlan,
+  'repro.spec.ts': `
+    await page.goto('/admin#/sw/dashboard/index');
+    await mobileMenuToggle.waitFor({ state: 'visible', timeout: 30000 })
+      .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: mobile admin menu toggle did not render'); });
+    await page.waitForURL(/#\\/sw\\/product\\/index$/, { timeout: 30000 })
+      .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: clicking Products did not navigate to the product index route'); });
+  `,
+  'builder-result.json': {
+    status: 'inconclusive',
+    evidence: { reporter_output: 'precondition absent — Error: PRECONDITION_NOT_FOUND: mobile admin menu toggle did not render' },
+  },
+  'test-results/repro/error-context.md': `
+# Error details
+Error: PRECONDITION_NOT_FOUND: mobile admin menu toggle did not render
+
+# Page snapshot
+- link "Dashboard":
+  - /url: "#/sw/dashboard/index"
+- link "Products":
+  - /url: "#/sw/product/index"
+
+# Test source
+  10 | await page.waitForURL(/#\\/sw\\/product\\/index$/, { timeout: 30000 })
+  11 |   .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: clicking Products did not navigate to the product index route'); });
+  `,
+}, 'unknown');
+
 runCase('offscreen', {
   'reproduction-plan.json': basePlan,
   'repro.spec.ts': 'await page.getByText("Catalogues").click();',

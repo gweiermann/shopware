@@ -46,6 +46,9 @@ bundle, verify it, then only fix what the verifier names.
    `node .github/actions/repro-agent/bin/agent/analyze-failure.mjs` before editing. Apply one
    targeted fix only when it emits a non-`unknown` high-confidence hint; otherwise use the
    verifier's one concrete failure and screenshot as the next edit.
+   After any edit to `reproduction-plan.json`, `fixtures.json`, or the executor artifact, rerun
+   `verify-reproduction.sh`; never finish with stale `builder-result.json` from a previous file
+   state.
 8. Make at most two targeted fixes. If still unproven, run `verify-reproduction.sh giveup` or leave
    `reproduction-plan.json` with `confidence <= 0.5` and a specific `confidence_reason` or
    `blocked_reason`. Your final state is invalid if `builder-result.json` is `blocked` or
