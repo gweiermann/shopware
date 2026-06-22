@@ -209,6 +209,7 @@ try {
     console.log('');
     console.log('## After Mobile Admin Menu Toggle');
     console.log('mobileMenuToggleLocator: .sw-search-bar__mobile-controls .sw-search-bar__button');
+    console.log("mobileMenuToggleExpression: page.locator('.sw-search-bar__mobile-controls .sw-search-bar__button').first()");
     console.log(`screenshot: ${path.relative(process.cwd(), toggledScreenshotPath)}`);
     printRoles(toggledEvidence);
   }

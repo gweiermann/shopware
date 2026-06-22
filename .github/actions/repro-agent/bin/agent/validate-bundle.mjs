@@ -451,6 +451,10 @@ function directlyFillsAdminLoginFields(source) {
     || /\bgetByLabel\s*\(\s*(?:['"`]Password['"`]|\/password\/i)\s*\)\s*\.fill\s*\(/i.test(source);
 }
 
+function usesRawAdminMobileToggleSelector(source) {
+  return /locator\s*\(\s*['"`]\.sw-search-bar__mobile-controls\s+\.sw-search-bar__button['"`]\s*\)(?!\s*\.first\s*\()/s.test(source);
+}
+
 function usesAdminMenuGroupAsLink(source) {
   const groupNames = /(?:Catalogues|Orders|Customers|Content|Marketing|Extensions)/i;
   return [...source.matchAll(/getByRole\s*\(\s*['"]link['"]\s*,\s*\{[^}]*name\s*:\s*([^}\n]+)\}/g)]
@@ -731,6 +735,9 @@ if (executor === 'playwright') {
         || /locator\s*\(\s*['"`]\.sw-search-bar__mobile-controls\s+\.sw-search-bar__button['"`]\s*\)/s.test(executable);
       if (!opensHeaderMenuButton) {
         fail('mobile admin navigation repro must open the actual header hamburger/menu button before interacting with sidebar links; use the scoped banner button or the source-backed .sw-search-bar__mobile-controls .sw-search-bar__button locator, not a generic first button or nested menu text');
+      }
+      if (usesRawAdminMobileToggleSelector(executable)) {
+        fail('mobile admin navigation repro must narrow the source-backed mobile toggle selector with .first(): use page.locator(".sw-search-bar__mobile-controls .sw-search-bar__button").first() so setup does not depend on ambiguous matched controls');
       }
       if (adminMobileRouteNavigationIssue(`${issue}\n${JSON.stringify(plan.scenario ?? [])}`)
         && !/getByRole\s*\(\s*['"]link['"]/s.test(executable)) {

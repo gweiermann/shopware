@@ -30,7 +30,8 @@ bundle, verify it, then only fix what the verifier names.
    route, visible roles/text, and screenshot path it prints to choose locators and precondition
    gates. Entries marked `offscreen` may be present in the accessibility tree but are poor click
    targets. On narrow Admin viewports, prefer the `After Mobile Admin Menu Toggle` section for
-   menu/open-sidebar interactions. Use at most two probe routes and one viewport unless the issue is
+   menu/open-sidebar interactions; if the probe prints a `...Expression`, copy that executable
+   locator expression exactly. Use at most two probe routes and one viewport unless the issue is
    viewport-specific.
 4. Write the whole bundle in one pass before spending turn 12: `reproduction-plan.json`, plus
    `fixtures.json` when data is needed, plus exactly one executor artifact (`repro.spec.ts`,
