@@ -209,7 +209,7 @@ if (!hint && /(?:media|image|file|upload|replace)/i.test([combined, spec].join('
     'missing_uploaded_binary_state',
     'high',
     'Evidence points at media/file UI state, where static DAL rows may exist without uploaded binary state.',
-    'Seed static relations with fixtures, but create the actual uploaded file through the owning UI flow before exercising replacement or file-dependent controls.',
+    'Seed static relations with fixtures, but create the actual uploaded file through the owning UI flow before exercising replacement or file-dependent controls. If the upload creates the id you need, attach it through the owning product/CMS/media UI flow rather than patching Admin API state from Playwright.',
     { error_context: errorContextPath, screenshot: screenshotPath },
   );
 }

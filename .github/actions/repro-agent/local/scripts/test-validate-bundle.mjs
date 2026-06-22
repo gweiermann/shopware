@@ -2147,7 +2147,8 @@ if (rawAdminApiPlaywrightResult.status === 0) {
   console.error('Expected Playwright repro using raw Admin API setup to be rejected');
   process.exit(1);
 }
-if (!rawAdminApiPlaywrightResult.stdout.includes('raw Admin API setup')) {
+if (!rawAdminApiPlaywrightResult.stdout.includes('raw Admin API setup')
+  || !rawAdminApiPlaywrightResult.stdout.includes('owning UI flow')) {
   console.error(`Unexpected raw-admin-api-playwright output:\n${rawAdminApiPlaywrightResult.stdout}\n${rawAdminApiPlaywrightResult.stderr}`);
   process.exit(1);
 }
@@ -2182,7 +2183,8 @@ if (indirectRawAdminApiPlaywrightResult.status === 0) {
   console.error('Expected Playwright repro using indirect raw Admin API setup to be rejected');
   process.exit(1);
 }
-if (!indirectRawAdminApiPlaywrightResult.stdout.includes('raw Admin API setup')) {
+if (!indirectRawAdminApiPlaywrightResult.stdout.includes('raw Admin API setup')
+  || !indirectRawAdminApiPlaywrightResult.stdout.includes('owning UI flow')) {
   console.error(`Unexpected indirect-raw-admin-api-playwright output:\n${indirectRawAdminApiPlaywrightResult.stdout}\n${indirectRawAdminApiPlaywrightResult.stderr}`);
   process.exit(1);
 }

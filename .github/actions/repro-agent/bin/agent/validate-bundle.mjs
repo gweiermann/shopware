@@ -629,7 +629,7 @@ if (executor === 'playwright') {
     fail('Playwright spec contains unresolved {{PLACEHOLDER}} tokens; placeholders are substituted only in fixtures/plan seeding, not inside browser-executed test code');
   }
   if (rawAdminApiCallInPlaywright(executable)) {
-    fail('Playwright UI repros must not perform raw Admin API setup calls from page.evaluate/fetch or page.request; seed static state with fixtures.json or use real UI interactions so auth, placeholders, and screenshots stay faithful');
+    fail('Playwright UI repros must not perform raw Admin API setup calls from page.evaluate/fetch or page.request; seed static state with fixtures.json and create/attach runtime browser state through the owning UI flow. If a UI upload generates a media id, attach it via product/CMS/media UI interactions, not an Admin API patch, so auth, placeholders, and screenshots stay faithful');
   }
   if (/\bscrollIntoViewIfNeeded\s*\(/.test(executable)) {
     fail('Playwright repros must not use scrollIntoViewIfNeeded(); it uses automation-only scrolling and can hide reachability bugs or burn the test timeout on invisible elements. Use route/state setup, visible target waits, and user-like wheel scrolling only when scrolling itself is part of the reported symptom');
