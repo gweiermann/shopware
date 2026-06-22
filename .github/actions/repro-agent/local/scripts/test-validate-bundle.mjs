@@ -433,6 +433,36 @@ if (wishlistWithConfigResult.status !== 0) {
   process.exit(1);
 }
 
+const brittleStorefrontLoginLabels = writeBundle(`
+import { test, expect } from '@playwright/test';
+test('bad storefront login labels', async ({ page }) => {
+  await page.goto('/account/login');
+  await page.getByLabel(/^your email address$/i).fill('customer@example.com');
+  await page.getByLabel(/^your password$/i).fill('shopware');
+  const product = page.getByText('Wishlist Repro Product');
+  await product.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: wishlist product missing'); });
+  await expect(page.getByRole('dialog').getByText('Wishlist Repro Product')).toBeVisible();
+});
+`, {
+  system_config: [{
+    id: '11111111111111111111111111111113',
+    configurationKey: 'core.cart.wishlistEnabled',
+    configurationValue: true,
+  }],
+  product: wishlistFixturesWithoutConfig.product,
+});
+fs.writeFileSync(path.join(brittleStorefrontLoginLabels, 'issue.md'), wishlistIssue);
+const brittleStorefrontLoginLabelsResult = run(brittleStorefrontLoginLabels);
+if (brittleStorefrontLoginLabelsResult.status === 0) {
+  console.error('Expected storefront account getByLabel login fields to be rejected');
+  process.exit(1);
+}
+if (!brittleStorefrontLoginLabelsResult.stdout.includes('scoped getByRole("textbox"')) {
+  console.error(`Unexpected storefront-login-label output:\n${brittleStorefrontLoginLabelsResult.stdout}\n${brittleStorefrontLoginLabelsResult.stderr}`);
+  process.exit(1);
+}
+
 const wishlistWithoutVisibleProduct = writeBundle(`
 import { test, expect } from '@playwright/test';
 test('bad wishlist storefront product seed', async ({ page }) => {

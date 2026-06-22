@@ -63,7 +63,12 @@ login fields to the returning-customer form before filling them. Do not use a pa
 `getByRole('textbox', { name: /^email address$/i })`: it can fill the registration email field on
 some versions and leave the real login form empty. First find the form/region that contains the
 login submit button (`Sign in`, `Log in`, `Login`) or the already-customer heading, then fill
-`/^(your )?email address$/i` and `/^(your )?password$/i` inside that scope. After submit,
+the fields inside that scope with role-pinned textboxes:
+`loginForm.getByRole('textbox', { name: /^(your )?email address$/i })` and
+`loginForm.getByRole('textbox', { name: /^(your )?password$/i })`. Do **not** use `getByLabel`
+for storefront account login/register fields: older storefront markup can show a label visually
+while Playwright cannot associate it, even though the textbox has the right accessible name.
+After submit,
 precondition on a stable account state: the `/account` URL plus a seeded customer marker, the
 seeded customer email/name, the account sidebar (`Overview`, `Your profile`, `Log out`), or a
 personal-profile/account marker. Do not require one exact phrase such as `My account` or

@@ -92,6 +92,15 @@ function cartOffcanvasIssue(text) {
     && /\b(click|opens?|shown|visible|rendered|appears?|add(ed)?|wishlist|product card)\b/i.test(text);
 }
 
+function storefrontAccountFormIssue(text) {
+  return /\b(storefront|customer|account|login|wishlist|register|registration)\b/i.test(text)
+    && /\b(login|log in|register|registration|customer|wishlist|account)\b/i.test(text);
+}
+
+function usesBrittleStorefrontAccountLabelLocator(source) {
+  return /\bgetByLabel\s*\(\s*(?:\/|\{|\[|'|")[^)\n]*(?:your\s+)?(?:email address|password)[^)\n]*\)/i.test(source);
+}
+
 function hasEnabledWishlistConfig(data) {
   return entityRows(data, 'system_config').some((row) => (
     row?.configurationKey === 'core.cart.wishlistEnabled'
@@ -413,6 +422,10 @@ if (executor === 'playwright') {
         'add both a {{NAV_CAT}} category assignment and sales-channel visibility; a blank product detail page is a seed gap, not the symptom'
       ].join(' — '));
     }
+  }
+  if (storefrontAccountFormIssue(`${issue}\n${JSON.stringify(plan.scenario ?? [])}`)
+    && usesBrittleStorefrontAccountLabelLocator(executable)) {
+    fail('storefront account/login form repro must use scoped getByRole("textbox", { name }) for email/password fields; getByLabel is brittle on older storefront markup even when the label is visible');
   }
 
   if (cartOffcanvasIssue(`${issue}\n${JSON.stringify(plan.scenario ?? [])}`)) {
