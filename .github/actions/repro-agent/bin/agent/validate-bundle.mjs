@@ -616,7 +616,7 @@ if (executor === 'playwright') {
     if (adminMediaReplacementIssue(`${issue}\n${JSON.stringify(plan.scenario ?? [])}`)
       && syncSeedsMediaRows(fixtures)
       && specUsesMediaLibraryReplaceFlow(executable)) {
-      fail('admin media replacement/upload repro must not rely on sync-seeded media rows as visible replaceable files; a media row has metadata but no uploaded bytes/hasFile state. Upload the issue asset through the UI/API during setup, then assign/use that real media item before testing replacement');
+      fail('admin media replacement/upload repro must not rely on sync-seeded media rows as visible replaceable files; a media row has metadata but no uploaded bytes/hasFile state. Use fixtures.json for the product/CMS usage relation, but create the actual media file through a real UI upload before exercising replacement');
     }
     if (adminMediaReplacementIssue(`${issue}\n${JSON.stringify(plan.scenario ?? [])}`)
       && specUsesMediaLibraryReplaceFlow(executable)

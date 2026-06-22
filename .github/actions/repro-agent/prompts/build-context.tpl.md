@@ -90,6 +90,10 @@ spec/test.
   evidence prove otherwise.
 - Do not put `{{PLACEHOLDER}}` tokens in `repro.spec.ts`; they are not substituted inside
   browser-executed test code. Put placeholder-backed static state in `fixtures.json`.
+- Media binary state is not static DAL state. A sync-seeded `media` row is only metadata, not a
+  replaceable file with uploaded bytes. For Admin media replacement flows, create product/CMS usage
+  relations in `fixtures.json`, but create the actual media file through a real UI upload before
+  replacing it.
 
 ## Playwright Rules
 - Use semantic locators (`getByRole`, `getByLabel`, `getByText`, `getByPlaceholder`,
@@ -104,7 +108,9 @@ spec/test.
   click visible CMS block text to select the block; use a real overlay/control only when the
   reported symptom is about CMS editor controls themselves. Do not make product layout/CMS
   assignment UI a decisive setup gate for Media-library replacement; that UI drifts across versions
-  and can block the run before the reported media replacement modal is exercised.
+  and can block the run before the reported media replacement modal is exercised. Do not use the CMS
+  editor to create the usage relation for a Media-library replacement repro; encode that relation
+  from source/test-derived fixtures and reserve browser actions for uploading/replacing files.
 - Preconditions use `locator.waitFor({ state: 'visible', timeout })` and throw
   `PRECONDITION_NOT_FOUND: <specific state>` on miss. Preconditions must prove the seeded entity,
   selected value, CMS block, media, route, or control that makes the symptom possible.
