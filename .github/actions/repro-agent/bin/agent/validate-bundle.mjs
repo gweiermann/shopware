@@ -310,6 +310,11 @@ function hasGenericAdminChromeFailure(source, text) {
   return genericChrome && !reported;
 }
 
+function hasBootstrapUsabilityAsPrecondition(source) {
+  const preconditions = preconditionSnippet(source);
+  return /\bPRECONDITION_NOT_FOUND:[^\n]*(?:admin(?:istration)? shell|shell|main|banner|dashboard|usable|did not become visible|did not load|within \d+\s*seconds?)\b/i.test(preconditions);
+}
+
 function hasSeededNavigationCategory(data) {
   return entityRows(data, 'category').some((row) => (
     row?.id
@@ -464,6 +469,9 @@ if (executor === 'playwright') {
       }
       if (!hasAdminBootstrapPrecondition(executable)) {
         fail('admin bootstrap/login repro must precondition on the login/bootstrap/admin-shell state itself, not on an unrelated downstream module');
+      }
+      if (hasBootstrapUsabilityAsPrecondition(executable)) {
+        fail('admin bootstrap/login repro must assert shell usability as the single healthy expect; do not convert “admin shell did not become usable within the timeout” into PRECONDITION_NOT_FOUND, because that is the reported symptom');
       }
       if (hasUnrelatedAdminModulePrecondition(executable, issue)) {
         fail('admin bootstrap/login repro uses an unrelated module/menu link as a precondition; prove the admin shell or reported login/bootstrap state instead');

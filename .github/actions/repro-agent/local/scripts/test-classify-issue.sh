@@ -35,4 +35,18 @@ if [ "$visual_class" != visual ]; then
   exit 1
 fi
 
+rm -rf "$tmp/assets"
+cat > "$tmp/admin-throttle.md" <<'MD'
+# Admin area login is impossible on a slow throttled 3G connection
+
+Logging into the Shopware Admin over a slow connection takes over 30 seconds. This leads to
+script-timeout errors and prevents the user from logging into the Admin area.
+MD
+
+admin_throttle_class=$(ISSUE_MD="$tmp/admin-throttle.md" ASSETS="$tmp/assets" bash "$classifier")
+if [ "$admin_throttle_class" != visual ]; then
+  echo "Expected Admin login/bootstrap throttling issue to classify as visual, got $admin_throttle_class"
+  exit 1
+fi
+
 echo 'classify-issue tests passed'

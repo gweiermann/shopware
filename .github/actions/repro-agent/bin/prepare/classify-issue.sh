@@ -26,6 +26,12 @@ fi
 # Screenshots attached → treat as visual (a reporter shows a rendering defect with an image).
 if [ -d "$assets" ] && [ -n "$(ls -A "$assets" 2>/dev/null)" ]; then printf 'visual'; exit 0; fi
 
+# Admin login/bootstrap/network-throttling reports are browser UI issues even without screenshots:
+# the symptom is whether the Administration shell becomes usable under rendered JS/network timing.
+if [ -f "$md" ] && grep -qiE \
+  '\b(admin|administration|admin area|admin login|login page|dashboard)\b.*\b(slow|throttl|3g|network|timeout|script-timeout|bootstrap|load(s|ing)?|log[ -]?in|usable|navigation)\b|\b(slow|throttl|3g|network|timeout|script-timeout|bootstrap|load(s|ing)?|log[ -]?in|usable|navigation)\b.*\b(admin|administration|admin area|admin login|login page|dashboard)\b' \
+  "$md"; then printf 'visual'; exit 0; fi
+
 # Otherwise, clear rendering wording. Kept tight — generic words like "show"/"display" are avoided
 # because they appear in plenty of API issues.
 if [ -f "$md" ] && grep -qiE \

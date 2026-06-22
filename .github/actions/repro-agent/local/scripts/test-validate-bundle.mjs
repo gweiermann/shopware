@@ -784,10 +784,9 @@ const goodBootstrapPrecondition = writeAdminBundle(`
 import { test, expect } from '@playwright/test';
 test('good admin bootstrap precondition', async ({ page }) => {
   await page.goto('/admin#/sw/dashboard/index');
-  const banner = page.getByRole('banner');
-  await banner.waitFor({ state: 'visible', timeout: 30_000 })
-    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: Administration banner missing'); });
-  await expect(banner).toBeVisible();
+  await page.locator('body').waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: document body missing'); });
+  await expect(page.getByRole('banner')).toBeVisible({ timeout: 30_000 });
 });
 `, `# Admin area login is impossible on a slow throttled 3G connection
 
@@ -796,6 +795,29 @@ Logging into the Administration over a slow but stable connection times out befo
 const goodBootstrapPreconditionResult = run(goodBootstrapPrecondition);
 if (goodBootstrapPreconditionResult.status !== 0) {
   console.error(`Expected admin bootstrap shell precondition to pass:\n${goodBootstrapPreconditionResult.stdout}\n${goodBootstrapPreconditionResult.stderr}`);
+  process.exit(1);
+}
+
+const badBootstrapShellAsPrecondition = writeAdminBundle(`
+import { test, expect } from '@playwright/test';
+test('bad admin bootstrap shell precondition', async ({ page }) => {
+  await page.goto('/admin#/sw/dashboard/index');
+  const main = page.getByRole('main');
+  await main.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: Administration shell did not become visible within 30 seconds on throttled 3G'); });
+  await expect(main).toBeVisible();
+});
+`, `# Admin area login is impossible on a slow throttled 3G connection
+
+Logging into the Administration over a slow but stable connection times out before the admin shell becomes usable.
+`);
+const badBootstrapShellAsPreconditionResult = run(badBootstrapShellAsPrecondition);
+if (badBootstrapShellAsPreconditionResult.status === 0) {
+  console.error('Expected admin bootstrap repro with shell usability as precondition to be rejected');
+  process.exit(1);
+}
+if (!badBootstrapShellAsPreconditionResult.stdout.includes('single healthy expect')) {
+  console.error(`Unexpected bad-bootstrap-shell-precondition output:\n${badBootstrapShellAsPreconditionResult.stdout}\n${badBootstrapShellAsPreconditionResult.stderr}`);
   process.exit(1);
 }
 

@@ -154,9 +154,11 @@ await locator.waitFor({ state: 'visible', timeout })
 - **For Admin login/bootstrap/slow-network bugs, the bootstrap state is the target.** Do not invent
   a downstream module precondition such as `Products`, `Orders`, `Settings`, or a mobile menu link
   unless the issue names that module or viewport. Use the reported network/login/bootstrap setup,
-  wait for a stable admin-shell marker such as the banner/login/admin container/progress state, and
-  make the symptom assertion about the shell becoming usable or the reported timeout/error state.
-  Arbitrary module links create false negatives when responsive chrome or permissions differ.
+  then use a minimal setup precondition such as the page body or initial loading/progress state.
+  The shell/banner/main/dashboard becoming usable within the reported timeout is the **single
+  symptom `expect`**, not a `PRECONDITION_NOT_FOUND` gate. A screenshot stuck on the spinner after
+  that timeout is a reproduced bootstrap symptom, not setup drift. Arbitrary module links create
+  false negatives when responsive chrome or permissions differ.
 - **For Admin module/form bugs, use two mental checkpoints.** First, the admin shell must be usable;
   second, the issue-specific target must be present. Only the issue-specific target checkpoint should
   decide `PRECONDITION_NOT_FOUND`; generic shell/chrome waits should be best-effort or skipped when
