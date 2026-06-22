@@ -21,8 +21,10 @@ bundle, verify it, then only fix what the verifier names.
    (`src/Administration/...`, `src/Storefront/...`, `src/Core/...`, or `tests/...`) and keep searches
    narrow (`rg -n '<specific visible text/entity/route/component>' <path>`). Do not run broad repo
    searches for generic stack-trace or action words. Stop once you can name the route/module/API,
-   the minimum state graph, and the one healthy symptom assertion. If uncertain after 8 commands,
-   make the best source-backed bundle and let the verifier/analyzer drive the next edit.
+   the minimum state graph, and the one healthy symptom assertion. Record the files/tests you
+   actually used in `source_trail` so the handoff shows why the fixture shape, route, and locator
+   choices are source-backed. If uncertain after 8 commands, make the best source-backed bundle and
+   let the verifier/analyzer drive the next edit.
 3. For Admin UI Playwright issues, run one bounded live UI probe before writing `repro.spec.ts`:
    `bash .github/actions/repro-agent/bin/agent/probe-ui.sh <admin-route> [viewport]`. Use the
    route, visible roles/text, and screenshot path it prints to choose locators and precondition
@@ -84,6 +86,10 @@ about login/bootstrap, navigate directly to the concrete `/admin#/sw/...` route 
   "version": "{{VERSION}}",
   "build_profile": { "admin_build": false, "storefront_build": true, "theme_build": true },
   "fixtures": { "demodata": false, "sync_payload_path": "fixtures.json" },
+  "source_trail": [
+    { "path": "src/...", "reason": "route/module owner and stable visible state" },
+    { "path": "tests/...", "reason": "fixture/API/entity shape used for setup" }
+  ],
   "scenario": ["Given ...", "When ...", "Then ..."],
   "script_path": "repro.spec.ts",
   "assertions": [],
@@ -104,6 +110,9 @@ Derive fixture payloads, routes, locators, and setup actions from the source tra
 Do not hardcode install-specific ids from this shop. Use seeded markers that prove your own state
 rendered. If a verifier screenshot shows a wrong page, blank seeded content, hidden/offscreen
 controls, or absent binary/runtime state, that is setup drift until evidence proves otherwise.
+Do not add destination-page text as a required precondition after you already proved a route change
+unless the report is about that destination text. For navigation/menu/off-canvas issues, precondition
+on the opened menu and clicked link, then assert the menu/off-canvas state.
 
 Use placeholders for install-specific ids in `fixtures.json`; they are resolved separately for each
 provisioned shop. Common placeholders are `{{SC}}` for the sales channel, `{{NAV_CAT}}` for the

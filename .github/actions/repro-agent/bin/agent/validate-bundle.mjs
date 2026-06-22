@@ -439,6 +439,13 @@ function usesAdminMobileModuleHeadingGate(source) {
     .some((match) => moduleNames.test(match[1]));
 }
 
+function usesAdminMobileDestinationContentGate(source) {
+  const preconditions = preconditionSnippet(source);
+  return /waitForURL\s*\(/s.test(source)
+    && /\bgetByText\s*\(/s.test(preconditions)
+    && /PRECONDITION_NOT_FOUND:[^'"`\n]*(?:page|route|module|title|listing|empty state|visible after navigation|loaded|content)/i.test(preconditions);
+}
+
 function directlyFillsAdminLoginFields(source) {
   return /\bgetByLabel\s*\(\s*(?:['"`]Username['"`]|\/username\/i)\s*\)\s*\.fill\s*\(/i.test(source)
     || /\bgetByLabel\s*\(\s*(?:['"`]Password['"`]|\/password\/i)\s*\)\s*\.fill\s*\(/i.test(source);
@@ -739,7 +746,11 @@ if (executor === 'playwright') {
       }
       if (adminMobileRouteNavigationIssue(`${issue}\n${JSON.stringify(plan.scenario ?? [])}`)
         && usesAdminMobileModuleHeadingGate(executable)) {
-        fail('mobile admin route-navigation repro must not gate module pages with getByRole("heading", { name: ... }); mobile Admin module titles can be visible without heading semantics. Gate route changes with URL/hash or visible module text, then assert the off-canvas navigation state');
+        fail('mobile admin route-navigation repro must not gate module pages with getByRole("heading", { name: ... }); mobile Admin module titles can be visible without heading semantics. Gate route changes with URL/hash, then assert the off-canvas navigation state');
+      }
+      if (adminMobileRouteNavigationIssue(`${issue}\n${JSON.stringify(plan.scenario ?? [])}`)
+        && usesAdminMobileDestinationContentGate(executable)) {
+        fail('mobile admin route-navigation repro must not make destination-page text/content a decisive precondition after the URL/hash changed; for menu/off-canvas bugs, prove the opened menu and clicked link, then assert the off-canvas navigation state');
       }
       if (adminMobileRouteNavigationIssue(`${issue}\n${JSON.stringify(plan.scenario ?? [])}`)
         && usesAdminMenuGroupAsLink(executable)) {
