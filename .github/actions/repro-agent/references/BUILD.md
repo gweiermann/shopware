@@ -123,7 +123,9 @@ set, **STOP** and explain in plain text (not a JSON file) — never hand-roll a 
      body/document. Do not require a semantic spinner/progressbar role; the loading indicator may
      be visual-only. The admin shell becoming usable within the timeout is the symptom assertion,
      not `PRECONDITION_NOT_FOUND`; unrelated downstream navigation creates false negatives when
-     responsive chrome or permissions differ.
+     responsive chrome or permissions differ. If the report names Chrome "Slow 3G" or throttled
+     3G, use a genuinely slow profile (about 500 kbit/s download or lower, 300-400ms latency);
+     faster profiles can produce false `not_reproduced`.
 2. **Write `reproduction-plan.json` + the executor's artifact:**
    - `http`: `request`/`requests` + `assertion`.
    - `playwright`: `script_path: "repro.spec.ts"` + the spec.

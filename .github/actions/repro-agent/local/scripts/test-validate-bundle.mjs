@@ -844,6 +844,37 @@ if (!badBootstrapProgressAsPreconditionResult.stdout.includes('single healthy ex
   process.exit(1);
 }
 
+const badBootstrapFast3gProfile = writeAdminBundle(`
+import { test, expect } from '@playwright/test';
+test('bad admin bootstrap fast 3g', async ({ page, context }) => {
+  const cdpSession = await context.newCDPSession(page);
+  await cdpSession.send('Network.enable');
+  await cdpSession.send('Network.emulateNetworkConditions', {
+    offline: false,
+    downloadThroughput: 1.6 * 1024 * 1024 / 8,
+    uploadThroughput: 750 * 1024 / 8,
+    latency: 150,
+    connectionType: 'cellular3g',
+  });
+  await page.goto('/admin#/sw/dashboard/index');
+  await page.locator('body').waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: document body missing'); });
+  await expect(page.getByRole('main')).toBeVisible({ timeout: 30_000 });
+});
+`, `# Admin area login is impossible on a slow throttled 3G connection
+
+Logging into the Administration over a slow but stable 3G connection times out before the admin shell becomes usable.
+`);
+const badBootstrapFast3gProfileResult = run(badBootstrapFast3gProfile);
+if (badBootstrapFast3gProfileResult.status === 0) {
+  console.error('Expected admin bootstrap repro with fast 3G profile to be rejected');
+  process.exit(1);
+}
+if (!badBootstrapFast3gProfileResult.stdout.includes('Slow-3G-like network profile')) {
+  console.error(`Unexpected bad-bootstrap-fast-3g output:\n${badBootstrapFast3gProfileResult.stdout}\n${badBootstrapFast3gProfileResult.stderr}`);
+  process.exit(1);
+}
+
 const badMobileAdminNavigation = writeAdminBundle(`
 import { test, expect } from '@playwright/test';
 test.use({ viewport: { width: 375, height: 812 } });

@@ -315,6 +315,34 @@ function hasBootstrapUsabilityAsPrecondition(source) {
   return /\bPRECONDITION_NOT_FOUND:[^\n]*(?:admin(?:istration)? shell|shell|main|banner|dashboard|usable|progress|progressbar|spinner|loading indicator|did not become visible|did not appear|did not load|within \d+\s*seconds?)\b/i.test(preconditions);
 }
 
+function parseSimpleThroughputExpression(expression) {
+  const normalized = String(expression).replace(/\s+/g, '');
+  const firstNumber = normalized.match(/^\d+(?:\.\d+)?/);
+  if (!firstNumber) return null;
+
+  let value = Number(firstNumber[0]);
+  const factors = normalized.match(/\*1024/g) ?? [];
+  for (const _factor of factors) value *= 1024;
+  if (/\/8(?:\D|$)/.test(normalized)) value /= 8;
+  return Number.isFinite(value) ? value : null;
+}
+
+function slow3gIssue(text) {
+  return /\b(slow|throttl|3g|network)\b/i.test(text) && /\b3g\b/i.test(text);
+}
+
+function usesTooFastNetworkProfileForSlow3g(source) {
+  if (!/Network\.emulateNetworkConditions/s.test(source)) return false;
+
+  const download = source.match(/downloadThroughput\s*:\s*([^,\n}]+)/);
+  const latency = source.match(/latency\s*:\s*(\d+(?:\.\d+)?)/);
+  const downloadBytesPerSecond = download ? parseSimpleThroughputExpression(download[1]) : null;
+  const latencyMs = latency ? Number(latency[1]) : null;
+
+  return (downloadBytesPerSecond !== null && downloadBytesPerSecond > (600 * 1024 / 8))
+    || (latencyMs !== null && latencyMs < 300);
+}
+
 function hasSeededNavigationCategory(data) {
   return entityRows(data, 'category').some((row) => (
     row?.id
@@ -472,6 +500,9 @@ if (executor === 'playwright') {
       }
       if (hasBootstrapUsabilityAsPrecondition(executable)) {
         fail('admin bootstrap/login repro must assert shell usability as the single healthy expect; do not convert “admin shell did not become usable within the timeout” into PRECONDITION_NOT_FOUND, because that is the reported symptom');
+      }
+      if (slow3gIssue(issue) && usesTooFastNetworkProfileForSlow3g(executable)) {
+        fail('admin slow-3G repro must use a Slow-3G-like network profile, not Fast 3G. Keep download throughput around 500 kbit/s or lower and latency around 300-400ms; a faster profile can create a false not_reproduced verdict');
       }
       if (hasUnrelatedAdminModulePrecondition(executable, issue)) {
         fail('admin bootstrap/login repro uses an unrelated module/menu link as a precondition; prove the admin shell or reported login/bootstrap state instead');
