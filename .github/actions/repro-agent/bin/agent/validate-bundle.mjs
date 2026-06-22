@@ -343,6 +343,11 @@ function usesTooFastNetworkProfileForSlow3g(source) {
     || (latencyMs !== null && latencyMs < 300);
 }
 
+function usesTooLongBootstrapAssertionTimeout(source) {
+  const timeoutMatches = [...source.matchAll(/expect\s*\([\s\S]{0,160}?\)\s*\.\s*to(?:BeVisible|HaveURL|BeInViewport|ContainText|HaveText)\s*\(\s*(?:[^,)]*,\s*)?\{[^}]*timeout\s*:\s*([0-9_]+)/g)];
+  return timeoutMatches.some((match) => Number(match[1].replace(/_/g, '')) > 35_000);
+}
+
 function hasSeededNavigationCategory(data) {
   return entityRows(data, 'category').some((row) => (
     row?.id
@@ -503,6 +508,9 @@ if (executor === 'playwright') {
       }
       if (slow3gIssue(issue) && usesTooFastNetworkProfileForSlow3g(executable)) {
         fail('admin slow-3G repro must use a Slow-3G-like network profile, not Fast 3G. Keep download throughput around 500 kbit/s or lower and latency around 300-400ms; a faster profile can create a false not_reproduced verdict');
+      }
+      if (slow3gIssue(issue) && usesTooLongBootstrapAssertionTimeout(executable)) {
+        fail('admin slow-3G repro must keep the shell-usability assertion near the reported 30-second threshold; using a much longer timeout can mask the reported bootstrap failure');
       }
       if (hasUnrelatedAdminModulePrecondition(executable, issue)) {
         fail('admin bootstrap/login repro uses an unrelated module/menu link as a precondition; prove the admin shell or reported login/bootstrap state instead');

@@ -875,6 +875,36 @@ if (!badBootstrapFast3gProfileResult.stdout.includes('Slow-3G-like network profi
   process.exit(1);
 }
 
+const badBootstrapTooLongTimeout = writeAdminBundle(`
+import { test, expect } from '@playwright/test';
+test('bad admin bootstrap long timeout', async ({ page, context }) => {
+  const cdpSession = await context.newCDPSession(page);
+  await cdpSession.send('Network.enable');
+  await cdpSession.send('Network.emulateNetworkConditions', {
+    offline: false,
+    downloadThroughput: 50 * 1024,
+    uploadThroughput: 20 * 1024,
+    latency: 400,
+  });
+  await page.goto('/admin#/sw/dashboard/index');
+  await page.locator('body').waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: document body missing'); });
+  await expect(page.getByRole('main')).toBeVisible({ timeout: 45_000 });
+});
+`, `# Admin area login is impossible on a slow throttled 3G connection
+
+Logging into the Administration over a slow but stable 3G connection takes over 30 seconds and times out before the admin shell becomes usable.
+`);
+const badBootstrapTooLongTimeoutResult = run(badBootstrapTooLongTimeout);
+if (badBootstrapTooLongTimeoutResult.status === 0) {
+  console.error('Expected admin bootstrap repro with too-long assertion timeout to be rejected');
+  process.exit(1);
+}
+if (!badBootstrapTooLongTimeoutResult.stdout.includes('30-second threshold')) {
+  console.error(`Unexpected bad-bootstrap-long-timeout output:\n${badBootstrapTooLongTimeoutResult.stdout}\n${badBootstrapTooLongTimeoutResult.stderr}`);
+  process.exit(1);
+}
+
 const badMobileAdminNavigation = writeAdminBundle(`
 import { test, expect } from '@playwright/test';
 test.use({ viewport: { width: 375, height: 812 } });
