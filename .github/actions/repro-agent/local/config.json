@@ -31,6 +31,7 @@
     ".github/actions/repro-agent/repro.spec.ts",
     ".repro-agent-local-restore",
     "admin-state.json",
+    "admin-probe-state.json",
     "customer-addresses-example.json",
     "tests/integration/Repro"
   ],

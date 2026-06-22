@@ -13,15 +13,19 @@ bundle, verify it, then only fix what the verifier names.
 2. Spend at most 12 read/search tool calls on Shopware source, tests, fixtures, or docs. Prefer
    existing tests/fixtures over implementation. Stop once you know the route/module, entity graph,
    required visibility/indexing, and the healthy assertion.
-3. Write the whole bundle: `reproduction-plan.json`, plus `fixtures.json` when data is needed,
+3. For Admin UI Playwright issues, run one bounded live UI probe before writing `repro.spec.ts`:
+   `bash .github/actions/repro-agent/bin/agent/probe-ui.sh <admin-route> [viewport]`. Use the
+   route, visible roles/text, and screenshot path it prints to choose locators and precondition
+   gates. Use at most two probe routes and one viewport unless the issue is viewport-specific.
+4. Write the whole bundle: `reproduction-plan.json`, plus `fixtures.json` when data is needed,
    plus exactly one executor artifact (`repro.spec.ts`, `ReproTest.php`, or inline HTTP plan).
-4. Run `bash .github/actions/repro-agent/bin/agent/verify-reproduction.sh` in the foreground and
+5. Run `bash .github/actions/repro-agent/bin/agent/verify-reproduction.sh` in the foreground and
    wait. Do not background it and do not trigger GitHub workflows.
-5. Read `builder-result.json`. For Playwright, also inspect the captured screenshot path printed by
+6. Read `builder-result.json`. For Playwright, also inspect the captured screenshot path printed by
    the verifier and make sure it visibly shows the intended issue-specific state. If the screenshot
    shows the wrong page, an empty fixture, or missing seeded data, fix setup instead of trusting the
    verdict.
-6. If verification fails, make at most two targeted fixes. Use the verifier's one concrete failure
+7. If verification fails, make at most two targeted fixes. Use the verifier's one concrete failure
    as the next edit. If still unproven, run `verify-reproduction.sh giveup` or leave
    `reproduction-plan.json` with `confidence <= 0.5` and a specific `confidence_reason` or
    `blocked_reason`. Your final state is invalid if `builder-result.json` is `blocked` or
@@ -148,6 +152,7 @@ spec/test.
 - Verify: `bash .github/actions/repro-agent/bin/agent/verify-reproduction.sh`
 - Give up: `bash .github/actions/repro-agent/bin/agent/verify-reproduction.sh giveup`
 - Inspect live entities: `bash .github/actions/repro-agent/bin/agent/shop-get.sh <entity> [<id> | --filter field=value]`
+- Probe rendered UI: `bash .github/actions/repro-agent/bin/agent/probe-ui.sh <route-or-url> [viewport]`
 - JSON parsing: `jq` or `shop-get.sh --jq '<filter>'`
 - Read/search: `rg`, `grep`, `find`, `cat`, `ls`, `head`, `tail`, `sed`, `wc`, `git log`,
   `git show`, `git diff`, `git blame`

@@ -34,6 +34,10 @@ ISSUE=30 REPO=gweiermann/shopware bash .github/actions/repro-agent/local/scripts
 # Static smoke check of the generated bundle contract.
 node .github/actions/repro-agent/local/scripts/verify-output.mjs
 
+# Probe a live rendered route with the same Admin login harness used by repro specs.
+APP_URL=http://localhost:18080 ADMIN_USER=admin ADMIN_PASS=shopware \
+  bash .github/actions/repro-agent/bin/agent/probe-ui.sh '/admin#/sw/category/index' 375x812
+
 # Simulated agent entrypoint. Uses the Codex CLI auth/session; no raw OPENAI_API_KEY is required.
 node .github/actions/repro-agent/local/scripts/run-agent.mjs --issue 30 --max-turns 12 --dry-run
 node .github/actions/repro-agent/local/scripts/run-agent.mjs --issue 30 --max-turns 12
