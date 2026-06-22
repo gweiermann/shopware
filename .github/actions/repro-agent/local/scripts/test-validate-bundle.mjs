@@ -821,6 +821,29 @@ if (!badBootstrapShellAsPreconditionResult.stdout.includes('single healthy expec
   process.exit(1);
 }
 
+const badBootstrapProgressAsPrecondition = writeAdminBundle(`
+import { test, expect } from '@playwright/test';
+test('bad admin bootstrap progress precondition', async ({ page }) => {
+  await page.goto('/admin');
+  const progress = page.getByRole('progressbar');
+  await progress.waitFor({ state: 'visible', timeout: 10_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: admin bootstrap progress indicator did not appear after navigation'); });
+  await expect(page.getByRole('navigation')).toBeVisible({ timeout: 30_000 });
+});
+`, `# Admin area login is impossible on a slow throttled 3G connection
+
+Logging into the Administration over a slow but stable connection times out before the admin shell becomes usable.
+`);
+const badBootstrapProgressAsPreconditionResult = run(badBootstrapProgressAsPrecondition);
+if (badBootstrapProgressAsPreconditionResult.status === 0) {
+  console.error('Expected admin bootstrap repro with progress indicator as precondition to be rejected');
+  process.exit(1);
+}
+if (!badBootstrapProgressAsPreconditionResult.stdout.includes('single healthy expect')) {
+  console.error(`Unexpected bad-bootstrap-progress-precondition output:\n${badBootstrapProgressAsPreconditionResult.stdout}\n${badBootstrapProgressAsPreconditionResult.stderr}`);
+  process.exit(1);
+}
+
 const badMobileAdminNavigation = writeAdminBundle(`
 import { test, expect } from '@playwright/test';
 test.use({ viewport: { width: 375, height: 812 } });

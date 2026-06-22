@@ -312,7 +312,7 @@ function hasGenericAdminChromeFailure(source, text) {
 
 function hasBootstrapUsabilityAsPrecondition(source) {
   const preconditions = preconditionSnippet(source);
-  return /\bPRECONDITION_NOT_FOUND:[^\n]*(?:admin(?:istration)? shell|shell|main|banner|dashboard|usable|did not become visible|did not load|within \d+\s*seconds?)\b/i.test(preconditions);
+  return /\bPRECONDITION_NOT_FOUND:[^\n]*(?:admin(?:istration)? shell|shell|main|banner|dashboard|usable|progress|progressbar|spinner|loading indicator|did not become visible|did not appear|did not load|within \d+\s*seconds?)\b/i.test(preconditions);
 }
 
 function hasSeededNavigationCategory(data) {

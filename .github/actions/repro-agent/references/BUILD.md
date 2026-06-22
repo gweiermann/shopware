@@ -119,10 +119,11 @@ set, **STOP** and explain in plain text (not a JSON file) — never hand-roll a 
      repro did NOT fail merely because a `Dashboard` heading locator missed.
      For login/bootstrap/slow-network issues, do not turn an arbitrary module link such as
      `Products`, `Orders`, or `Settings` into the decisive precondition unless the issue names that
-     module. The precondition should prove only the setup exists (page body, login/bootstrap start,
-     or loading/progress state). The admin shell becoming usable within the timeout is the symptom
-     assertion, not `PRECONDITION_NOT_FOUND`; unrelated downstream navigation creates false
-     negatives when responsive chrome or permissions differ.
+     module. The precondition should prove only that the browser page exists, for example the page
+     body/document. Do not require a semantic spinner/progressbar role; the loading indicator may
+     be visual-only. The admin shell becoming usable within the timeout is the symptom assertion,
+     not `PRECONDITION_NOT_FOUND`; unrelated downstream navigation creates false negatives when
+     responsive chrome or permissions differ.
 2. **Write `reproduction-plan.json` + the executor's artifact:**
    - `http`: `request`/`requests` + `assertion`.
    - `playwright`: `script_path: "repro.spec.ts"` + the spec.
