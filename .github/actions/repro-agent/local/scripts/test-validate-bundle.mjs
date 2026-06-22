@@ -902,6 +902,54 @@ if (goodAdminHelperPreconditionResult.status !== 0) {
   process.exit(1);
 }
 
+const badAdminTabAsLink = writeAdminBundle(`
+import { test, expect } from '@playwright/test';
+test('bad admin detail tab role', async ({ page }) => {
+  await page.goto('/admin#/sw/product/detail/99000000000000000000000000000001');
+  const product = page.getByText('Repro Issue 27 Product', { exact: true });
+  await product.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: product entity Repro Issue 27 Product'); });
+  const layoutTab = page.getByRole('link', { name: 'Layout' });
+  await layoutTab.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: layout tab'); });
+  await expect(layoutTab).toBeVisible();
+});
+`, `# getEntityName is not a function when trying to replace an image that is used in a teaser
+
+When trying to replace an image via media gallery that is used in a product teaser slot, the Replace button stays gray.
+`);
+const badAdminTabAsLinkResult = run(badAdminTabAsLink);
+if (badAdminTabAsLinkResult.status === 0) {
+  console.error('Expected admin detail tab queried as link to be rejected');
+  process.exit(1);
+}
+if (!badAdminTabAsLinkResult.stdout.includes('ARIA role "tab", not "link"')) {
+  console.error(`Unexpected bad-admin-tab-as-link output:\n${badAdminTabAsLinkResult.stdout}\n${badAdminTabAsLinkResult.stderr}`);
+  process.exit(1);
+}
+
+const goodAdminTabRole = writeAdminBundle(`
+import { test, expect } from '@playwright/test';
+test('good admin detail tab role', async ({ page }) => {
+  await page.goto('/admin#/sw/product/detail/99000000000000000000000000000001');
+  const product = page.getByText('Repro Issue 27 Product', { exact: true });
+  await product.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: product entity Repro Issue 27 Product'); });
+  const layoutTab = page.getByRole('tab', { name: 'Layout' });
+  await layoutTab.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: layout tab'); });
+  await expect(layoutTab).toBeVisible();
+});
+`, `# getEntityName is not a function when trying to replace an image that is used in a teaser
+
+When trying to replace an image via media gallery that is used in a product teaser slot, the Replace button stays gray.
+`);
+const goodAdminTabRoleResult = run(goodAdminTabRole);
+if (goodAdminTabRoleResult.status !== 0) {
+  console.error(`Expected admin detail tab queried as tab to pass:\n${goodAdminTabRoleResult.stdout}\n${goodAdminTabRoleResult.stderr}`);
+  process.exit(1);
+}
+
 const badBootstrapUsesModuleLink = writeAdminBundle(`
 import { test, expect } from '@playwright/test';
 test.use({ viewport: { width: 375, height: 812 } });

@@ -99,6 +99,9 @@ spec/test.
 - Use semantic locators (`getByRole`, `getByLabel`, `getByText`, `getByPlaceholder`,
   `getByDisplayValue`). Avoid CSS, data-test, and raw attribute selectors.
 - Admin UI specs start authenticated. Do not write Admin login steps.
+- Admin detail page tab strips expose navigation items such as `General`, `Layout`, `Variants`,
+  `SEO`, `Cross Selling`, and `Reviews` as ARIA `tab`, not `link`. Use
+  `getByRole('tab', { name: ... })` for those tabs.
 - Do not perform raw Admin API setup inside Playwright via `page.evaluate(fetch('/api/...'))` or
   `page.request.*('/api/...')`. Use `fixtures.json` for static state, or perform real UI actions
   when the uploaded/runtime object must be created through the browser.

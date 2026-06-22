@@ -403,6 +403,14 @@ function hasUnboundedFileChooserWait(source) {
     .some((match) => !/\btimeout\s*:/.test(match[1] ?? ''));
 }
 
+function usesAdminDetailTabAsLink(source) {
+  const detailRoute = /\/admin#\/sw\/[^'"`]+\/detail\//.test(source);
+  const detailTabNames = /(?:General|Specifications|Advanced pricing|Variants|Layout|SEO|Cross Selling|Reviews|Media|Documents|Addresses|Orders|Customers)/i;
+  return detailRoute
+    && [...source.matchAll(/getByRole\s*\(\s*['"]link['"]\s*,\s*\{[^}]*name\s*:\s*([^}\n]+)\}/g)]
+      .some((match) => detailTabNames.test(match[1]));
+}
+
 function hasSeededNavigationCategory(data) {
   return entityRows(data, 'category').some((row) => (
     row?.id
@@ -529,6 +537,9 @@ if (executor === 'playwright') {
   }
   if (hasUnboundedFileChooserWait(executable)) {
     fail('Playwright file upload flows must bound page.waitForEvent("filechooser", { timeout: ... }); an upload selector that does not open the chooser should fail fast as setup drift instead of burning the full test timeout');
+  }
+  if (usesAdminDetailTabAsLink(executable)) {
+    fail('Admin detail page tabs such as General, Layout, Variants, SEO, Cross Selling, and Reviews expose ARIA role "tab", not "link"; use getByRole("tab", { name: ... }) for tab-strip navigation to avoid false PRECONDITION_NOT_FOUND failures');
   }
   if (!executable.includes('PRECONDITION_NOT_FOUND')) {
     fail('playwright spec has no PRECONDITION_NOT_FOUND precondition gate; missing setup must be inconclusive, not a reproduced/not_reproduced verdict');
