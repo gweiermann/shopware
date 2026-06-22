@@ -121,6 +121,17 @@ if (fs.existsSync(resultPath)) {
       failures.push(`Runtime result is ${result.status}; reproduction-plan.json must explain the uncertainty in blocked_reason or confidence_reason`);
     }
   }
+  if (result && plan && ['reproduced', 'not_reproduced'].includes(result.status)) {
+    if (plan.blocked_reason) {
+      failures.push(`Runtime result is ${result.status}, but reproduction-plan.json still has blocked_reason; remove stale blocked metadata after a classified verifier result`);
+    }
+    if (typeof plan.confidence !== 'number' || plan.confidence <= 0.5) {
+      failures.push(`Runtime result is ${result.status}, but reproduction-plan.json confidence is not classified-run confidence (${plan.confidence ?? 'missing'})`);
+    }
+    if (plan.confidence_reason && /\b(blocked|inconclusive|precondition missing|could not|uncertain|unproven|not stable|failed)\b/i.test(String(plan.confidence_reason))) {
+      failures.push(`Runtime result is ${result.status}, but reproduction-plan.json confidence_reason still describes a failed or uncertain run`);
+    }
+  }
 } else {
   warnings.push('No builder-result.json found; skipped runtime evidence checks');
 }

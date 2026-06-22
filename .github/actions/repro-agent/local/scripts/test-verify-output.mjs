@@ -82,6 +82,50 @@ if (inconclusiveResult.status === 0 || !inconclusiveResult.stderr.includes('stil
   process.exit(1);
 }
 
+const staleSuccessfulPlanDir = fs.mkdtempSync(path.join(os.tmpdir(), 'repro-agent-output-stale-successful-plan-'));
+fs.writeFileSync(path.join(staleSuccessfulPlanDir, 'reproduction-plan.json'), `${JSON.stringify({
+  schema_version: '1',
+  issue: 6,
+  executor: 'playwright',
+  layer: 'admin-ui',
+  build_profile: { admin_build: true },
+  version: '6.7.9.0',
+  confidence: 0.35,
+  confidence_reason: 'previous run was inconclusive because a precondition missing failure was not stable',
+  blocked_reason: 'previous run was blocked on setup',
+  script_path: 'repro.spec.ts',
+}, null, 2)}\n`);
+fs.writeFileSync(path.join(staleSuccessfulPlanDir, 'issue.md'), '# Mobile Administration navigation stays open\n');
+fs.writeFileSync(path.join(staleSuccessfulPlanDir, 'issue-class.txt'), 'visual\n');
+const staleSuccessfulSpec = `
+import { test, expect } from '@playwright/test';
+test.use({ viewport: { width: 375, height: 812 } });
+test('successful verifier must not keep stale blocked metadata', async ({ page }) => {
+  await page.goto('/admin#/sw/dashboard/index');
+  const menu = page.locator('aside.sw-admin-menu');
+  await menu.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: menu missing'); });
+  await expect(menu).not.toHaveClass(/is--off-canvas-shown/);
+});
+`;
+fs.writeFileSync(path.join(staleSuccessfulPlanDir, 'repro.spec.ts'), staleSuccessfulSpec);
+fs.writeFileSync(path.join(staleSuccessfulPlanDir, 'builder-result.json'), `${JSON.stringify({
+  status: 'not_reproduced',
+  executor: 'playwright',
+  evidence: {
+    script: staleSuccessfulSpec,
+    artifacts: [{ kind: 'playwright-results', name: 'test-results/' }],
+  },
+}, null, 2)}\n`);
+
+const staleSuccessfulPlanResult = spawnSync('node', [verifier, '--root', staleSuccessfulPlanDir], { cwd: repo, encoding: 'utf8' });
+if (staleSuccessfulPlanResult.status === 0 || !staleSuccessfulPlanResult.stderr.includes('still has blocked_reason')) {
+  console.error('Expected successful runtime with stale blocked plan metadata to fail verification');
+  console.error(staleSuccessfulPlanResult.stdout);
+  console.error(staleSuccessfulPlanResult.stderr);
+  process.exit(1);
+}
+
 const staleEvidenceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'repro-agent-output-stale-evidence-'));
 fs.writeFileSync(path.join(staleEvidenceDir, 'reproduction-plan.json'), `${JSON.stringify({
   schema_version: '1',

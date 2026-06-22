@@ -50,6 +50,8 @@ bundle, verify it, then only fix what the verifier names.
    `reproduction-plan.json` with `confidence <= 0.5` and a specific `confidence_reason` or
    `blocked_reason`. Your final state is invalid if `builder-result.json` is `blocked` or
    `inconclusive` while `reproduction-plan.json` still has confidence above `0.5` or no explanation.
+   If `builder-result.json` is `reproduced` or `not_reproduced`, clear any stale `blocked_reason`,
+   remove failed-run wording from `confidence_reason`, and set `confidence > 0.5`.
 
 ## Source Discipline
 Do not use a cookbook, global Codex skills, previous repro-agent outputs, or issue-specific memory.
