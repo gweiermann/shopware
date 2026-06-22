@@ -2152,4 +2152,39 @@ if (!rawAdminApiPlaywrightResult.stdout.includes('raw Admin API setup')) {
   process.exit(1);
 }
 
+const indirectRawAdminApiPlaywrightBundle = writeAdminBundle(`
+import { test, expect } from '@playwright/test';
+test('bad indirect raw admin api setup', async ({ page }) => {
+  await page.goto('/admin#/sw/media/index');
+  const media = page.getByRole('heading', { name: /^Media$/i });
+  await media.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: media module did not render'); });
+  await adminApi(page, '/api/search/media', { limit: 1 });
+  await expect(media).toBeVisible();
+});
+
+async function adminApi(page, path, payload) {
+  return page.evaluate(
+    async ({ apiPath, apiPayload }) => fetch(apiPath, {
+      method: 'POST',
+      credentials: 'include',
+      body: JSON.stringify(apiPayload),
+    }),
+    { apiPath: path, apiPayload: payload },
+  );
+}
+`, `# Administration media replacement fails after upload
+
+When replacing an image used by another entity, the Replace button stays disabled.
+`);
+const indirectRawAdminApiPlaywrightResult = run(indirectRawAdminApiPlaywrightBundle);
+if (indirectRawAdminApiPlaywrightResult.status === 0) {
+  console.error('Expected Playwright repro using indirect raw Admin API setup to be rejected');
+  process.exit(1);
+}
+if (!indirectRawAdminApiPlaywrightResult.stdout.includes('raw Admin API setup')) {
+  console.error(`Unexpected indirect-raw-admin-api-playwright output:\n${indirectRawAdminApiPlaywrightResult.stdout}\n${indirectRawAdminApiPlaywrightResult.stderr}`);
+  process.exit(1);
+}
+
 console.log('validate-bundle tests passed');

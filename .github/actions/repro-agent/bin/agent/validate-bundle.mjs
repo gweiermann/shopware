@@ -289,7 +289,9 @@ function cmsEditorTextClick(source) {
 
 function rawAdminApiCallInPlaywright(source) {
   return /\bfetch\s*\(\s*['"`]\/api\//s.test(source)
-    || /\bpage\.request\.(?:get|post|put|patch|delete)\s*\(\s*['"`]\/api\//s.test(source);
+    || /\bpage\.request\.(?:get|post|put|patch|delete)\s*\(\s*['"`]\/api\//s.test(source)
+    || /\bpage\.evaluate\s*\([\s\S]{0,2000}\bfetch\s*\(/s.test(source)
+    || /\b(?:apiPath|path|url)\s*:\s*path\b[\s\S]{0,1000}\bfetch\s*\(\s*(?:apiPath|path|url)\b/s.test(source);
 }
 
 function hasGuestWishlistAddWithoutStateProof(source) {
