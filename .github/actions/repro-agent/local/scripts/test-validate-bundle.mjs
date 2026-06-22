@@ -1024,4 +1024,45 @@ if (!badOrderFixtureResult.stdout.includes('priceDefinition.taxRules')) {
   process.exit(1);
 }
 
+const mediaReplacementWithSyncMedia = writeAdminBundle(`
+import { test, expect } from '@playwright/test';
+test('bad media replacement seed', async ({ page }) => {
+  await page.goto('/admin#/sw/media/index');
+  const media = page.getByText(/^repro_teaser_media_27$/i);
+  await media.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: media item missing'); });
+  await media.click();
+  await page.getByRole('button', { name: /^replace$/i }).waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: replace action missing'); });
+  await expect(page.getByRole('button', { name: /^replace$/i })).toBeEnabled();
+});
+`, `# Replace button stays disabled for image used in CMS teaser
+
+When replacing a media image that is used by a teaser, the Administration Media library keeps the Replace button disabled after upload.
+`);
+fs.writeFileSync(path.join(mediaReplacementWithSyncMedia, 'fixtures.json'), `${JSON.stringify({
+  media: {
+    entity: 'media',
+    action: 'upsert',
+    payload: [
+      {
+        id: '27000000000000000000000000000001',
+        fileName: 'repro_teaser_media_27',
+        fileExtension: 'png',
+        mimeType: 'image/png',
+        private: false,
+      },
+    ],
+  },
+}, null, 2)}\n`);
+const mediaReplacementWithSyncMediaResult = run(mediaReplacementWithSyncMedia);
+if (mediaReplacementWithSyncMediaResult.status === 0) {
+  console.error('Expected Admin Media replacement repro with sync-seeded media rows to be rejected');
+  process.exit(1);
+}
+if (!mediaReplacementWithSyncMediaResult.stdout.includes('sync-seeded media rows')) {
+  console.error(`Unexpected media-replacement fixture output:\n${mediaReplacementWithSyncMediaResult.stdout}\n${mediaReplacementWithSyncMediaResult.stderr}`);
+  process.exit(1);
+}
+
 console.log('validate-bundle tests passed');

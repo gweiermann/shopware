@@ -140,6 +140,13 @@ set, **STOP** and explain in plain text (not a JSON file) — never hand-roll a 
      route that can render the product. For variant/listing/slider symptoms, confirm from tests or
      entity definitions which fields are inherited from the parent and which fields must be set on
      the child that the UI actually reads.
+   - For Admin Media-library upload/replace bugs, do not treat a sync-upserted `media` entity as a
+     real uploaded file. A bare media row is metadata; it may have no stored bytes/path/`hasFile`
+     state and may not appear as a replaceable asset. If the symptom depends on replacing an image
+     or file, create the media item through a real upload flow in the Playwright setup, then assign
+     or use that item before the single symptom assertion. If the required upload/assignment control
+     cannot be reached semantically after verifier-guided fixes, stop inconclusive instead of using
+     a fake media row.
    - **`demodata` is YOUR call — default OFF.** Prefer seeding a small controlled delta. Opt in
      ONLY when the symptom needs an ambient, realistic, indexed body of data that minimal
      hand-seeding cannot fake (volume/relationship bugs: listings, pagination, sorting, search

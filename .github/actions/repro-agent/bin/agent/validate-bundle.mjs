@@ -242,6 +242,20 @@ function adminPriceEditIssue(text) {
     && /\b(price|gross|net|decimal|trailing zero|backspace|field)\b/i.test(text);
 }
 
+function adminMediaReplacementIssue(text) {
+  return /\b(admin|administration|media|image|asset|file|upload|replace|replacement|gallery|teaser|cms)\b/i.test(text)
+    && /\b(media|image|asset|file|upload|replace|replacement|gallery)\b/i.test(text)
+    && /\b(replace|replacement|upload|button|disabled|enabled|gray|grey|used|usage|teaser|cms)\b/i.test(text);
+}
+
+function syncSeedsMediaRows(data) {
+  return entityRows(data, 'media').length > 0;
+}
+
+function specUsesMediaLibraryReplaceFlow(source) {
+  return /\/admin#\/sw\/media(?:\/index)?|replace media|getByRole\s*\([^)]*replace|filechooser|setInputFiles/i.test(source);
+}
+
 function collectIssueTerms(text) {
   const terms = new Set();
   for (const match of text.matchAll(/[`"“”']([^`"“”']{4,80})[`"“”']/g)) terms.add(match[1]);
@@ -482,6 +496,11 @@ if (executor === 'playwright') {
         'wait for the issue-specific module/action/entity/control before the symptom expect',
         'dashboard, shell, navigation, toolbar, or Home chrome can prove the admin loaded but cannot prove the reported state is exercisable'
       ].join(' — '));
+    }
+    if (adminMediaReplacementIssue(`${issue}\n${JSON.stringify(plan.scenario ?? [])}`)
+      && syncSeedsMediaRows(fixtures)
+      && specUsesMediaLibraryReplaceFlow(executable)) {
+      fail('admin media replacement/upload repro must not rely on sync-seeded media rows as visible replaceable files; a media row has metadata but no uploaded bytes/hasFile state. Upload the issue asset through the UI/API during setup, then assign/use that real media item before testing replacement');
     }
     if (!bootstrapIssue && hasGenericAdminChromeFailure(executable, issue)) {
       fail([
