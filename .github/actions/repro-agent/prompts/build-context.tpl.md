@@ -108,6 +108,9 @@ spec/test.
   `getByRole('heading', { name: ... })`; module titles can be visibly rendered without heading
   semantics in narrow layouts. Gate route changes with URL/hash or visible module text, then assert
   the off-canvas navigation state.
+- In the Admin main menu, top-level groups such as `Catalogues`, `Orders`, `Customers`, `Content`,
+  `Marketing`, and `Extensions` are expandable menu entries, not route links. Open the group by its
+  visible text/control, then click the nested route link such as `Products`.
 - Do not perform raw Admin API setup inside Playwright via `page.evaluate(fetch('/api/...'))` or
   `page.request.*('/api/...')`. Use `fixtures.json` for static state, or perform real UI actions
   when the uploaded/runtime object must be created through the browser.

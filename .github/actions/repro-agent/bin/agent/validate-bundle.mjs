@@ -420,6 +420,12 @@ function usesAdminMobileModuleHeadingGate(source) {
     .some((match) => moduleNames.test(match[1]));
 }
 
+function usesAdminMenuGroupAsLink(source) {
+  const groupNames = /(?:Catalogues|Orders|Customers|Content|Marketing|Extensions)/i;
+  return [...source.matchAll(/getByRole\s*\(\s*['"]link['"]\s*,\s*\{[^}]*name\s*:\s*([^}\n]+)\}/g)]
+    .some((match) => groupNames.test(match[1]));
+}
+
 function usesAdminDetailTabAsLink(source) {
   const detailRoute = /\/admin#\/sw\/[^'"`]+\/detail\//.test(source);
   const detailTabNames = /(?:General|Specifications|Advanced pricing|Variants|Layout|SEO|Cross Selling|Reviews|Media|Documents|Addresses|Orders|Customers)/i;
@@ -664,6 +670,10 @@ if (executor === 'playwright') {
       if (adminMobileRouteNavigationIssue(`${issue}\n${JSON.stringify(plan.scenario ?? [])}`)
         && usesAdminMobileModuleHeadingGate(executable)) {
         fail('mobile admin route-navigation repro must not gate module pages with getByRole("heading", { name: ... }); mobile Admin module titles can be visible without heading semantics. Gate route changes with URL/hash or visible module text, then assert the off-canvas navigation state');
+      }
+      if (adminMobileRouteNavigationIssue(`${issue}\n${JSON.stringify(plan.scenario ?? [])}`)
+        && usesAdminMenuGroupAsLink(executable)) {
+        fail('mobile admin route-navigation repro must not treat top-level Admin menu groups such as Catalogues, Orders, Customers, Content, Marketing, or Extensions as links. Open the group by its visible text/control, then click the nested issue-specific link such as Products');
       }
     }
     if (!bootstrapIssue && !hasTargetedAdminPrecondition(executable)) {

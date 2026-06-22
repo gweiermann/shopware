@@ -1383,6 +1383,76 @@ if (goodMobileAdminTextGateResult.status !== 0) {
   process.exit(1);
 }
 
+const badMobileAdminGroupAsLink = writeAdminBundle(`
+import { test, expect } from '@playwright/test';
+test.use({ viewport: { width: 375, height: 812 } });
+test('bad mobile admin menu group as link', async ({ page }) => {
+  await page.goto('/admin#/sw/dashboard/index');
+  const menuButton = page.getByRole('banner').getByRole('button').first();
+  await menuButton.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: mobile menu button missing'); });
+  await menuButton.click({ timeout: 5_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: mobile menu button was not clickable'); });
+  const navigation = page.getByRole('navigation', { name: /Main navigation|Main menu/i });
+  const catalogues = navigation.getByRole('link', { name: /^Catalogues$/i });
+  await catalogues.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: Catalogues link missing'); });
+  await catalogues.click({ timeout: 5_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: Catalogues link was not clickable'); });
+  const products = navigation.getByRole('link', { name: /^Products$/i });
+  await products.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: Products link missing'); });
+  await products.click({ timeout: 5_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: Products link was not clickable'); });
+  await expect(navigation).not.toBeInViewport();
+});
+`, `# Administration sidebar does not close on mobile after clicking a nav item
+
+On a mobile viewport, opening the Administration sidebar and navigating to Products leaves the off-canvas menu over the page.
+`);
+const badMobileAdminGroupAsLinkResult = run(badMobileAdminGroupAsLink);
+if (badMobileAdminGroupAsLinkResult.status === 0) {
+  console.error('Expected mobile admin menu group queried as link to be rejected');
+  process.exit(1);
+}
+if (!badMobileAdminGroupAsLinkResult.stdout.includes('must not treat top-level Admin menu groups')) {
+  console.error(`Unexpected bad-mobile-admin-group-as-link output:\n${badMobileAdminGroupAsLinkResult.stdout}\n${badMobileAdminGroupAsLinkResult.stderr}`);
+  process.exit(1);
+}
+
+const goodMobileAdminGroupThenNestedLink = writeAdminBundle(`
+import { test, expect } from '@playwright/test';
+test.use({ viewport: { width: 375, height: 812 } });
+test('good mobile admin group then nested link', async ({ page }) => {
+  await page.goto('/admin#/sw/dashboard/index');
+  const menuButton = page.getByRole('banner').getByRole('button').first();
+  await menuButton.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: mobile menu button missing'); });
+  await menuButton.click({ timeout: 5_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: mobile menu button was not clickable'); });
+  const navigation = page.getByRole('navigation', { name: /Main navigation|Main menu/i });
+  const catalogues = navigation.getByText(/^Catalogues$/i);
+  await catalogues.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: Catalogues menu group missing'); });
+  await catalogues.click({ timeout: 5_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: Catalogues menu group was not clickable'); });
+  const products = navigation.getByRole('link', { name: /^Products$/i });
+  await products.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: Products link missing'); });
+  await products.click({ timeout: 5_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: Products link was not clickable'); });
+  await expect(navigation).not.toBeInViewport();
+});
+`, `# Administration sidebar does not close on mobile after clicking a nav item
+
+On a mobile viewport, opening the Administration sidebar and navigating to Products leaves the off-canvas menu over the page.
+`);
+const goodMobileAdminGroupThenNestedLinkResult = run(goodMobileAdminGroupThenNestedLink);
+if (goodMobileAdminGroupThenNestedLinkResult.status !== 0) {
+  console.error(`Expected mobile admin menu group text plus nested link to pass:\n${goodMobileAdminGroupThenNestedLinkResult.stdout}\n${goodMobileAdminGroupThenNestedLinkResult.stderr}`);
+  process.exit(1);
+}
+
 const badMobileAdminUnboundedClick = writeAdminBundle(`
 import { test, expect } from '@playwright/test';
 test.use({ viewport: { width: 375, height: 812 } });
