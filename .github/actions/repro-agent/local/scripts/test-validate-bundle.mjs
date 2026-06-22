@@ -433,6 +433,80 @@ if (wishlistWithConfigResult.status !== 0) {
   process.exit(1);
 }
 
+const wishlistAddWithoutStateProof = writeBundle(`
+import { test, expect } from '@playwright/test';
+test('bad guest wishlist add state', async ({ page }) => {
+  await page.goto('/detail/ab000000000000000000000000000001');
+  const productNumber = page.getByText(/Product number:\\s*WISH-1/i);
+  await productNumber.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: product detail missing'); });
+  const addToWishlist = page.getByText(/^Add to wishlist$/i);
+  await addToWishlist.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: add to wishlist missing'); });
+  await addToWishlist.click();
+  await page.goto('/wishlist');
+  const product = page.getByRole('link', { name: /^Wishlist Product$/i }).first();
+  await product.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: wishlist product missing'); });
+  await expect(page.getByText(/404|not found/i)).toBeHidden();
+});
+`, {
+  system_config: [
+    {
+      id: 'ac000000000000000000000000000001',
+      configurationKey: 'core.cart.wishlistEnabled',
+      configurationValue: true,
+    },
+  ],
+  product: wishlistFixturesWithoutConfig.product,
+});
+fs.writeFileSync(path.join(wishlistAddWithoutStateProof, 'issue.md'), '# Guest wishlist page crashes when user logs in via another tab and removes item\n');
+const wishlistAddWithoutStateProofResult = run(wishlistAddWithoutStateProof);
+if (wishlistAddWithoutStateProofResult.status === 0) {
+  console.error('Expected guest wishlist add without post-add state proof to be rejected');
+  process.exit(1);
+}
+if (!wishlistAddWithoutStateProofResult.stdout.includes('proving the guest wishlist state changed')) {
+  console.error(`Unexpected wishlist-add-without-state-proof output:\n${wishlistAddWithoutStateProofResult.stdout}\n${wishlistAddWithoutStateProofResult.stderr}`);
+  process.exit(1);
+}
+
+const wishlistAddWithStateProof = writeBundle(`
+import { test, expect } from '@playwright/test';
+test('good guest wishlist add state', async ({ page }) => {
+  await page.goto('/detail/ab000000000000000000000000000001');
+  const productNumber = page.getByText(/Product number:\\s*WISH-1/i);
+  await productNumber.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: product detail missing'); });
+  const addToWishlist = page.getByText(/^Add to wishlist$/i);
+  await addToWishlist.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: add to wishlist missing'); });
+  await addToWishlist.click();
+  await page.waitForFunction(() => window.localStorage.getItem('wishlist')?.includes('ab000000000000000000000000000001'), null, { timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: guest wishlist storage did not include seeded product'); });
+  await page.goto('/wishlist');
+  const product = page.getByRole('link', { name: /^Wishlist Product$/i }).first();
+  await product.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: wishlist product missing'); });
+  await expect(page.getByText(/404|not found/i)).toBeHidden();
+});
+`, {
+  system_config: [
+    {
+      id: 'ac000000000000000000000000000001',
+      configurationKey: 'core.cart.wishlistEnabled',
+      configurationValue: true,
+    },
+  ],
+  product: wishlistFixturesWithoutConfig.product,
+});
+fs.writeFileSync(path.join(wishlistAddWithStateProof, 'issue.md'), '# Guest wishlist page crashes when user logs in via another tab and removes item\n');
+const wishlistAddWithStateProofResult = run(wishlistAddWithStateProof);
+if (wishlistAddWithStateProofResult.status !== 0) {
+  console.error(`Expected guest wishlist add with post-add state proof to pass:\n${wishlistAddWithStateProofResult.stdout}\n${wishlistAddWithStateProofResult.stderr}`);
+  process.exit(1);
+}
+
 const brittleStorefrontLoginLabels = writeBundle(`
 import { test, expect } from '@playwright/test';
 test('bad storefront login labels', async ({ page }) => {

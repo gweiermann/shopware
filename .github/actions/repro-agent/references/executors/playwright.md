@@ -225,9 +225,12 @@ await locator.waitFor({ state: 'visible', timeout })
   page can render without any wishlist control. Guest wishlist state can be version/session-sensitive.
   Prefer a seeded customer and a normal storefront login when the issue is about registered-customer
   wishlist behavior. If you add from a product detail page, wait for the header wishlist count/link
-  to reflect the addition, then go to `/wishlist` and precondition on the seeded product card. An
-  empty wishlist page or a missing wishlist button is setup failure, not the symptom. Do not click
-  `Add to shopping cart` until the seeded product is visibly present on `/wishlist`.
+  to reflect the addition, or wait for localStorage/the guest-pagelet request to contain the seeded
+  product id, then go to `/wishlist` and precondition on the seeded product card. Never click
+  `Add to wishlist` and immediately navigate to `/wishlist` without proving that post-add state;
+  an empty wishlist page then only proves the add/setup failed. An empty wishlist page or a missing
+  wishlist button is setup failure, not the symptom. Do not click `Add to shopping cart` until the
+  seeded product is visibly present on `/wishlist`.
   The symptom assertion for an add-to-cart issue must prove the cart/off-canvas opened, e.g. a
   visible `dialog`/cart heading/container plus the seeded product scoped inside it. Do not assert
   only that the product link is visible again; that link is already visible on the wishlist card and

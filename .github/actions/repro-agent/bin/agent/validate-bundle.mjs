@@ -256,6 +256,22 @@ function specUsesMediaLibraryReplaceFlow(source) {
   return /\/admin#\/sw\/media(?:\/index)?|replace media|getByRole\s*\([^)]*replace|filechooser|setInputFiles/i.test(source);
 }
 
+function hasGuestWishlistAddWithoutStateProof(source) {
+  const addMatch = source.match(/(?:Add to wishlist|add to wishlist)/i);
+  if (!addMatch) return false;
+
+  const afterAddText = source.slice(addMatch.index);
+  const clickMatch = afterAddText.match(/\.click\s*\(/);
+  if (!clickMatch) return false;
+
+  const afterClick = afterAddText.slice(clickMatch.index + clickMatch[0].length);
+  const wishlistGotoMatch = afterClick.match(/\.goto\s*\([^)]*['"`][^'"`]*\/wishlist\b/i);
+  if (!wishlistGotoMatch) return false;
+
+  const setupProof = afterClick.slice(0, wishlistGotoMatch.index);
+  return !/\b(?:waitForResponse|waitForFunction|localStorage|sessionStorage|wishlist[- ]?(?:count|badge|link|storage)|header[^;\n]*wishlist|getByRole\s*\(\s*['"]link['"][^;\n]*wishlist)\b/i.test(setupProof);
+}
+
 function collectIssueTerms(text) {
   const terms = new Set();
   for (const match of text.matchAll(/[`"“”']([^`"“”']{4,80})[`"“”']/g)) terms.add(match[1]);
@@ -487,6 +503,9 @@ if (executor === 'playwright') {
         `fixture gaps: ${productGaps.slice(0, 5).join('; ')}`,
         'add both a {{NAV_CAT}} category assignment and sales-channel visibility; a blank product detail page is a seed gap, not the symptom'
       ].join(' — '));
+    }
+    if (hasGuestWishlistAddWithoutStateProof(executable)) {
+      fail('wishlist Playwright repro clicks Add to wishlist and then opens /wishlist without proving the guest wishlist state changed; wait for the header wishlist count/link, localStorage wishlist entry, or guest-pagelet response before navigating, otherwise an empty /wishlist page is only a setup failure');
     }
   }
   if (storefrontAccountFormIssue(`${issue}\n${JSON.stringify(plan.scenario ?? [])}`)
