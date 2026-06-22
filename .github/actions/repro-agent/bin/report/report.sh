@@ -98,6 +98,7 @@ gloss () { case "$1" in # one-line plain-English read of a leg status
 esac; }
 
 qval () { case "$1" in (''|*[!0-9]*) printf "'%s'" "$1" ;; (*) printf '%s' "$1" ;; esac; } # quote unless all-digits
+jcomment () { printf '%s' "$1" | tr '\n' ' ' | sed -E 's#[[:space:]]+# #g; s#\*/#* /#g'; }
 
 # Render each structured check (assertion.checks) as a readable, named assert — one keyword per
 # operator (assertEquals / assertContains / assertMatches / assertPresent / assertAbsent /
@@ -110,12 +111,19 @@ checks_block () { # <result.json>
     # One compact JSON object per check (NOT @tsv — empty `expected` fields would collapse under a
     # tab IFS and shift the columns); pull each field with jq so empties are preserved.
     # `require*` keywords = preconditions (failing one → inconclusive); `assert*` = the symptom.
-    local c subj role op exp act ok verb call
+    local c subj role op exp act ok verb call label suffix last_role marker
     while IFS= read -r c; do
       subj=$(jq -r '.subject' <<<"$c"); op=$(jq -r '.op // "equals"' <<<"$c")
       role=$(jq -r '.role // "assert"' <<<"$c")
       exp=$(jq -r '.expected | tostring' <<<"$c"); act=$(jq -r '.actual | tostring' <<<"$c")
       ok=$(jq -r '.ok' <<<"$c")
+      label=$(jq -r '.label // ""' <<<"$c")
+      if [ "$role" != "$last_role" ]; then
+        [ -n "${last_role:-}" ] && echo
+        [ "$role" = precondition ] && marker="PRECONDITIONS" || marker="ASSERTIONS"
+        echo "// === $marker ==="
+        last_role="$role"
+      fi
       [ "$role" = precondition ] && verb="require" || verb="assert"
       case "$op" in
         present)  call="${verb}Present(${subj})" ;;
@@ -126,8 +134,10 @@ checks_block () { # <result.json>
         lt)       call="${verb}LessThan(${subj}, $(qval "$exp"))" ;;
         *)        call="${verb}Equals(${subj}, $(qval "$exp"))" ;;
       esac
-      if [ "$ok" = true ]; then echo "${call} // ✅"
-      else echo "${call} // ❌ got $(qval "$act")"; fi
+      suffix=""
+      [ -n "$label" ] && [ "$label" != null ] && suffix=" - $(jcomment "$label")"
+      if [ "$ok" = true ]; then echo "${call} // ✅${suffix}"
+      else echo "${call} // ❌ got $(qval "$act")${suffix}"; fi
     done < <(jq -c '.assertion.checks[]' "$f")
     echo '```'
   else

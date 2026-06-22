@@ -63,12 +63,15 @@ Author a LIST of checks in `assertions: [ … ]` (a single `assertion: { … }` 
 - **`not_reproduced`** (healthy) ⟺ **every** assertion passes;
 - **`reproduced`** (buggy) ⟺ **any** assertion fails.
 
-Each entry is `{ role?, kind?, field?, expect?, op? }`:
+Each entry is `{ role?, kind?, field?, expect?, op?, label? }`:
 - `role` (default `assert`): `precondition` | `assert` — see below.
 - `kind`: `http_status` (asserts the response code) or `response_field` (default when `field` is set).
 - `field`: a jq path/expression evaluated on the final body (e.g. `.price.totalPrice`,
   `.errors[0].code`, `.elements | length`).
 - `expect`: the **healthy** value (what a FIXED shop returns) — placeholders like `{{SALUTATION}}` allowed.
+- `label` or `comment`: optional short human explanation rendered after the jq expression in the
+  report, e.g. `"label": "seeded category is present"`. Keep the jq visible; use the label to
+  explain why the check exists.
 - `op` (default `equals`) — how `expect` is compared. The report renders one keyword per op
   (`require*` for preconditions, `assert*` for the symptom):
 

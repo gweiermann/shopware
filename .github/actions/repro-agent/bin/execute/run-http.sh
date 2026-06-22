@@ -151,12 +151,13 @@ if [ -z "$blocked" ] && [ "$NASRT" -gt 0 ]; then
     op=$(echo "$A" | jq -r '.op // "equals"')
     role=$(echo "$A" | jq -r '.role // "assert"'); [ "$role" = "precondition" ] || role="assert"
     field=$(echo "$A" | jq -r '.field // ""')
+    label=$(echo "$A" | jq -r '.label // .comment // ""')
     akind=$(echo "$A" | jq -r '.kind // (if .field then "response_field" else "http_status" end)')
     exp=$(resolve "$(echo "$A" | jq -r 'if has("expect") then (.expect|tostring) else "" end')")
     if [ "$akind" = "http_status" ]; then
       subject="status"; actual="$CODE"
     else
-      case "$field" in .*) subject="response$field" ;; *) subject="response.$field" ;; esac
+      case "$field" in .*) subject="response$field" ;; *) subject="response | $field" ;; esac
       actual=$(jq -r "$field" "$BODYF" 2>/dev/null || true); [ -n "$actual" ] || actual="<unparseable>"
     fi
     ok=false
@@ -178,8 +179,8 @@ if [ -z "$blocked" ] && [ "$NASRT" -gt 0 ]; then
     if [ "$role" = "assert" ]; then
       case "$op" in equals|contains|matches|gt|lt) { [ "$actual" = "<unparseable>" ] && [ "$is2xx" = false ]; } && UNPARSEABLE_NON2XX=true ;; esac
     fi
-    CHECKS=$(echo "$CHECKS" | jq -c --arg s "$subject" --arg role "$role" --arg op "$op" --arg e "$exp" --arg a "$actual" --argjson ok "$ok" \
-      '. + [{subject:$s, role:$role, op:$op, expected:$e, actual:$a, ok:$ok}]')
+    CHECKS=$(echo "$CHECKS" | jq -c --arg s "$subject" --arg role "$role" --arg op "$op" --arg e "$exp" --arg a "$actual" --arg label "$label" --argjson ok "$ok" \
+      '. + [{subject:$s, role:$role, op:$op, expected:$e, actual:$a, label:$label, ok:$ok}]')
   done
 fi
 

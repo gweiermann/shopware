@@ -69,8 +69,9 @@ else
   REASON="null"
   # Every failed/timed-out test's error message — used to classify WHY it failed.
   # Strip ANSI colour codes Playwright embeds, else they leak into the rendered comment.
-  ERRS=$(jq -r '[.. | objects | select(.status?=="failed" or .status?=="timedOut") | .error?.message // empty] | join(" || ")' "$REPORT" | perl -pe 's/\e\[[0-9;]*m//g')
-  MSG=$(printf '%s' "$ERRS" | tr -s ' \n' '  ' | head -c 300)
+  ERRS=$(jq -r '[.. | objects | select(.status?=="failed" or .status?=="timedOut") | .error?.message // empty] | join("\n\n---\n\n")' "$REPORT" | perl -pe 's/\e\[[0-9;]*m//g')
+  PRETTY_MSG=$(printf '%s' "$ERRS" | head -c 1200)
+  MSG=$(printf '%s' "$ERRS" | tr -s ' \n' ' ' | head -c 300)
   if [ "$EXPECTED" = 0 ] && [ "$UNEXPECTED" = 0 ] && [ "$SKIPPED" = 0 ]; then
     STATUS="inconclusive"; MATCHED="null"; ACTUAL="\"no tests ran\""
     REPORTER="no tests executed"; REASON="\"playwright ran no tests\""
@@ -95,7 +96,7 @@ else
       REASON="\"the failure was a strict-mode locator error, not an assertion on one issue-specific state; cannot confirm the symptom on $VERSION\""
     elif printf '%s' "$ERRS" | grep -qE 'Error: expect\(locator\)|expect\(locator\)\.|Expected:|Expected (pattern|string|value)|Received (string|value)|toBe|toHave|toContain|toEqual'; then
       STATUS="reproduced"; MATCHED="false"; ACTUAL="\"$UNEXPECTED failing\""
-      REPORTER=$([ -n "$MSG" ] && printf '%s' "$MSG" || echo "assertion failed")
+      REPORTER=$([ -n "$PRETTY_MSG" ] && printf '%s' "$PRETTY_MSG" || echo "assertion failed")
     elif printf '%s' "$ERRS" | grep -qiE 'element\(s\) not found|waiting for .*locator'; then
       STATUS="inconclusive"; MATCHED="null"; ACTUAL="\"$UNEXPECTED failing (locator/precondition)\""
       REPORTER="locator/precondition failure — $MSG"
