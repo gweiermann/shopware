@@ -414,6 +414,12 @@ function hasUnboundedFileChooserWait(source) {
     .some((match) => !/\btimeout\s*:/.test(match[1] ?? ''));
 }
 
+function usesAdminMobileModuleHeadingGate(source) {
+  const moduleNames = /(?:Categories|Products|Orders|Customers|Media|Content|Catalogues|Dashboard|Settings|Landing pages)/i;
+  return [...source.matchAll(/getByRole\s*\(\s*['"]heading['"]\s*,\s*\{[^}]*name\s*:\s*([^}\n]+)\}/g)]
+    .some((match) => moduleNames.test(match[1]));
+}
+
 function usesAdminDetailTabAsLink(source) {
   const detailRoute = /\/admin#\/sw\/[^'"`]+\/detail\//.test(source);
   const detailTabNames = /(?:General|Specifications|Advanced pricing|Variants|Layout|SEO|Cross Selling|Reviews|Media|Documents|Addresses|Orders|Customers)/i;
@@ -654,6 +660,10 @@ if (executor === 'playwright') {
       if (adminMobileRouteNavigationIssue(`${issue}\n${JSON.stringify(plan.scenario ?? [])}`)
         && hasUnboundedClick(executable)) {
         fail('mobile admin route-navigation repro must bound setup clicks with click({ timeout: ... }) and convert failures to PRECONDITION_NOT_FOUND; off-canvas text can be visible while outside the viewport and an unbounded click can waste the full test timeout');
+      }
+      if (adminMobileRouteNavigationIssue(`${issue}\n${JSON.stringify(plan.scenario ?? [])}`)
+        && usesAdminMobileModuleHeadingGate(executable)) {
+        fail('mobile admin route-navigation repro must not gate module pages with getByRole("heading", { name: ... }); mobile Admin module titles can be visible without heading semantics. Gate route changes with URL/hash or visible module text, then assert the off-canvas navigation state');
       }
     }
     if (!bootstrapIssue && !hasTargetedAdminPrecondition(executable)) {

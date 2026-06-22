@@ -104,6 +104,10 @@ spec/test.
 - Admin detail page tab strips expose navigation items such as `General`, `Layout`, `Variants`,
   `SEO`, `Cross Selling`, and `Reviews` as ARIA `tab`, not `link`. Use
   `getByRole('tab', { name: ... })` for those tabs.
+- For mobile Admin navigation route-change repros, do not precondition module pages with
+  `getByRole('heading', { name: ... })`; module titles can be visibly rendered without heading
+  semantics in narrow layouts. Gate route changes with URL/hash or visible module text, then assert
+  the off-canvas navigation state.
 - Do not perform raw Admin API setup inside Playwright via `page.evaluate(fetch('/api/...'))` or
   `page.request.*('/api/...')`. Use `fixtures.json` for static state, or perform real UI actions
   when the uploaded/runtime object must be created through the browser.

@@ -1319,6 +1319,70 @@ if (goodMobileAdminNavigationResult.status !== 0) {
   process.exit(1);
 }
 
+const badMobileAdminHeadingGate = writeAdminBundle(`
+import { test, expect } from '@playwright/test';
+test.use({ viewport: { width: 375, height: 812 } });
+test('bad mobile admin heading gate', async ({ page }) => {
+  await page.goto('/admin#/sw/category/index');
+  await page.getByRole('heading', { name: 'Categories' }).waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: categories page loaded'); });
+  const menuButton = page.getByRole('banner').getByRole('button').first();
+  await menuButton.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: mobile menu button missing'); });
+  await menuButton.click({ timeout: 5_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: mobile menu button was not clickable'); });
+  const products = page.getByRole('link', { name: /^Products$/i });
+  await products.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: Products link missing'); });
+  await products.click({ timeout: 5_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: Products link was not clickable in the open mobile menu'); });
+  await expect(page.getByRole('navigation')).not.toBeInViewport();
+});
+`, `# Administration sidebar does not close on mobile after clicking a nav item
+
+On a mobile viewport, opening the Administration sidebar and navigating to Products leaves the off-canvas menu over the page.
+`);
+const badMobileAdminHeadingGateResult = run(badMobileAdminHeadingGate);
+if (badMobileAdminHeadingGateResult.status === 0) {
+  console.error('Expected mobile admin heading-gated module precondition to be rejected');
+  process.exit(1);
+}
+if (!badMobileAdminHeadingGateResult.stdout.includes('must not gate module pages with getByRole("heading"')) {
+  console.error(`Unexpected bad-mobile-admin-heading-gate output:\n${badMobileAdminHeadingGateResult.stdout}\n${badMobileAdminHeadingGateResult.stderr}`);
+  process.exit(1);
+}
+
+const goodMobileAdminTextGate = writeAdminBundle(`
+import { test, expect } from '@playwright/test';
+test.use({ viewport: { width: 375, height: 812 } });
+test('good mobile admin text gate', async ({ page }) => {
+  await page.goto('/admin#/sw/category/index');
+  await page.waitForURL(/#\\/sw\\/category\\/index/, { timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: category route loaded'); });
+  await page.getByText('Categories', { exact: true }).waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: Categories module title visible'); });
+  const menuButton = page.getByRole('banner').getByRole('button').first();
+  await menuButton.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: mobile menu button missing'); });
+  await menuButton.click({ timeout: 5_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: mobile menu button was not clickable'); });
+  const products = page.getByRole('link', { name: /^Products$/i });
+  await products.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: Products link missing'); });
+  await products.click({ timeout: 5_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: Products link was not clickable in the open mobile menu'); });
+  await expect(page.getByRole('navigation')).not.toBeInViewport();
+});
+`, `# Administration sidebar does not close on mobile after clicking a nav item
+
+On a mobile viewport, opening the Administration sidebar and navigating to Products leaves the off-canvas menu over the page.
+`);
+const goodMobileAdminTextGateResult = run(goodMobileAdminTextGate);
+if (goodMobileAdminTextGateResult.status !== 0) {
+  console.error(`Expected mobile admin URL/text-gated module precondition to pass:\n${goodMobileAdminTextGateResult.stdout}\n${goodMobileAdminTextGateResult.stderr}`);
+  process.exit(1);
+}
+
 const badMobileAdminUnboundedClick = writeAdminBundle(`
 import { test, expect } from '@playwright/test';
 test.use({ viewport: { width: 375, height: 812 } });
