@@ -1403,6 +1403,36 @@ if (cmsMediaControlClickResult.status !== 0) {
   process.exit(1);
 }
 
+const mediaReplacementWithProductLayoutGate = writeAdminBundle(`
+import { test, expect } from '@playwright/test';
+test('bad media replacement product layout gate', async ({ page }) => {
+  await page.goto('/admin#/sw/product/detail/27000000000000000000000000000001/layout');
+  await page.getByText(/^Issue 27 Product Teaser Page$/i).waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: seeded CMS layout assignment missing'); });
+  await page.goto('/admin#/sw/media/index');
+  const media = page.getByText(/^repro_teaser_media_27$/i);
+  await media.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: media item missing'); });
+  await media.click();
+  await page.getByRole('button', { name: /^replace$/i }).waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: replace action missing'); });
+  await expect(page.getByRole('button', { name: /^replace$/i })).toBeEnabled();
+});
+`, `# Replace button stays disabled for image used in CMS teaser
+
+When replacing a media image that is used by a teaser, the Administration Media library keeps the Replace button disabled after upload.
+`);
+fs.writeFileSync(path.join(mediaReplacementWithProductLayoutGate, 'fixtures.json'), '{}\n');
+const mediaReplacementWithProductLayoutGateResult = run(mediaReplacementWithProductLayoutGate);
+if (mediaReplacementWithProductLayoutGateResult.status === 0) {
+  console.error('Expected Admin media replacement repro with product layout gate to be rejected');
+  process.exit(1);
+}
+if (!mediaReplacementWithProductLayoutGateResult.stdout.includes('product layout/CMS assignment screen')) {
+  console.error(`Unexpected media-replacement-layout-gate output:\n${mediaReplacementWithProductLayoutGateResult.stdout}\n${mediaReplacementWithProductLayoutGateResult.stderr}`);
+  process.exit(1);
+}
+
 const scrollIntoViewIfNeededBundle = writeBundle(`
 import { test, expect } from '@playwright/test';
 test('bad automation scroll', async ({ page }) => {

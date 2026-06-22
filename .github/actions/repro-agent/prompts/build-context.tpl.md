@@ -102,7 +102,9 @@ spec/test.
   the CMS page is usually a state gate, not the interaction target. Precondition on the seeded CMS
   teaser/title/text if needed, then perform the replacement in `/admin#/sw/media/index`. Do not
   click visible CMS block text to select the block; use a real overlay/control only when the
-  reported symptom is about CMS editor controls themselves.
+  reported symptom is about CMS editor controls themselves. Do not make product layout/CMS
+  assignment UI a decisive setup gate for Media-library replacement; that UI drifts across versions
+  and can block the run before the reported media replacement modal is exercised.
 - Preconditions use `locator.waitFor({ state: 'visible', timeout })` and throw
   `PRECONDITION_NOT_FOUND: <specific state>` on miss. Preconditions must prove the seeded entity,
   selected value, CMS block, media, route, or control that makes the symptom possible.

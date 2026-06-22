@@ -256,6 +256,11 @@ function specUsesMediaLibraryReplaceFlow(source) {
   return /\/admin#\/sw\/media(?:\/index)?|replace media|getByRole\s*\([^)]*replace|filechooser|setInputFiles/i.test(source);
 }
 
+function productLayoutPreconditionForMediaReplacement(source) {
+  return /\/sw\/product\/detail\/[^'"`]+\/layout/.test(source)
+    && /PRECONDITION_NOT_FOUND:[^'"`\n]*(?:layout|CMS|teaser|assignment)/i.test(source);
+}
+
 function cmsEditorTextClick(source) {
   if (!/\/admin#\/sw\/cms\/detail\//.test(source)) return false;
   if (/getByText\s*\([^)]*\)\s*\.click\s*\(/s.test(source)) return true;
@@ -612,6 +617,11 @@ if (executor === 'playwright') {
       && syncSeedsMediaRows(fixtures)
       && specUsesMediaLibraryReplaceFlow(executable)) {
       fail('admin media replacement/upload repro must not rely on sync-seeded media rows as visible replaceable files; a media row has metadata but no uploaded bytes/hasFile state. Upload the issue asset through the UI/API during setup, then assign/use that real media item before testing replacement');
+    }
+    if (adminMediaReplacementIssue(`${issue}\n${JSON.stringify(plan.scenario ?? [])}`)
+      && specUsesMediaLibraryReplaceFlow(executable)
+      && productLayoutPreconditionForMediaReplacement(executable)) {
+      fail('admin media replacement repro must not make the product layout/CMS assignment screen a decisive PRECONDITION_NOT_FOUND gate before the Media-library replacement flow. Use source-derived fixtures to create the usage relation, optionally sanity-check the marker, then gate the actual setup on the replaceable media item/control in /admin#/sw/media/index');
     }
     if (adminMediaReplacementIssue(`${issue}\n${JSON.stringify(plan.scenario ?? [])}`)
       && cmsEditorTextClick(executable)) {
