@@ -8,7 +8,7 @@ preparation, cleanup, simulated-agent execution, and stricter evidence review.
 
 1. Prepare issue context and `build-context.md`.
 2. Reset generated artifacts and the Shopware instance.
-3. Run a simulated agent with the same prompt and a configurable `maxTurns`.
+3. Run a simulated agent with the same prompt.
 4. Run `bash .github/actions/repro-agent/bin/agent/verify-reproduction.sh`.
 5. Verify the produced bundle and Playwright evidence more strictly than CI.
 6. Patch prompts only with generalized rules, then rerun the eval set.
@@ -39,8 +39,8 @@ APP_URL=http://localhost:18080 ADMIN_USER=admin ADMIN_PASS=shopware \
   bash .github/actions/repro-agent/bin/agent/probe-ui.sh '/admin#/sw/category/index' 375x812
 
 # Simulated agent entrypoint. Uses the Codex CLI auth/session; no raw OPENAI_API_KEY is required.
-node .github/actions/repro-agent/local/scripts/run-agent.mjs --issue 30 --max-turns 12 --dry-run
-node .github/actions/repro-agent/local/scripts/run-agent.mjs --issue 30 --max-turns 12
+node .github/actions/repro-agent/local/scripts/run-agent.mjs --issue 30 --dry-run
+node .github/actions/repro-agent/local/scripts/run-agent.mjs --issue 30
 ```
 
 ## Acceptance gates

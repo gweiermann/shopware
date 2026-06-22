@@ -41,7 +41,7 @@ agent** pre-decides layer/executor/build profile.)
 | 2. Environment preparation | pre-agent `steps:` → `provision` (Admin + Storefront pre-built) + `db-snapshot.sh` | ✅ |
 | 3. Reproduction discovery + decisions | the **agent** probes/discovers the relevant source/test context, then writes `reproduction-plan.json` (+ test + `fixtures.json`), declaring executor/build_profile/demodata | 🤖 agent |
 | 4. Build + verify | agent runs `verify-reproduction.sh` ONCE; it builds Admin/Storefront/demodata per the plan, then the **script** decides + records the reported leg | ✅ (script verdict) |
-| 5. Retry loop | bounded by the compact build context + `engine.max-turns` | 🤖 agent |
+| 5. Retry loop | bounded by gh-aw `max-ai-credits` | 🤖 agent |
 | 6. Trunk verification | `safe-outputs.jobs.reproduce-on-trunk` (clean runner) provisions from `reproduction-plan.json` | ✅ |
 | 7. Deterministic reporting | `verdict.sh` → `report.sh` → `gh issue comment` | ✅ |
 

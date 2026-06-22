@@ -5,7 +5,6 @@
   "model": "gpt-5.4",
   "reasoningEffort": "low",
   "sandbox": "danger-full-access",
-  "maxTurns": 12,
   "workflow": ".github/workflows/repro-agent.lock.yml",
   "agentVerifyCommand": "bash .github/actions/repro-agent/bin/agent/verify-reproduction.sh",
   "agentShopGetCommand": "bash .github/actions/repro-agent/bin/agent/shop-get.sh",

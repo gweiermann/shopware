@@ -150,11 +150,10 @@ function resolveStorefrontAccessKey() {
 
 const issues = parseIssues(option('--issues', ''));
 if (issues.length === 0) {
-  console.error('Usage: node .github/actions/repro-agent/local/scripts/eval-issues.mjs --issues 1-31 [--max-turns 8]');
+  console.error('Usage: node .github/actions/repro-agent/local/scripts/eval-issues.mjs --issues 1-31');
   process.exit(1);
 }
 
-const maxTurns = option('--max-turns', String(config.maxTurns));
 const model = option('--model', config.model);
 const reasoningEffort = option('--reasoning-effort', config.reasoningEffort);
 const sandbox = option('--sandbox', config.sandbox || 'danger-full-access');
@@ -172,7 +171,6 @@ for (const issue of issues) {
     ISSUE: String(issue),
     REPO: repo,
     UPSTREAM: upstream,
-    MAX_TURNS: maxTurns,
     APP_URL: appUrl,
     ADMIN_USER: process.env.ADMIN_USER || 'admin',
     ADMIN_PASS: process.env.ADMIN_PASS || 'shopware',
@@ -214,7 +212,6 @@ for (const issue of issues) {
   const agent = run(`agent issue #${issue}`, 'node', [
     '.github/actions/repro-agent/local/scripts/run-agent.mjs',
     '--issue', String(issue),
-    '--max-turns', maxTurns,
     '--model', model,
     '--reasoning-effort', reasoningEffort,
     '--sandbox', sandbox,

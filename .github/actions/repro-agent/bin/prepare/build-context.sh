@@ -3,8 +3,7 @@
 # (classification, issue, version, screenshots, fix-PR pointer) plus the compact self-contained
 # reproduction contract. Keep prompt prose in the template, never here.
 #
-# Env: TPL (template), ISSUE, VERSION (reported version, "" → trunk), MAX_TURNS (default 40),
-#      OUT (default build-context.md).
+# Env: TPL (template), ISSUE, VERSION (reported version, "" → trunk), OUT (default build-context.md).
 set -euo pipefail
 
 TPL=${TPL:-$(dirname "${BASH_SOURCE[0]}")/../../prompts/build-context.tpl.md}
@@ -12,7 +11,6 @@ OUT=${OUT:-build-context.md}
 ISSUE=${ISSUE:-?}
 VERSION=${VERSION:-}
 VERSION_LABEL=${VERSION:-trunk}
-MAX_TURNS=${MAX_TURNS:-40}
 
 # Deterministic visual/api classification. Persist it to issue-class.txt so verify-reproduction.sh
 # can HARD-REFUSE a non-playwright handoff for a visual bug; inject a directive so the agent knows
@@ -47,7 +45,7 @@ list_screenshots () {
 # Pointer, not inlined: the prefetched fix-PR diff can be large — the agent Reads it if useful.
 fixpr_section () { [ -f fixpr.diff ] || return 0; printf -- '\n_A linked fix PR was prefetched — Read `fixpr.diff` for its intent + diff (a candidate surface, not a test to import)._\n'; }
 
-sed -e "s/{{ISSUE}}/$ISSUE/g" -e "s/{{VERSION}}/$VERSION_LABEL/g" -e "s/{{MAX_TURNS}}/$MAX_TURNS/g" "$TPL" | while IFS= read -r line; do
+sed -e "s/{{ISSUE}}/$ISSUE/g" -e "s/{{VERSION}}/$VERSION_LABEL/g" "$TPL" | while IFS= read -r line; do
   case "$line" in
     '{{CLASSIFY}}')         classify_block ;;
     '{{SCREENSHOTS}}')      list_screenshots ;;

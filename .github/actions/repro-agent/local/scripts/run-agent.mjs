@@ -29,7 +29,6 @@ function prepareIsolatedCodexHome() {
 const config = readConfig();
 const dryRun = process.argv.includes('--dry-run');
 const issue = Number(option('--issue', config.defaultIssue));
-const maxTurns = Number(option('--max-turns', config.maxTurns));
 const model = option('--model', config.model);
 const reasoningEffort = option('--reasoning-effort', config.reasoningEffort);
 const sandbox = option('--sandbox', config.sandbox || 'workspace-write');
@@ -51,7 +50,6 @@ const manifest = {
   reasoning: { effort: reasoningEffort },
   sandbox,
   isolatedCodexContext: true,
-  maxTurns,
   promptPath: contextPath,
   allowedCommands: [
     config.agentVerifyCommand,
@@ -99,7 +97,7 @@ const codexArgs = [
   model,
   '-C',
   process.cwd(),
-  `Use at most ${maxTurns} tool turns. Follow build-context.md exactly. Do not trigger GitHub workflows.`
+  'Follow build-context.md exactly. Do not trigger GitHub workflows.'
 ];
 
 function runCodex() {

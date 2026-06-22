@@ -44,9 +44,9 @@ permissions:
 engine:
   id: claude
   model: claude-sonnet-4-6
-  # Bounded reproduction loop (source/test discovery → author once → verify → at most a couple of
-  # fixes). The compact build context enforces the discipline.
-  max-turns: 30
+
+# Per-run gh-aw AI Credits cap. 1 credit = $0.01, so 300 caps the run at $3.
+max-ai-credits: 300
 
 # Headroom for the agent step: authoring + ONE synchronous verify that may build the Admin/
 # Storefront (slow) and run the executor. Builds can take ~10 min, so give the step room.
@@ -162,7 +162,6 @@ steps:
     env:
       ISSUE: ${{ github.event.issue.number || inputs.issue_number }}
       VERSION: ${{ steps.parse.outputs.is_trunk == 'true' && 'trunk' || steps.parse.outputs.target_version }}
-      MAX_TURNS: "30"
     run: bash .github/actions/repro-agent/bin/prepare/build-context.sh
 
   # Export the live-shop coordinates to the job env so the agent's bash (build-verify / shop-get)

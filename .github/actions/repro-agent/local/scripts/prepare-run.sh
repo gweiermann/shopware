@@ -7,7 +7,6 @@ cd "$ROOT"
 ISSUE=${ISSUE:-30}
 REPO=${REPO:-gweiermann/shopware}
 UPSTREAM=${UPSTREAM:-shopware/shopware}
-MAX_TURNS=${MAX_TURNS:-12}
 
 bash .github/actions/repro-agent/local/scripts/reset-instance.sh --artifacts-only
 
@@ -33,5 +32,4 @@ if [ -z "$VERSION" ] && command -v gh >/dev/null 2>&1; then
   VERSION=$(ISSUE="$ISSUE" GH_TOKEN="${GH_TOKEN:-${GITHUB_TOKEN:-}}" bash .github/actions/repro-agent/bin/prepare/parse-version.sh | sed -n 's/^target_version=//p' | tail -1 || true)
 fi
 
-ISSUE="$ISSUE" VERSION="$VERSION" MAX_TURNS="$MAX_TURNS" \
-  bash .github/actions/repro-agent/bin/prepare/build-context.sh
+ISSUE="$ISSUE" VERSION="$VERSION" bash .github/actions/repro-agent/bin/prepare/build-context.sh
