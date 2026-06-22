@@ -354,6 +354,14 @@ function hasBootstrapElapsedTimeAssertion(source) {
     && /expect\s*\([^)]*(?:elapsed|duration|took|Date\.now|performance\.now)[^)]*\)\s*\.\s*(?:toBeLessThan(?:OrEqual)?|toBeGreaterThan(?:OrEqual)?|toBe)\s*\(/is.test(source);
 }
 
+function hasUnboundedClick(source) {
+  return [...source.matchAll(/\.click\s*\(([^)]*)\)/g)]
+    .some((match) => {
+      const args = match[1].trim();
+      return !/\btimeout\s*:/.test(args);
+    });
+}
+
 function hasSeededNavigationCategory(data) {
   return entityRows(data, 'category').some((row) => (
     row?.id
@@ -539,6 +547,10 @@ if (executor === 'playwright') {
       if (adminMobileRouteNavigationIssue(`${issue}\n${JSON.stringify(plan.scenario ?? [])}`)
         && /page\.mouse\.click\s*\(/s.test(executable)) {
         fail('mobile admin route-navigation repro must not replace the reported menu-item/link click with a generic outside click; click the opened menu link and then assert the off-canvas state');
+      }
+      if (adminMobileRouteNavigationIssue(`${issue}\n${JSON.stringify(plan.scenario ?? [])}`)
+        && hasUnboundedClick(executable)) {
+        fail('mobile admin route-navigation repro must bound setup clicks with click({ timeout: ... }) and convert failures to PRECONDITION_NOT_FOUND; off-canvas text can be visible while outside the viewport and an unbounded click can waste the full test timeout');
       }
     }
     if (adminPriceEditIssue(`${issue}\n${JSON.stringify(plan.scenario ?? [])}`)

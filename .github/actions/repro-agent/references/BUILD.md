@@ -34,7 +34,10 @@ implementation broadly. Your job is a faithful repro, not a fix.
    (an HTTP code, an FK error,
    "element not found", a wrong value). Fix THAT. If the failure points at an unknown field/selector,
    spend at most 2 more targeted read/search calls. Re-verify.
-5. Repeat step 4 at most twice; then STOP — keep the files, lower `confidence`, say why.
+5. Repeat step 4 at most twice; then STOP — keep the files, lower `confidence`, say why. If the
+   final `builder-result.json` is `blocked` or `inconclusive`, rewrite `reproduction-plan.json`
+   before stopping so `confidence` is at most `0.5` and either `blocked_reason` or
+   `confidence_reason` explains the exact unproven precondition.
 
 **Do:** read narrowly, author once, verify early, and let each failure name the single next fix.
 **Don't:** ❌ read broad implementation to understand root cause · ❌ read global Codex skills/AGENTS
@@ -77,6 +80,10 @@ set, **STOP** and explain in plain text (not a JSON file) — never hand-roll a 
 - **A plausible bundle beats a never-finished one.** If you stop unverified, keep the files,
   lower `confidence`, and say why in `confidence_reason` — the reported/trunk legs re-seed and
   re-run it, so they are the real check.
+- **Do not leave a high-confidence plan behind a failed verifier.** A `blocked` or `inconclusive`
+  `builder-result.json` means the symptom was not proven. Before your final answer, make
+  `reproduction-plan.json` match that uncertainty with `confidence <= 0.5` and a concrete
+  `blocked_reason` or `confidence_reason`; otherwise the local contract rejects the bundle.
 - **Don't over-build.** A large interdependent fixture graph that keeps failing means the
   layer is too expensive — pick a cheaper one that shows the same symptom, or stop.
 - **Do not memorize examples.** Learn each entity graph from current source/tests/docs, then write
@@ -233,7 +240,8 @@ set, **STOP** and explain in plain text (not a JSON file) — never hand-roll a 
    - `reproduced` → the bundle detects the symptom on this (buggy) version. **Expected — see below.**
    - `not_reproduced` → runnable, classifies this version healthy.
    - `blocked`/`inconclusive` → not verified; one targeted fix if it is a fixable setup problem,
-     else stop with a specific `blocked_reason`.
+     else stop with `confidence <= 0.5` and a specific `blocked_reason` or `confidence_reason` in
+     `reproduction-plan.json`.
 
 ## The builder runs the REPORTED (buggy) version → `reproduced` is expected
 

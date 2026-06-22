@@ -1009,10 +1009,13 @@ test('good mobile admin navigation precondition', async ({ page }) => {
   const menuButton = page.getByRole('banner').getByRole('button').first();
   await menuButton.waitFor({ state: 'visible', timeout: 30_000 })
     .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: mobile menu button missing'); });
-  await menuButton.click();
+  await menuButton.click({ timeout: 5_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: mobile menu button was not clickable'); });
   const products = page.getByRole('link', { name: /^Products$/i });
   await products.waitFor({ state: 'visible', timeout: 30_000 })
     .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: Products link missing'); });
+  await products.click({ timeout: 5_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: Products link was not clickable in the open mobile menu'); });
   await expect(products).not.toBeInViewport();
 });
 `, `# Administration sidebar does not close on mobile
@@ -1025,6 +1028,38 @@ if (goodMobileAdminNavigationResult.status !== 0) {
   process.exit(1);
 }
 
+const badMobileAdminUnboundedClick = writeAdminBundle(`
+import { test, expect } from '@playwright/test';
+test.use({ viewport: { width: 375, height: 812 } });
+test('bad mobile admin unbounded off-canvas click', async ({ page }) => {
+  await page.goto('/admin#/sw/dashboard/index');
+  const menuButton = page.getByRole('banner').getByRole('button').first();
+  await menuButton.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: mobile menu button missing'); });
+  await menuButton.click();
+  const catalogues = page.getByText(/^Catalogues$/i);
+  await catalogues.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: Catalogues entry missing'); });
+  await catalogues.click();
+  const products = page.getByRole('link', { name: /^Products$/i });
+  await products.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: Products link missing'); });
+  await expect(products).not.toBeInViewport();
+});
+`, `# Administration sidebar does not close on mobile
+
+On a mobile viewport, opening the Administration sidebar and navigating to Products leaves the off-canvas menu over the page.
+`);
+const badMobileAdminUnboundedClickResult = run(badMobileAdminUnboundedClick);
+if (badMobileAdminUnboundedClickResult.status === 0) {
+  console.error('Expected mobile admin route-navigation repro with unbounded setup clicks to be rejected');
+  process.exit(1);
+}
+if (!badMobileAdminUnboundedClickResult.stdout.includes('bound setup clicks')) {
+  console.error(`Unexpected bad-mobile-admin-unbounded-click output:\n${badMobileAdminUnboundedClickResult.stdout}\n${badMobileAdminUnboundedClickResult.stderr}`);
+  process.exit(1);
+}
+
 const badMobileAdminOutsideClick = writeAdminBundle(`
 import { test, expect } from '@playwright/test';
 test.use({ viewport: { width: 375, height: 812 } });
@@ -1033,7 +1068,8 @@ test('bad mobile admin outside-click trigger', async ({ page }) => {
   const menuButton = page.getByRole('banner').getByRole('button').first();
   await menuButton.waitFor({ state: 'visible', timeout: 30_000 })
     .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: mobile menu button missing'); });
-  await menuButton.click();
+  await menuButton.click({ timeout: 5_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: mobile menu button was not clickable'); });
   await page.mouse.click(300, 300);
   await expect(page.getByRole('navigation')).not.toBeInViewport();
 });

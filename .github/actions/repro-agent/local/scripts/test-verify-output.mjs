@@ -43,4 +43,41 @@ if (result.status !== 0) {
   process.exit(result.status ?? 1);
 }
 
+const inconclusiveDir = fs.mkdtempSync(path.join(os.tmpdir(), 'repro-agent-output-inconclusive-'));
+fs.writeFileSync(path.join(inconclusiveDir, 'reproduction-plan.json'), `${JSON.stringify({
+  schema_version: '1',
+  issue: 6,
+  executor: 'playwright',
+  version: '6.7.9.0',
+  confidence: 0.9,
+  script_path: 'repro.spec.ts',
+}, null, 2)}\n`);
+fs.writeFileSync(path.join(inconclusiveDir, 'issue.md'), '# Mobile Administration navigation stays open\n');
+fs.writeFileSync(path.join(inconclusiveDir, 'issue-class.txt'), 'visual\n');
+fs.writeFileSync(path.join(inconclusiveDir, 'repro.spec.ts'), `
+import { test, expect } from '@playwright/test';
+test('inconclusive result must not stay high confidence', async ({ page }) => {
+  await page.goto('/admin');
+  await page.getByRole('document').waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: admin document missing'); });
+  await expect(page.getByRole('navigation')).not.toBeInViewport();
+});
+`);
+fs.writeFileSync(path.join(inconclusiveDir, 'builder-result.json'), `${JSON.stringify({
+  status: 'inconclusive',
+  executor: 'playwright',
+  blocked_reason: 'precondition element was not present',
+  evidence: {
+    artifacts: [{ kind: 'playwright-results', name: 'test-results/' }],
+  },
+}, null, 2)}\n`);
+
+const inconclusiveResult = spawnSync('node', [verifier, '--root', inconclusiveDir], { cwd: repo, encoding: 'utf8' });
+if (inconclusiveResult.status === 0 || !inconclusiveResult.stderr.includes('still claims high confidence')) {
+  console.error('Expected high-confidence inconclusive result to fail verification');
+  console.error(inconclusiveResult.stdout);
+  console.error(inconclusiveResult.stderr);
+  process.exit(1);
+}
+
 console.log('verify-output tests passed');

@@ -106,6 +106,14 @@ if (fs.existsSync(resultPath)) {
     const hasArtifact = result.evidence?.artifacts?.some((item) => item.kind === 'playwright-results');
     if (!hasArtifact) failures.push('Playwright result lacks playwright-results artifact evidence');
   }
+  if (result && plan && ['blocked', 'inconclusive', 'missing'].includes(result.status)) {
+    if (typeof plan.confidence === 'number' && plan.confidence > 0.5) {
+      failures.push(`Runtime result is ${result.status}, but reproduction-plan.json still claims high confidence (${plan.confidence})`);
+    }
+    if (!plan.blocked_reason && !plan.confidence_reason) {
+      failures.push(`Runtime result is ${result.status}; reproduction-plan.json must explain the uncertainty in blocked_reason or confidence_reason`);
+    }
+  }
 } else {
   warnings.push('No builder-result.json found; skipped runtime evidence checks');
 }

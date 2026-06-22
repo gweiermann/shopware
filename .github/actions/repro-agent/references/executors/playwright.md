@@ -240,6 +240,11 @@ timeout. This is the ONLY failure that may mean `reproduced`.
   (`toHaveAttribute('aria-hidden','true')`) — **NOT** `not.toBeVisible()`: an element moved
   off-screen via transform/translate is still "visible" to Playwright, so `toBeVisible`
   fails on BOTH versions and FAKES a reproduction.
+- For off-canvas menus, a text node can be `visible` while the menu is still translated outside
+  the viewport. Do not treat `waitFor({ state: 'visible' })` as proof that an off-canvas item is
+  reachable. Bound every setup click in these flows, e.g. `await item.click({ timeout: 5_000 })`
+  and convert failure to `PRECONDITION_NOT_FOUND`; otherwise an outside-viewport item can burn the
+  full test timeout before the symptom assertion ever runs.
 - **Make the symptom's PRECONDITION actually hold.** If it only fires when content exceeds
   the visible area (overflow/cut-off/"cannot scroll" bugs), FORCE a viewport that guarantees
   it (`test.use({ viewport: { width: 1280, height: 500 } })`) — at the default 720p the
