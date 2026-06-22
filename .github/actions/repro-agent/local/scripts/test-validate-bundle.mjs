@@ -1166,6 +1166,30 @@ if (!badVisibleFileInputWaitResult.stdout.includes('must not wait for input[type
   process.exit(1);
 }
 
+const badMultipleAwaitedExpect = writeAdminBundle(`
+import { test, expect } from '@playwright/test';
+test('bad multiple awaited expects', async ({ page }) => {
+  await page.goto('/admin#/sw/media/index');
+  const media = page.getByText('img-1', { exact: true });
+  await media.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: media item missing'); });
+  await expect(page.getByText('Media')).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Replace$/i })).toBeEnabled();
+});
+`, `# getEntityName is not a function when trying to replace an image that is used in a teaser
+
+When trying to replace an image via media gallery that is used in a product teaser slot, the Replace button stays gray.
+`);
+const badMultipleAwaitedExpectResult = run(badMultipleAwaitedExpect);
+if (badMultipleAwaitedExpectResult.status === 0) {
+  console.error('Expected multiple awaited expect calls to be rejected');
+  process.exit(1);
+}
+if (!badMultipleAwaitedExpectResult.stdout.includes('exactly one awaited expect')) {
+  console.error(`Unexpected multiple-expect output:\n${badMultipleAwaitedExpectResult.stdout}\n${badMultipleAwaitedExpectResult.stderr}`);
+  process.exit(1);
+}
+
 const badBootstrapUsesModuleLink = writeAdminBundle(`
 import { test, expect } from '@playwright/test';
 test.use({ viewport: { width: 375, height: 812 } });

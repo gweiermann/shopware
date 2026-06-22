@@ -429,6 +429,10 @@ function waitsForVisibleFileInput(source) {
   return fileInputLocators.some((name) => new RegExp(`\\b${name}\\s*\\.\\s*waitFor\\s*\\(\\s*\\{[^}]*state\\s*:\\s*['"]visible['"]`, 's').test(source));
 }
 
+function awaitedExpectCount(source) {
+  return [...source.matchAll(/\bawait\s+expect\s*(?:\.\s*poll)?\s*\(/g)].length;
+}
+
 function usesAdminMobileModuleHeadingGate(source) {
   const moduleNames = /(?:Categories|Products|Orders|Customers|Media|Content|Catalogues|Dashboard|Settings|Landing pages)/i;
   return [...source.matchAll(/getByRole\s*\(\s*['"]heading['"]\s*,\s*\{[^}]*name\s*:\s*([^}\n]+)\}/g)]
@@ -613,6 +617,10 @@ if (executor === 'playwright') {
   }
   if (!executable.includes('PRECONDITION_NOT_FOUND')) {
     fail('playwright spec has no PRECONDITION_NOT_FOUND precondition gate; missing setup must be inconclusive, not a reproduced/not_reproduced verdict');
+  }
+  const expectCount = awaitedExpectCount(executable);
+  if (expectCount !== 1) {
+    fail(`Playwright specs must contain exactly one awaited expect(); found ${expectCount}. Use precondition waits for setup and reserve the single awaited expect for the healthy symptom assertion`);
   }
   if (!/\.waitFor\s*\(\s*\{[^}]*state\s*:\s*['"]visible['"]/s.test(executable)) {
     fail('playwright spec has no visible waitFor precondition; gate the rendered setup with locator.waitFor({ state: "visible", ... }) before the symptom expect');
