@@ -3,7 +3,7 @@
 {{CLASSIFY}}
 
 You turn this one bug report into a runnable reproduction on the live shop, prove it, and stop.
-Budget about {{MAX_TURNS}} tool calls. There is no cookbook and no open-ended analyze phase:
+Budget about {{MAX_TURNS}} tool calls. There is no open-ended analyze phase:
 read the issue, discover the smallest relevant Shopware source/test context, make one educated
 bundle, verify it, then only fix what the verifier names.
 
@@ -38,9 +38,8 @@ bundle, verify it, then only fix what the verifier names.
 - Storefront UI issue: Twig/plugin JS plus one storefront fixture/test for the same page type.
 - Fixture shape: entity definition, DAL integration test, or nearby fixture for the same aggregate.
 
-Do not read global Codex skills, previous repro-agent outputs, or the removed
-`.github/actions/repro-agent/references/**` cookbook. If you need an example, find it in the
-current Shopware source/tests.
+Do not read global Codex skills or previous repro-agent outputs. If you need an example, find it in
+the current Shopware source/tests.
 
 ## Executor Choice
 - `direct`: PHP service/DAL behavior with no browser rendering.
@@ -94,39 +93,26 @@ spec/test.
   evidence prove otherwise.
 - Do not put `{{PLACEHOLDER}}` tokens in `repro.spec.ts`; they are not substituted inside
   browser-executed test code. Put placeholder-backed static state in `fixtures.json`.
-- Media binary state is not static DAL state. A sync-seeded `media` row is only metadata, not a
-  replaceable file with uploaded bytes. For Admin media replacement flows, create product/CMS usage
-  relations in `fixtures.json`, but create the actual media file through a real UI upload in
-  `/admin#/sw/media/index` before replacing it. Do not use product detail or CMS editor upload
-  controls to create the initial file for a Media-library replacement repro.
+- Upload-backed binary/runtime state is not static DAL state. A sync-seeded entity can create
+  metadata and relations, but not browser-created file bytes or interaction state. Represent static
+  relations in `fixtures.json`; create runtime-only state through the UI surface that owns the
+  reported interaction.
 
 ## Playwright Rules
 - Use semantic locators (`getByRole`, `getByLabel`, `getByText`, `getByPlaceholder`,
   scoped `locator.getBy...` calls). Avoid CSS, data-test, and raw attribute selectors. Do not use
   `page.getByDisplayValue(...)`; this runner's page fixture does not provide that method.
 - Admin UI specs start authenticated. Do not write Admin login steps.
-- Admin detail page tab strips expose navigation items such as `General`, `Layout`, `Variants`,
-  `SEO`, `Cross Selling`, and `Reviews` as ARIA `tab`, not `link`. Use
-  `getByRole('tab', { name: ... })` for those tabs.
-- For mobile Admin navigation route-change repros, do not precondition module pages with
-  `getByRole('heading', { name: ... })`; module titles can be visibly rendered without heading
-  semantics in narrow layouts. Gate route changes with URL/hash or visible module text, then assert
-  the off-canvas navigation state.
-- In the Admin main menu, top-level groups such as `Catalogues`, `Orders`, `Customers`, `Content`,
-  `Marketing`, and `Extensions` are expandable menu entries, not route links. Open the group by its
-  visible text/control, then click the nested route link such as `Products`.
+- For Admin UI repros, use the live probe output and nearby source/tests to learn the actual role
+  and state of the controls before choosing locators. Do not assume menu items, tabs, toolbar
+  controls, or module titles have the same role as their visible label suggests.
 - Do not perform raw Admin API setup inside Playwright via `page.evaluate(fetch('/api/...'))` or
   `page.request.*('/api/...')`. Use `fixtures.json` for static state, or perform real UI actions
   when the uploaded/runtime object must be created through the browser.
-- For Admin media replacement bugs where the report says the asset is used by a CMS/product teaser,
-  the CMS page is usually a state gate, not the interaction target. Precondition on the seeded CMS
-  teaser/title/text if needed, then perform the replacement in `/admin#/sw/media/index`. Do not
-  click visible CMS block text to select the block; use a real overlay/control only when the
-  reported symptom is about CMS editor controls themselves. Do not make product layout/CMS
-  assignment UI a decisive setup gate for Media-library replacement; that UI drifts across versions
-  and can block the run before the reported media replacement modal is exercised. Do not use the CMS
-  editor to create the usage relation for a Media-library replacement repro; encode that relation
-  from source/test-derived fixtures and reserve browser actions for uploading/replacing files.
+- When a bug depends on existing Admin state such as assigned CMS content, products, media, orders,
+  or settings, derive static relations from entity definitions and nearby tests/fixtures. Use UI
+  actions only for runtime/browser state that cannot be represented by DAL sync payloads, such as
+  real file uploads or drag/drop interactions.
 - Preconditions use `locator.waitFor({ state: 'visible', timeout })` and throw
   `PRECONDITION_NOT_FOUND: <specific state>` on miss. Preconditions must prove the seeded entity,
   selected value, CMS block, media, route, or control that makes the symptom possible.

@@ -45,7 +45,7 @@ engine:
   id: claude
   model: claude-sonnet-4-6
   # Bounded reproduction loop (source/test discovery → author once → verify → at most a couple of
-  # fixes). The compact build context enforces the discipline; there is no issue-specific cookbook.
+  # fixes). The compact build context enforces the discipline.
   max-turns: 30
 
 # Headroom for the agent step: authoring + ONE synchronous verify that may build the Admin/

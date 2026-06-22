@@ -6,9 +6,9 @@ A **second**, independent reproduction approach that implements the same idea as
 [`.github/workflows/repro-agent.md`](../../workflows/repro-agent.md).
 
 This directory is **self-contained**: the deterministic scripts, the `provision` action, and the
-agent prompt template live here (plus the new `parse-version.sh`). The agent does not read a
-vendored cookbook; it reads the issue, does bounded Shopware source/test discovery, writes one
-bundle, then lets deterministic verification classify it.
+agent prompt template live here (plus the new `parse-version.sh`). The agent reads the issue, does
+bounded Shopware source/test discovery, probes rendered UI when needed, writes one bundle, then lets
+deterministic verification classify it.
 
 > **gh-aw** lets you write an agentic workflow as one Markdown file with YAML frontmatter
 > (`engine`, `tools`, `permissions`, `steps`, `post-steps`, `safe-outputs`, …). The Markdown body
@@ -39,7 +39,7 @@ agent** pre-decides layer/executor/build profile.)
 |---|---|---|
 | 1. Issue analysis | pre-agent `steps:` → `parse-version.sh` extracts **only the version** | ✅ |
 | 2. Environment preparation | pre-agent `steps:` → `provision` (Admin + Storefront pre-built) + `db-snapshot.sh` | ✅ |
-| 3. Reproduction discovery + decisions | the **agent** writes `reproduction-plan.json` (+ test + `fixtures.json`), declaring executor/build_profile/demodata | 🤖 agent |
+| 3. Reproduction discovery + decisions | the **agent** probes/discovers the relevant source/test context, then writes `reproduction-plan.json` (+ test + `fixtures.json`), declaring executor/build_profile/demodata | 🤖 agent |
 | 4. Build + verify | agent runs `verify-reproduction.sh` ONCE; it builds Admin/Storefront/demodata per the plan, then the **script** decides + records the reported leg | ✅ (script verdict) |
 | 5. Retry loop | bounded by the compact build context + `engine.max-turns` | 🤖 agent |
 | 6. Trunk verification | `safe-outputs.jobs.reproduce-on-trunk` (clean runner) provisions from `reproduction-plan.json` | ✅ |
@@ -124,8 +124,9 @@ The agent reads `build-context.md`, assembled by
     lib/        db-env.sh, lib-admin-api.sh        sourced helpers (DB url, admin API)
     prepare/    parse-version.sh, prefetch.sh,     Phase 1+2: parse version, fetch issue,
                 build-context.sh, db-snapshot.sh   assemble prompt, snapshot clean DB
-    agent/      verify-reproduction.sh, shop-get.sh    the only two commands the AGENT runs:
-                                                       build(per plan)+verify(→ hand off → STOP), inspect
+    agent/      verify-reproduction.sh, shop-get.sh,   the bounded commands the AGENT runs:
+                probe-ui.sh                            build(per plan)+verify(→ hand off → STOP),
+                                                        inspect entities, inspect rendered UI
     execute/    build-verify.sh, run-leg.sh,       running the bundle: verifier + executors
                 run-{http,playwright,direct}.sh,   (http/playwright/direct) + seed + PW login +
                 seed.sh, login-state.mjs,          on-demand demodata (called by verify-reproduction)

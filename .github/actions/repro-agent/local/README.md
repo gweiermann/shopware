@@ -13,8 +13,8 @@ preparation, cleanup, simulated-agent execution, and stricter evidence review.
 5. Verify the produced bundle and Playwright evidence more strictly than CI.
 6. Patch prompts only with generalized rules, then rerun the eval set.
 
-Issue #30 is the first eval case, not the prompt target. Prompt changes must stay generic enough for
-other visual, HTTP, and direct reproductions.
+Single issues can be used as smoke tests, but prompt changes must stay generic enough for other
+visual, HTTP, and direct reproductions.
 
 ## Model policy
 
@@ -28,7 +28,7 @@ inspection.
 # Remove generated repro files from the repo root.
 bash .github/actions/repro-agent/local/scripts/reset-instance.sh --artifacts-only
 
-# Create local issue context for issue 30 using gh, then assemble build-context.md.
+# Create local issue context for an issue using gh, then assemble build-context.md.
 ISSUE=30 REPO=gweiermann/shopware bash .github/actions/repro-agent/local/scripts/prepare-run.sh
 
 # Static smoke check of the generated bundle contract.
@@ -45,16 +45,15 @@ node .github/actions/repro-agent/local/scripts/run-agent.mjs --issue 30 --max-tu
 
 ## Acceptance gates
 
-For a visual CMS product-slider issue, the verifier rejects a bundle unless:
+For visual Playwright issues, the verifier rejects a bundle unless:
 
 - `reproduction-plan.json.executor` is `playwright`.
-- `fixtures.json` nests CMS entities as `cms_page.sections.blocks.slots`.
-- the spec navigates by a technical route such as `/landingPage/<id>`.
-- the precondition throws `PRECONDITION_NOT_FOUND` when the seeded rendered entity is absent.
+- seeded/static state is represented in `fixtures.json` using source-derived DAL shape.
+- the spec reaches seeded content through a stable route or source-backed navigation path.
+- preconditions throw `PRECONDITION_NOT_FOUND` when issue-specific setup is absent.
 - there is exactly one `await expect(...)`, and it is the healthy symptom assertion.
 - Playwright evidence exists for completed runs.
 
-For issue #30 specifically, the orchestrator must also inspect screenshots and confirm that the
-claimed evidence really shows a rendered storefront product slider with the relevant product/variant
-state. A blank page, an admin page, a generic product listing, or a report-only artifact is not
-accepted as visual proof.
+The orchestrator must inspect screenshots and confirm that claimed evidence really shows the
+issue-specific state. A blank page, the wrong surface, generic chrome, or a report-only artifact is
+not accepted as visual proof.
