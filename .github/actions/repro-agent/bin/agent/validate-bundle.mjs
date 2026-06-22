@@ -348,6 +348,12 @@ function usesTooLongBootstrapAssertionTimeout(source) {
   return timeoutMatches.some((match) => Number(match[1].replace(/_/g, '')) > 35_000);
 }
 
+function hasBootstrapElapsedTimeAssertion(source) {
+  return /\b(?:Date\.now|performance\.now)\s*\(/s.test(source)
+    && /\b(?:elapsed|duration|took|startedAt|startTime)\b/i.test(source)
+    && /expect\s*\([^)]*(?:elapsed|duration|took|Date\.now|performance\.now)[^)]*\)\s*\.\s*(?:toBeLessThan(?:OrEqual)?|toBeGreaterThan(?:OrEqual)?|toBe)\s*\(/is.test(source);
+}
+
 function hasSeededNavigationCategory(data) {
   return entityRows(data, 'category').some((row) => (
     row?.id
@@ -511,6 +517,9 @@ if (executor === 'playwright') {
       }
       if (slow3gIssue(issue) && usesTooLongBootstrapAssertionTimeout(executable)) {
         fail('admin slow-3G repro must keep the shell-usability assertion near the reported 30-second threshold; using a much longer timeout can mask the reported bootstrap failure');
+      }
+      if (slow3gIssue(issue) && !hasBootstrapElapsedTimeAssertion(executable)) {
+        fail('admin slow-3G repro must measure elapsed time from before navigation/login/bootstrap and assert it stays within the reported threshold; a locator timeout alone starts too late and can miss over-30-second bootstrap failures');
       }
       if (hasUnrelatedAdminModulePrecondition(executable, issue)) {
         fail('admin bootstrap/login repro uses an unrelated module/menu link as a precondition; prove the admin shell or reported login/bootstrap state instead');

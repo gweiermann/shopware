@@ -163,7 +163,10 @@ await locator.waitFor({ state: 'visible', timeout })
   "Slow 3G" or throttled 3G, emulate a genuinely slow profile (roughly ≤500 kbit/s download and
   300-400ms latency). Fast-3G numbers such as 1.6 Mbit/s and 150ms can mask the reported timeout.
   Keep the shell-usability assertion near the reported threshold (usually 30s); raising it to 45s+
-  converts the reported timeout into a false healthy pass.
+  converts the reported timeout into a false healthy pass. Start an elapsed-time timer before
+  navigation/login/bootstrap and assert the elapsed time stays within the reported threshold after
+  the shell appears; a locator timeout alone starts too late because `page.goto()` time is otherwise
+  excluded.
 - **For Admin module/form bugs, use two mental checkpoints.** First, the admin shell must be usable;
   second, the issue-specific target must be present. Only the issue-specific target checkpoint should
   decide `PRECONDITION_NOT_FOUND`; generic shell/chrome waits should be best-effort or skipped when

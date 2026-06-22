@@ -127,6 +127,8 @@ set, **STOP** and explain in plain text (not a JSON file) — never hand-roll a 
      3G, use a genuinely slow profile (about 500 kbit/s download or lower, 300-400ms latency);
      faster profiles can produce false `not_reproduced`. Keep the shell-usability assertion near
      the reported threshold, normally 30 seconds; a 45s+ timeout can mask the reported failure.
+     Measure elapsed time from before navigation/login/bootstrap and assert it after the shell is
+     visible, so `page.goto()` time is included in the 30-second threshold.
 2. **Write `reproduction-plan.json` + the executor's artifact:**
    - `http`: `request`/`requests` + `assertion`.
    - `playwright`: `script_path: "repro.spec.ts"` + the spec.

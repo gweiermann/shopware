@@ -782,11 +782,22 @@ if (!badBootstrapUsesModuleLinkResult.stdout.includes('admin bootstrap/login rep
 
 const goodBootstrapPrecondition = writeAdminBundle(`
 import { test, expect } from '@playwright/test';
-test('good admin bootstrap precondition', async ({ page }) => {
+test('good admin bootstrap precondition', async ({ page, context }) => {
+  const cdpSession = await context.newCDPSession(page);
+  await cdpSession.send('Network.enable');
+  await cdpSession.send('Network.emulateNetworkConditions', {
+    offline: false,
+    downloadThroughput: 50 * 1024,
+    uploadThroughput: 20 * 1024,
+    latency: 400,
+  });
+  const startedAt = Date.now();
   await page.goto('/admin#/sw/dashboard/index');
   await page.locator('body').waitFor({ state: 'visible', timeout: 30_000 })
     .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: document body missing'); });
   await expect(page.getByRole('banner')).toBeVisible({ timeout: 30_000 });
+  const elapsed = Date.now() - startedAt;
+  expect(elapsed).toBeLessThanOrEqual(30_000);
 });
 `, `# Admin area login is impossible on a slow throttled 3G connection
 
@@ -902,6 +913,65 @@ if (badBootstrapTooLongTimeoutResult.status === 0) {
 }
 if (!badBootstrapTooLongTimeoutResult.stdout.includes('30-second threshold')) {
   console.error(`Unexpected bad-bootstrap-long-timeout output:\n${badBootstrapTooLongTimeoutResult.stdout}\n${badBootstrapTooLongTimeoutResult.stderr}`);
+  process.exit(1);
+}
+
+const badBootstrapNoElapsedMeasurement = writeAdminBundle(`
+import { test, expect } from '@playwright/test';
+test('bad admin bootstrap no elapsed timer', async ({ page, context }) => {
+  const cdpSession = await context.newCDPSession(page);
+  await cdpSession.send('Network.enable');
+  await cdpSession.send('Network.emulateNetworkConditions', {
+    offline: false,
+    downloadThroughput: 50 * 1024,
+    uploadThroughput: 20 * 1024,
+    latency: 400,
+  });
+  await page.goto('/admin#/sw/dashboard/index');
+  await page.locator('body').waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: document body missing'); });
+  await expect(page.getByRole('main')).toBeVisible({ timeout: 30_000 });
+});
+`, `# Admin area login is impossible on a slow throttled 3G connection
+
+Logging into the Administration over a slow but stable 3G connection takes over 30 seconds and times out before the admin shell becomes usable.
+`);
+const badBootstrapNoElapsedMeasurementResult = run(badBootstrapNoElapsedMeasurement);
+if (badBootstrapNoElapsedMeasurementResult.status === 0) {
+  console.error('Expected admin bootstrap repro without elapsed-time assertion to be rejected');
+  process.exit(1);
+}
+if (!badBootstrapNoElapsedMeasurementResult.stdout.includes('measure elapsed time')) {
+  console.error(`Unexpected bad-bootstrap-no-elapsed output:\n${badBootstrapNoElapsedMeasurementResult.stdout}\n${badBootstrapNoElapsedMeasurementResult.stderr}`);
+  process.exit(1);
+}
+
+const goodBootstrapElapsedMeasurement = writeAdminBundle(`
+import { test, expect } from '@playwright/test';
+test('good admin bootstrap elapsed timer', async ({ page, context }) => {
+  const cdpSession = await context.newCDPSession(page);
+  await cdpSession.send('Network.enable');
+  await cdpSession.send('Network.emulateNetworkConditions', {
+    offline: false,
+    downloadThroughput: 50 * 1024,
+    uploadThroughput: 20 * 1024,
+    latency: 400,
+  });
+  const startedAt = Date.now();
+  await page.goto('/admin#/sw/dashboard/index');
+  await page.locator('body').waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: document body missing'); });
+  await expect(page.getByRole('main')).toBeVisible({ timeout: 30_000 });
+  const elapsed = Date.now() - startedAt;
+  expect(elapsed).toBeLessThanOrEqual(30_000);
+});
+`, `# Admin area login is impossible on a slow throttled 3G connection
+
+Logging into the Administration over a slow but stable 3G connection takes over 30 seconds and times out before the admin shell becomes usable.
+`);
+const goodBootstrapElapsedMeasurementResult = run(goodBootstrapElapsedMeasurement);
+if (goodBootstrapElapsedMeasurementResult.status !== 0) {
+  console.error(`Expected admin bootstrap repro with elapsed-time assertion to pass:\n${goodBootstrapElapsedMeasurementResult.stdout}\n${goodBootstrapElapsedMeasurementResult.stderr}`);
   process.exit(1);
 }
 
