@@ -109,6 +109,33 @@ runCase('generic-chrome', {
   'test-results/repro/error-context.md': 'Error: PRECONDITION_NOT_FOUND: dashboard heading Howdy!',
 }, 'generic_chrome_precondition');
 
+const mediaFolderHint = runCase('media-folder-empty', {
+  'reproduction-plan.json': basePlan,
+  'repro.spec.ts': `
+    await page.goto('/admin#/sw/media/index');
+    await page.getByRole('button', { name: /^Upload file$/i }).click({ timeout: 5000 });
+    await page.goto('/admin#/sw/product/detail/27000000000000000000000000000001/base');
+    await page.locator('.sw-media-upload-v2__button.open-media-sidebar').click({ timeout: 5000 });
+    await page.getByText('img-1.png', { exact: true }).waitFor({ state: 'visible' })
+      .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: media modal tile img-1.png'); });
+  `,
+  'builder-result.json': {
+    status: 'inconclusive',
+    evidence: { reporter_output: 'precondition absent — Error: PRECONDITION_NOT_FOUND: media modal tile img-1.png' },
+  },
+  'test-results/repro/error-context.md': `
+# Page snapshot
+- dialog "Choose media":
+  - tab "Media Library"
+  - text: Product Media
+  - heading "Nothing found"
+  `,
+}, 'missing_uploaded_binary_state');
+if (!mediaFolderHint.repair.includes('same media-library context/folder')) {
+  console.error(`Expected media-folder hint to mention folder context:\n${JSON.stringify(mediaFolderHint, null, 2)}`);
+  process.exit(1);
+}
+
 runCase('unknown', {
   'reproduction-plan.json': basePlan,
   'repro.spec.ts': 'await expect(page.getByText("Specific value")).toBeVisible();',

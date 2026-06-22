@@ -1086,6 +1086,37 @@ if (goodMediaReplacementLibraryUploadResult.status !== 0) {
   process.exit(1);
 }
 
+const goodMediaReplacementLibraryUploadHelper = writeAdminBundle(`
+import { test, expect, type Locator, type Page } from '@playwright/test';
+async function uploadViaChooser(page: Page, trigger: Locator, filePath: string): Promise<void> {
+  const chooserPromise = page.waitForEvent('filechooser', { timeout: 10_000 });
+  await trigger.click({ timeout: 5_000 });
+  const chooser = await chooserPromise;
+  await chooser.setFiles(filePath);
+}
+test('good media replacement helper upload', async ({ page }) => {
+  await page.goto('/admin#/sw/media/index');
+  await uploadViaChooser(page, page.getByRole('button', { name: /^Upload files$/i }), 'issue-assets/img-1.png');
+  const media = page.getByText('img-1.png', { exact: true });
+  await media.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: media tile img-1.png'); });
+  await page.goto('/admin#/sw/product/detail/99000000000000000000000000000001/base');
+  const product = page.getByText('Repro Issue 27 Product', { exact: true });
+  await product.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: product entity Repro Issue 27 Product'); });
+  await page.goto('/admin#/sw/media/index');
+  await expect(page.getByRole('button', { name: /^Replace$/i })).toBeEnabled();
+});
+`, `# getEntityName is not a function when trying to replace an image that is used in a teaser
+
+When trying to replace an image via media gallery that is used in a product teaser slot, the Replace button stays gray.
+`);
+const goodMediaReplacementLibraryUploadHelperResult = run(goodMediaReplacementLibraryUploadHelper);
+if (goodMediaReplacementLibraryUploadHelperResult.status !== 0) {
+  console.error(`Expected media replacement helper upload in media library to pass:\n${goodMediaReplacementLibraryUploadHelperResult.stdout}\n${goodMediaReplacementLibraryUploadHelperResult.stderr}`);
+  process.exit(1);
+}
+
 const badBootstrapUsesModuleLink = writeAdminBundle(`
 import { test, expect } from '@playwright/test';
 test.use({ viewport: { width: 375, height: 812 } });

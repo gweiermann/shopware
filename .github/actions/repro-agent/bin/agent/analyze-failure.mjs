@@ -153,6 +153,18 @@ if (!hint && /(?:No .+ yet|empty state|There are no|No products yet|No media yet
   );
 }
 
+if (!hint && /(?:Choose media|Media Library)/i.test(errorContext)
+  && /\bNothing found\b/i.test(errorContext)
+  && /PRECONDITION_NOT_FOUND:[^\n]*(?:media modal|media tile|media item|uploaded media)/i.test(combined)) {
+  hint = result(
+    'missing_uploaded_binary_state',
+    'high',
+    'The media selector opened a scoped media-library folder and rendered an empty state while the spec waited for the uploaded file.',
+    'Create or upload the file in the same media-library context/folder that the owning selector opens, or navigate/search inside the selector before selecting it; a file uploaded elsewhere in Media is not enough to prove the usage relation.',
+    { error_context: errorContextPath, screenshot: screenshotPath },
+  );
+}
+
 if (!hint && /(?:media|image|file|upload|replace)/i.test([combined, spec].join('\n'))
   && /(?:hasFile|uploaded bytes|file bytes|Replace button|disabled|media item missing|No media)/i.test([combined, errorContext].join('\n'))) {
   hint = result(

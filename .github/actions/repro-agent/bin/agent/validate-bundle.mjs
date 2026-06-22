@@ -444,9 +444,11 @@ function usesUnsupportedPageDisplayValueLocator(source) {
 }
 
 function uploadsBeforeMediaLibraryForMediaReplacement(source) {
-  const firstFileChooser = source.search(/\.waitForEvent\s*\(\s*['"]filechooser['"]/);
+  const bodyStart = source.search(/\btest\s*\(/);
+  const executableBody = bodyStart === -1 ? source : source.slice(bodyStart);
+  const firstFileChooser = executableBody.search(/\.waitForEvent\s*\(\s*['"]filechooser['"]/);
   if (firstFileChooser === -1) return false;
-  const firstMediaLibraryNavigation = source.search(/\/admin#\/sw\/media(?:\/index)?/);
+  const firstMediaLibraryNavigation = executableBody.search(/\/admin#\/sw\/media(?:\/index)?/);
   return firstMediaLibraryNavigation === -1 || firstFileChooser < firstMediaLibraryNavigation;
 }
 
