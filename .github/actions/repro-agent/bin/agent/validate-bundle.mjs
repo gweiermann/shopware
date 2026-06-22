@@ -615,7 +615,7 @@ if (executor === 'playwright') {
     }
     if (adminMediaReplacementIssue(`${issue}\n${JSON.stringify(plan.scenario ?? [])}`)
       && cmsEditorTextClick(executable)) {
-      fail('admin CMS/media editor repro must not click visible CMS block text to select the block; the CMS config overlay intercepts pointer events. Gate on the seeded text, then click a block/overlay/control with a bounded click and convert failure to PRECONDITION_NOT_FOUND');
+      fail('admin CMS/media editor repro must not click visible CMS block text to select the block; the CMS config overlay intercepts pointer events. If the symptom is Media-library replacement, use the CMS page only as a seeded-state gate, then exercise replacement from /admin#/sw/media/index. If CMS editor controls are the reported target, click a real block overlay/control with a bounded click and convert failure to PRECONDITION_NOT_FOUND');
     }
     if (!bootstrapIssue && hasGenericAdminChromeFailure(executable, issue)) {
       fail([

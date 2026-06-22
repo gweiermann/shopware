@@ -1373,7 +1373,7 @@ if (cmsMediaTextClickResult.status === 0) {
   console.error('Expected Admin CMS/media repro that clicks visible CMS text to be rejected');
   process.exit(1);
 }
-if (!cmsMediaTextClickResult.stdout.includes('must not click visible CMS block text')) {
+if (!cmsMediaTextClickResult.stdout.includes('use the CMS page only as a seeded-state gate')) {
   console.error(`Unexpected cms-media-text-click output:\n${cmsMediaTextClickResult.stdout}\n${cmsMediaTextClickResult.stderr}`);
   process.exit(1);
 }

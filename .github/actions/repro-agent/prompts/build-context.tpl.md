@@ -98,6 +98,11 @@ spec/test.
 - Do not perform raw Admin API setup inside Playwright via `page.evaluate(fetch('/api/...'))` or
   `page.request.*('/api/...')`. Use `fixtures.json` for static state, or perform real UI actions
   when the uploaded/runtime object must be created through the browser.
+- For Admin media replacement bugs where the report says the asset is used by a CMS/product teaser,
+  the CMS page is usually a state gate, not the interaction target. Precondition on the seeded CMS
+  teaser/title/text if needed, then perform the replacement in `/admin#/sw/media/index`. Do not
+  click visible CMS block text to select the block; use a real overlay/control only when the
+  reported symptom is about CMS editor controls themselves.
 - Preconditions use `locator.waitFor({ state: 'visible', timeout })` and throw
   `PRECONDITION_NOT_FOUND: <specific state>` on miss. Preconditions must prove the seeded entity,
   selected value, CMS block, media, route, or control that makes the symptom possible.
