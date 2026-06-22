@@ -79,6 +79,28 @@ normalize_unclassified_plan () {
   fi
 }
 
+normalize_classified_plan () {
+  [ -f "$PLAN" ] || return 0
+
+  local tmp
+  tmp=$(mktemp)
+  if jq '
+    .confidence = ((.confidence // 0.75) | if type == "number" and . > 0.5 then . else 0.75 end)
+    | .blocked_reason = null
+    | .confidence_reason = (
+        if (.confidence_reason | type) == "string"
+          and (.confidence_reason | test("blocked|inconclusive|precondition missing|could not|uncertain|unproven|not stable|failed|failure"; "i"))
+        then null
+        else (.confidence_reason // null)
+        end
+      )
+  ' "$PLAN" > "$tmp"; then
+    mv "$tmp" "$PLAN"
+  else
+    rm -f "$tmp"
+  fi
+}
+
 if [ "$MODE" = giveup ]; then
   echo "== verify-reproduction: giving up — handing off a 'could not reproduce' result =="
   normalize_giveup_plan
@@ -147,6 +169,7 @@ executor=$(jq -r '.executor // "http"' "$PLAN" 2>/dev/null || echo http)
 case "$status" in
   reproduced|not_reproduced)
     # A reset+seed+run on this instance IS a clean reported-version leg → adopt it as the result.
+    normalize_classified_plan
     cp builder-result.json result.json
     echo "== verify-reproduction: classified '$status' on the reported version — recorded as the reported leg =="
     handoff "$executor" "$status"
