@@ -439,6 +439,11 @@ function usesAdminMobileModuleHeadingGate(source) {
     .some((match) => moduleNames.test(match[1]));
 }
 
+function directlyFillsAdminLoginFields(source) {
+  return /\bgetByLabel\s*\(\s*(?:['"`]Username['"`]|\/username\/i)\s*\)\s*\.fill\s*\(/i.test(source)
+    || /\bgetByLabel\s*\(\s*(?:['"`]Password['"`]|\/password\/i)\s*\)\s*\.fill\s*\(/i.test(source);
+}
+
 function usesAdminMenuGroupAsLink(source) {
   const groupNames = /(?:Catalogues|Orders|Customers|Content|Marketing|Extensions)/i;
   return [...source.matchAll(/getByRole\s*\(\s*['"]link['"]\s*,\s*\{[^}]*name\s*:\s*([^}\n]+)\}/g)]
@@ -681,6 +686,9 @@ if (executor === 'playwright') {
 
   if (adminUiPlan()) {
     const bootstrapIssue = adminBootstrapIssue(issue);
+    if (!bootstrapIssue && directlyFillsAdminLoginFields(executable)) {
+      fail('non-login Admin Playwright repros must rely on the harness-provided authenticated storageState and must not fill Username/Password directly; on an already-authenticated route those fields are absent and setup times out before the symptom can run');
+    }
     if (!bootstrapIssue && /page\.goto\s*\(\s*['"`]\/admin\/?['"`]/.test(executable)) {
       fail('admin-ui Playwright spec navigates only to the generic Administration shell; use the concrete /admin#/sw/... route for the reported module/action, then precondition on that target state');
     }

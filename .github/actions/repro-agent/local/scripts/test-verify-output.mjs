@@ -18,7 +18,7 @@ fs.writeFileSync(path.join(dir, 'reproduction-plan.json'), `${JSON.stringify({
 fs.writeFileSync(path.join(dir, 'issue.md'), '# Product detail page should return not found for inactive variants\n');
 fs.writeFileSync(path.join(dir, 'issue-class.txt'), 'visual\n');
 fs.writeFileSync(path.join(dir, 'fixtures.json'), '{}\n');
-fs.writeFileSync(path.join(dir, 'repro.spec.ts'), `
+const expectPollSpec = `
 import { test, expect } from '@playwright/test';
 test('expect poll counts as the single symptom assertion', async ({ page }) => {
   await page.goto('/detail/15000000000000000000000000000101');
@@ -28,10 +28,12 @@ test('expect poll counts as the single symptom assertion', async ({ page }) => {
   const response = await page.goto('/detail/15000000000000000000000000000101');
   await expect.poll(async () => response?.status(), { timeout: 30_000 }).toBe(404);
 });
-`);
+`;
+fs.writeFileSync(path.join(dir, 'repro.spec.ts'), expectPollSpec);
 fs.writeFileSync(path.join(dir, 'builder-result.json'), `${JSON.stringify({
   executor: 'playwright',
   evidence: {
+    script: expectPollSpec,
     artifacts: [{ kind: 'playwright-results', name: 'test-results/' }],
   },
 }, null, 2)}\n`);
@@ -77,6 +79,49 @@ if (inconclusiveResult.status === 0 || !inconclusiveResult.stderr.includes('stil
   console.error('Expected high-confidence inconclusive result to fail verification');
   console.error(inconclusiveResult.stdout);
   console.error(inconclusiveResult.stderr);
+  process.exit(1);
+}
+
+const staleEvidenceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'repro-agent-output-stale-evidence-'));
+fs.writeFileSync(path.join(staleEvidenceDir, 'reproduction-plan.json'), `${JSON.stringify({
+  schema_version: '1',
+  issue: 6,
+  executor: 'playwright',
+  layer: 'admin-ui',
+  build_profile: { admin_build: true },
+  version: '6.7.9.0',
+  confidence: 0.4,
+  confidence_reason: 'previous run was inconclusive',
+  script_path: 'repro.spec.ts',
+}, null, 2)}\n`);
+fs.writeFileSync(path.join(staleEvidenceDir, 'issue.md'), '# Mobile Administration navigation stays open\n');
+fs.writeFileSync(path.join(staleEvidenceDir, 'issue-class.txt'), 'visual\n');
+fs.writeFileSync(path.join(staleEvidenceDir, 'repro.spec.ts'), `
+import { test, expect } from '@playwright/test';
+test.use({ viewport: { width: 375, height: 812 } });
+test('final spec edited after verifier', async ({ page }) => {
+  await page.goto('/admin#/sw/dashboard/index');
+  const menu = page.locator('aside.sw-admin-menu');
+  await menu.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: menu missing'); });
+  await expect(menu).not.toHaveClass(/is--off-canvas-shown/);
+});
+`);
+fs.writeFileSync(path.join(staleEvidenceDir, 'builder-result.json'), `${JSON.stringify({
+  status: 'inconclusive',
+  executor: 'playwright',
+  blocked_reason: 'previous setup failure',
+  evidence: {
+    script: 'import { test } from "@playwright/test"; test("old", async () => {});',
+    artifacts: [{ kind: 'playwright-results', name: 'test-results/' }],
+  },
+}, null, 2)}\n`);
+
+const staleEvidenceResult = spawnSync('node', [verifier, '--root', staleEvidenceDir], { cwd: repo, encoding: 'utf8' });
+if (staleEvidenceResult.status === 0 || !staleEvidenceResult.stderr.includes('runtime evidence is stale')) {
+  console.error('Expected stale Playwright runtime evidence to fail verification');
+  console.error(staleEvidenceResult.stdout);
+  console.error(staleEvidenceResult.stderr);
   process.exit(1);
 }
 

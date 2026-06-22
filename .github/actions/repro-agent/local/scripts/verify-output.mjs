@@ -85,6 +85,10 @@ function entityPayload(value) {
   return [];
 }
 
+function normalizeSource(source) {
+  return String(source ?? '').replace(/\r\n/g, '\n').trim();
+}
+
 if (fixtures?.cms_page) {
   for (const page of entityPayload(fixtures.cms_page)) {
     if (!Array.isArray(page.sections)) {
@@ -105,6 +109,9 @@ if (fs.existsSync(resultPath)) {
   if (result && plan?.executor === 'playwright') {
     const hasArtifact = result.evidence?.artifacts?.some((item) => item.kind === 'playwright-results');
     if (!hasArtifact) failures.push('Playwright result lacks playwright-results artifact evidence');
+    if (spec && normalizeSource(result.evidence?.script) !== normalizeSource(spec)) {
+      failures.push('Playwright runtime evidence is stale: builder-result.json evidence.script does not match the final repro.spec.ts; rerun verify-reproduction.sh after editing the spec');
+    }
   }
   if (result && plan && ['blocked', 'inconclusive', 'missing'].includes(result.status)) {
     if (typeof plan.confidence === 'number' && plan.confidence > 0.5) {

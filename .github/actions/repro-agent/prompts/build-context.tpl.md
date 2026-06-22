@@ -68,6 +68,10 @@ navigates to `/admin...` is `admin-ui` and must set `build_profile.admin_build=t
 catalog/search/listing volume is required; still anchor on your own seeded marker when demodata is
 enabled.
 
+Admin Playwright runs already use an authenticated storage state. Unless the report is specifically
+about login/bootstrap, navigate directly to the concrete `/admin#/sw/...` route and do not fill
+`Username` or `Password`; those fields are absent once the Admin shell is loaded.
+
 ## Output Contract
 `reproduction-plan.json` is the single handoff the deterministic trunk leg re-runs:
 

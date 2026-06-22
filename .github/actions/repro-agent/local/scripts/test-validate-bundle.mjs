@@ -1190,6 +1190,32 @@ if (!badMultipleAwaitedExpectResult.stdout.includes('exactly one awaited expect'
   process.exit(1);
 }
 
+const badNonLoginAdminFillsLogin = writeAdminBundle(`
+import { test, expect } from '@playwright/test';
+test.use({ viewport: { width: 375, height: 812 } });
+test('bad non-login admin direct login fields', async ({ page }) => {
+  await page.goto('/admin#/sw/dashboard/index');
+  await page.getByLabel('Username').fill('admin');
+  await page.getByLabel('Password').fill('shopware');
+  const menu = page.locator('aside.sw-admin-menu');
+  await menu.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: admin menu missing'); });
+  await expect(menu).not.toHaveClass(/is--off-canvas-shown/);
+});
+`, `# Admin navigation sidebar does not close on mobile after clicking a nav item
+
+When opening the navigation sidebar in the Administration on a mobile viewport and clicking Products, the page changes but the sidebar stays open.
+`);
+const badNonLoginAdminFillsLoginResult = run(badNonLoginAdminFillsLogin);
+if (badNonLoginAdminFillsLoginResult.status === 0) {
+  console.error('Expected non-login Admin direct Username/Password fills to be rejected');
+  process.exit(1);
+}
+if (!badNonLoginAdminFillsLoginResult.stdout.includes('harness-provided authenticated storageState')) {
+  console.error(`Unexpected non-login-admin-login output:\n${badNonLoginAdminFillsLoginResult.stdout}\n${badNonLoginAdminFillsLoginResult.stderr}`);
+  process.exit(1);
+}
+
 const badBootstrapUsesModuleLink = writeAdminBundle(`
 import { test, expect } from '@playwright/test';
 test.use({ viewport: { width: 375, height: 812 } });
