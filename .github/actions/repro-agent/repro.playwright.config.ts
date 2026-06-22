@@ -9,7 +9,7 @@ import { cwd } from 'node:process';
 // the generated repro — testDir recurses, so without this a real run could collect helper files.
 export default defineConfig({
     testDir: '.',
-    testIgnore: ['**/demo/**', '**/references/**'],
+    testIgnore: ['**/demo/**'],
     // A repro is a multi-step flow against a freshly-provisioned shop (login + navigate +
     // interact), with generous per-locator waits. Playwright's 30s default per-test timeout
     // is too short and aborts mid-flow; give the whole test room.

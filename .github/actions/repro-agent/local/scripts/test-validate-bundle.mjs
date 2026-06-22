@@ -1351,4 +1351,56 @@ if (!mediaReplacementWithSyncMediaResult.stdout.includes('sync-seeded media rows
   process.exit(1);
 }
 
+const cmsMediaTextClick = writeAdminBundle(`
+import { test, expect } from '@playwright/test';
+test('bad cms media text click', async ({ page }) => {
+  await page.goto('/admin#/sw/cms/detail/27000000000000000000000000000002');
+  const marker = page.getByText(/^Repro teaser sentinel$/i);
+  await marker.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: seeded CMS block missing'); });
+  await marker.click();
+  await page.getByRole('button', { name: /^replace$/i }).waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: replace action missing'); });
+  await expect(page.getByRole('button', { name: /^replace$/i })).toBeEnabled();
+});
+`, `# Replace button stays disabled for image used in CMS teaser
+
+When replacing a media image that is used by a teaser, the Administration Media library keeps the Replace button disabled after upload.
+`);
+fs.writeFileSync(path.join(cmsMediaTextClick, 'fixtures.json'), '{}\n');
+const cmsMediaTextClickResult = run(cmsMediaTextClick);
+if (cmsMediaTextClickResult.status === 0) {
+  console.error('Expected Admin CMS/media repro that clicks visible CMS text to be rejected');
+  process.exit(1);
+}
+if (!cmsMediaTextClickResult.stdout.includes('must not click visible CMS block text')) {
+  console.error(`Unexpected cms-media-text-click output:\n${cmsMediaTextClickResult.stdout}\n${cmsMediaTextClickResult.stderr}`);
+  process.exit(1);
+}
+
+const cmsMediaControlClick = writeAdminBundle(`
+import { test, expect } from '@playwright/test';
+test('good cms media control click', async ({ page }) => {
+  await page.goto('/admin#/sw/cms/detail/27000000000000000000000000000002');
+  const marker = page.getByText(/^Repro teaser sentinel$/i);
+  await marker.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: seeded CMS block missing'); });
+  const blockControl = page.getByRole('button').filter({ has: marker }).first();
+  await blockControl.click({ timeout: 5_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: CMS block control was not clickable'); });
+  await page.getByRole('button', { name: /^replace$/i }).waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: replace action missing'); });
+  await expect(page.getByRole('button', { name: /^replace$/i })).toBeEnabled();
+});
+`, `# Replace button stays disabled for image used in CMS teaser
+
+When replacing a media image that is used by a teaser, the Administration Media library keeps the Replace button disabled after upload.
+`);
+fs.writeFileSync(path.join(cmsMediaControlClick, 'fixtures.json'), '{}\n');
+const cmsMediaControlClickResult = run(cmsMediaControlClick);
+if (cmsMediaControlClickResult.status !== 0) {
+  console.error(`Expected Admin CMS/media repro that clicks a block control to pass:\n${cmsMediaControlClickResult.stdout}\n${cmsMediaControlClickResult.stderr}`);
+  process.exit(1);
+}
+
 console.log('validate-bundle tests passed');

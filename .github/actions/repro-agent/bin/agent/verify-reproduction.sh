@@ -46,7 +46,7 @@ if [ "$MODE" = giveup ]; then
 fi
 
 if [ ! -f "$PLAN" ]; then
-  echo "== verify-reproduction: $PLAN not found — write it first (see the runbook). =="
+  echo "== verify-reproduction: $PLAN not found — write it first (see build-context.md). =="
   exit 1
 fi
 

@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
-# Assemble the COMPACT context file the Build Repro agent reads first. It carries only the run-
-# specific bits (classification, issue, version, screenshots, fix-PR pointer) + a map of WHERE to
-# read the heavy references on demand. The references (BUILD.md, executors/*)
-# are NOT inlined — the agent Reads the relevant one fresh, at the point of use, so it isn't buried
-# in a giant front-loaded blob. Keep prompt prose in the .md files, never here.
+# Assemble the context file the Build Repro agent reads first. It carries the run-specific bits
+# (classification, issue, version, screenshots, fix-PR pointer) plus the compact self-contained
+# reproduction contract. Keep prompt prose in the template, never here.
 #
 # Env: TPL (template), ISSUE, VERSION (reported version, "" → trunk), MAX_TURNS (default 40),
 #      OUT (default build-context.md).

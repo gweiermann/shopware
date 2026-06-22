@@ -5,11 +5,10 @@ A **second**, independent reproduction approach that implements the same idea as
 **single [GitHub Agentic Workflow](https://github.com/github/gh-aw) (gh-aw)** file:
 [`.github/workflows/repro-agent.md`](../../workflows/repro-agent.md).
 
-This directory is **self-contained**: the deterministic scripts, the `provision` action, the agent
-prompt template and the runbook/executor contracts under [`references/`](references/) are **copies**
-of the `repro/` toolkit (plus the new `parse-version.sh`). The two approaches share no files, so
-either can evolve without touching the other. Keep the copies in sync by hand if you change shared
-logic.
+This directory is **self-contained**: the deterministic scripts, the `provision` action, and the
+agent prompt template live here (plus the new `parse-version.sh`). The agent does not read a
+vendored cookbook; it reads the issue, does bounded Shopware source/test discovery, writes one
+bundle, then lets deterministic verification classify it.
 
 > **gh-aw** lets you write an agentic workflow as one Markdown file with YAML frontmatter
 > (`engine`, `tools`, `permissions`, `steps`, `post-steps`, `safe-outputs`, …). The Markdown body
@@ -42,7 +41,7 @@ agent** pre-decides layer/executor/build profile.)
 | 2. Environment preparation | pre-agent `steps:` → `provision` (Admin + Storefront pre-built) + `db-snapshot.sh` | ✅ |
 | 3. Reproduction discovery + decisions | the **agent** writes `reproduction-plan.json` (+ test + `fixtures.json`), declaring executor/build_profile/demodata | 🤖 agent |
 | 4. Build + verify | agent runs `verify-reproduction.sh` ONCE; it builds Admin/Storefront/demodata per the plan, then the **script** decides + records the reported leg | ✅ (script verdict) |
-| 5. Retry loop | bounded by `BUILD.md` + `engine.max-turns` | 🤖 agent |
+| 5. Retry loop | bounded by the compact build context + `engine.max-turns` | 🤖 agent |
 | 6. Trunk verification | `safe-outputs.jobs.reproduce-on-trunk` (clean runner) provisions from `reproduction-plan.json` | ✅ |
 | 7. Deterministic reporting | `verdict.sh` → `report.sh` → `gh issue comment` | ✅ |
 
@@ -67,12 +66,10 @@ agent's version pick with a regex).
 | `http.sh` + `api-helper.sh` | [`bin/execute/run-http.sh`](bin/execute/run-http.sh) + [`bin/lib/lib-admin-api.sh`](bin/lib/lib-admin-api.sh) + [`bin/agent/shop-get.sh`](bin/agent/shop-get.sh) |
 | **`parse-version.sh`** (Phase 1) | **new** — [`bin/prepare/parse-version.sh`](bin/prepare/parse-version.sh): matches the reported version (optional `v`, 2–4 segments, `.*`/`.x` wildcard). Exact 4-part is used verbatim; anything underspecified (`6.7.10` / `6.7.10.*` / `6.7.x`) resolves to the **latest available patch** via `gh` then `git ls-remote` — never `.0`; unresolvable offline → trunk |
 
-Prompts and contracts are vendored too: the agent reads `build-context.md`, assembled by
-[`bin/prepare/build-context.sh`](bin/prepare/build-context.sh) from
-[`prompts/build-context.tpl.md`](prompts/build-context.tpl.md) + the runbook and per-executor
-contracts in [`references/`](references/) (`BUILD.md`, `executors/{http,playwright,direct}.md` —
-copied from the `reproduce` skill). The verdict map lives in `bin/report/verdict.sh`; the comment
-templates in `bin/report/report.sh`.
+The agent reads `build-context.md`, assembled by
+[`bin/prepare/build-context.sh`](bin/prepare/build-context.sh) from the compact
+[`prompts/build-context.tpl.md`](prompts/build-context.tpl.md). The verdict map lives in
+`bin/report/verdict.sh`; the comment templates in `bin/report/report.sh`.
 
 ## How to enable
 
@@ -136,6 +133,5 @@ templates in `bin/report/report.sh`.
     report/     leg-plan.sh, leg-blocked.sh,       trunk leg params + verdict map + comment
                 verdict.sh, report.sh, embed-evidence.sh
   prompts/build-context.tpl.md          the agent prompt template
-  references/BUILD.md, references/executors/*.md   runbook + per-executor contracts (vendored)
   repro.playwright.config.ts            Playwright runner config
 ```

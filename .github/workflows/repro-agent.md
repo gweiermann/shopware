@@ -44,8 +44,8 @@ permissions:
 engine:
   id: claude
   model: claude-sonnet-4-6
-  # Bounded reproduction loop (author → verify → at most a couple of fixes). Mirrors the
-  # hand-written build-repro --max-turns budget; the runbook (BUILD.md) enforces the discipline.
+  # Bounded reproduction loop (source/test discovery → author once → verify → at most a couple of
+  # fixes). The compact build context enforces the discipline; there is no issue-specific cookbook.
   max-turns: 30
 
 # Headroom for the agent step: authoring + ONE synchronous verify that may build the Admin/
@@ -157,8 +157,7 @@ steps:
   - name: Snapshot clean DB
     run: bash .github/actions/repro-agent/bin/prepare/db-snapshot.sh
 
-  # Assemble the single context file the agent reads (BUILD.md + all three executor contracts +
-  # the reported version + the issue + screenshots). The version is injected from the parse step.
+  # Assemble the single context file the agent reads. The version is injected from the parse step.
   - name: Assemble agent context
     env:
       ISSUE: ${{ github.event.issue.number || inputs.issue_number }}
@@ -420,9 +419,9 @@ reproduce the reported bug on it and prove it. You do **not** parse the version,
 comparison, decide the verdict, or write the issue comment — deterministic scripts own all of that.
 
 **Start by reading `build-context.md`** in the workspace root and following it — the compact brief
-for this run (classification + where to read the bug, the method, bounded discovery, and the
-executor contracts on demand). Author only your own files: `reproduction-plan.json`, `fixtures.json`,
-and one of `repro.spec.ts` / `ReproTest.php`.
+for this run (classification, issue inputs, bounded Shopware source/test discovery, and the output
+contract). Author only your own files: `reproduction-plan.json`, `fixtures.json`, and one of
+`repro.spec.ts` / `ReproTest.php`.
 
 **Your terminal action is `bash .github/actions/repro-agent/bin/agent/verify-reproduction.sh`.** When
 your bundle classifies, it records the reported leg, hands off to the deterministic pipeline, and
