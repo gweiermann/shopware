@@ -24,7 +24,8 @@ bundle, verify it, then only fix what the verifier names.
 6. If verification fails, make at most two targeted fixes. Use the verifier's one concrete failure
    as the next edit. If still unproven, run `verify-reproduction.sh giveup` or leave
    `reproduction-plan.json` with `confidence <= 0.5` and a specific `confidence_reason` or
-   `blocked_reason`.
+   `blocked_reason`. Your final state is invalid if `builder-result.json` is `blocked` or
+   `inconclusive` while `reproduction-plan.json` still has confidence above `0.5` or no explanation.
 
 ## Discovery Targets
 - API issue: route/controller plus one endpoint test or fixture.
@@ -87,11 +88,16 @@ spec/test.
   prove a different shape.
 - If a page renders empty, treat it as setup/precondition drift until source/tests or screenshot
   evidence prove otherwise.
+- Do not put `{{PLACEHOLDER}}` tokens in `repro.spec.ts`; they are not substituted inside
+  browser-executed test code. Put placeholder-backed static state in `fixtures.json`.
 
 ## Playwright Rules
 - Use semantic locators (`getByRole`, `getByLabel`, `getByText`, `getByPlaceholder`,
   `getByDisplayValue`). Avoid CSS, data-test, and raw attribute selectors.
 - Admin UI specs start authenticated. Do not write Admin login steps.
+- Do not perform raw Admin API setup inside Playwright via `page.evaluate(fetch('/api/...'))` or
+  `page.request.*('/api/...')`. Use `fixtures.json` for static state, or perform real UI actions
+  when the uploaded/runtime object must be created through the browser.
 - Preconditions use `locator.waitFor({ state: 'visible', timeout })` and throw
   `PRECONDITION_NOT_FOUND: <specific state>` on miss. Preconditions must prove the seeded entity,
   selected value, CMS block, media, route, or control that makes the symptom possible.
@@ -100,6 +106,10 @@ spec/test.
 - Reach newly seeded storefront content by technical routes such as `/detail/<productId>`,
   `/navigation/<categoryId>`, or `/landingPage/<pageId>` unless source/tests prove another stable
   route.
+- Do not use `scrollIntoViewIfNeeded()`. It scrolls through automation internals and can hide
+  reachability bugs or stall on invisible elements. If scrolling is part of the symptom, use
+  user-like wheel input after proving the relevant container is visible; otherwise navigate or set
+  up state so the target control is directly reachable.
 - The final screenshot must visibly prove the issue-specific state, not just a generic page load.
 
 ## Available Commands

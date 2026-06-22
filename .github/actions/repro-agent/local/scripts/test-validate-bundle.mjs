@@ -1403,4 +1403,72 @@ if (cmsMediaControlClickResult.status !== 0) {
   process.exit(1);
 }
 
+const scrollIntoViewIfNeededBundle = writeBundle(`
+import { test, expect } from '@playwright/test';
+test('bad automation scroll', async ({ page }) => {
+  await page.goto('/detail/bb000000000000000000000000000001');
+  const product = page.getByText(/^Slider Variant Product$/i);
+  await product.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: seeded product did not render'); });
+  const option = page.getByText(/^Black$/i);
+  await option.scrollIntoViewIfNeeded();
+  await expect(option).toBeVisible();
+});
+`);
+const scrollIntoViewIfNeededResult = run(scrollIntoViewIfNeededBundle);
+if (scrollIntoViewIfNeededResult.status === 0) {
+  console.error('Expected Playwright repro using scrollIntoViewIfNeeded to be rejected');
+  process.exit(1);
+}
+if (!scrollIntoViewIfNeededResult.stdout.includes('must not use scrollIntoViewIfNeeded')) {
+  console.error(`Unexpected scrollIntoViewIfNeeded output:\n${scrollIntoViewIfNeededResult.stdout}\n${scrollIntoViewIfNeededResult.stderr}`);
+  process.exit(1);
+}
+
+const placeholderInPlaywrightBundle = writeBundle(`
+import { test, expect } from '@playwright/test';
+test('bad unresolved placeholder', async ({ page }) => {
+  await page.goto('/detail/{{PRODUCT_ID}}');
+  const product = page.getByText(/^Slider Variant Product$/i);
+  await product.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: seeded product did not render'); });
+  await expect(product).toBeVisible();
+});
+`);
+const placeholderInPlaywrightResult = run(placeholderInPlaywrightBundle);
+if (placeholderInPlaywrightResult.status === 0) {
+  console.error('Expected Playwright repro with unresolved placeholder token to be rejected');
+  process.exit(1);
+}
+if (!placeholderInPlaywrightResult.stdout.includes('unresolved {{PLACEHOLDER}}')) {
+  console.error(`Unexpected placeholder-in-playwright output:\n${placeholderInPlaywrightResult.stdout}\n${placeholderInPlaywrightResult.stderr}`);
+  process.exit(1);
+}
+
+const rawAdminApiPlaywrightBundle = writeAdminBundle(`
+import { test, expect } from '@playwright/test';
+test('bad raw admin api setup', async ({ page }) => {
+  await page.goto('/admin#/sw/media/index');
+  const media = page.getByRole('heading', { name: /^Media$/i });
+  await media.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: media module did not render'); });
+  await page.evaluate(async () => {
+    await fetch('/api/_action/sync', { method: 'POST', body: '{}' });
+  });
+  await expect(media).toBeVisible();
+});
+`, `# Administration media replacement fails after upload
+
+When replacing an image used by another entity, the Replace button stays disabled.
+`);
+const rawAdminApiPlaywrightResult = run(rawAdminApiPlaywrightBundle);
+if (rawAdminApiPlaywrightResult.status === 0) {
+  console.error('Expected Playwright repro using raw Admin API setup to be rejected');
+  process.exit(1);
+}
+if (!rawAdminApiPlaywrightResult.stdout.includes('raw Admin API setup')) {
+  console.error(`Unexpected raw-admin-api-playwright output:\n${rawAdminApiPlaywrightResult.stdout}\n${rawAdminApiPlaywrightResult.stderr}`);
+  process.exit(1);
+}
+
 console.log('validate-bundle tests passed');

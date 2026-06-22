@@ -266,6 +266,11 @@ function cmsEditorTextClick(source) {
   return textLocatorVariables.some((name) => new RegExp(`\\b${name}\\s*\\.\\s*click\\s*\\(`).test(source));
 }
 
+function rawAdminApiCallInPlaywright(source) {
+  return /\bfetch\s*\(\s*['"`]\/api\//s.test(source)
+    || /\bpage\.request\.(?:get|post|put|patch|delete)\s*\(\s*['"`]\/api\//s.test(source);
+}
+
 function hasGuestWishlistAddWithoutStateProof(source) {
   const addMatch = source.match(/(?:Add to wishlist|add to wishlist)/i);
   if (!addMatch) return false;
@@ -495,6 +500,15 @@ if (executor === 'playwright') {
   if (!spec) fail(`playwright executor but ${specPath} is missing`);
 
   const executable = stripComments(spec);
+  if (/\{\{[A-Z0-9_]+\}\}/.test(executable)) {
+    fail('Playwright spec contains unresolved {{PLACEHOLDER}} tokens; placeholders are substituted only in fixtures/plan seeding, not inside browser-executed test code');
+  }
+  if (rawAdminApiCallInPlaywright(executable)) {
+    fail('Playwright UI repros must not perform raw Admin API setup calls from page.evaluate/fetch or page.request; seed static state with fixtures.json or use real UI interactions so auth, placeholders, and screenshots stay faithful');
+  }
+  if (/\bscrollIntoViewIfNeeded\s*\(/.test(executable)) {
+    fail('Playwright repros must not use scrollIntoViewIfNeeded(); it uses automation-only scrolling and can hide reachability bugs or burn the test timeout on invisible elements. Use route/state setup, visible target waits, and user-like wheel scrolling only when scrolling itself is part of the reported symptom');
+  }
   if (!executable.includes('PRECONDITION_NOT_FOUND')) {
     fail('playwright spec has no PRECONDITION_NOT_FOUND precondition gate; missing setup must be inconclusive, not a reproduced/not_reproduced verdict');
   }
