@@ -142,6 +142,18 @@ if (!hint && /PRECONDITION_NOT_FOUND:[^\n]*(dashboard|admin shell|administration
   );
 }
 
+if (!hint && /waiting for locator\('\.sw-cms-el-config-[^']+'\)/i.test(errorContext)
+  && /#\/sw\/cms\/detail|\/admin#\/sw\/cms\/detail/i.test(spec)
+  && /button "Settings"|button "Blocks"|button "Navigator"/i.test(errorContext)) {
+  hint = result(
+    'cms_element_config_not_open',
+    'high',
+    'The spec waited for a CMS element configuration selector, but the page snapshot shows the CMS canvas/sidebar tabs rather than an opened element config panel.',
+    'Open the issue-specific CMS element settings first: click/select the seeded element in the canvas or use the navigator/settings sidebar until the matching .sw-cms-el-config-* panel is visible, then interact with its upload/config control.',
+    { error_context: errorContextPath, screenshot: screenshotPath },
+  );
+}
+
 if (!hint && /(?:No .+ yet|empty state|There are no|No products yet|No media yet)/i.test(errorContext)
   && /PRECONDITION_NOT_FOUND|missing|not visible/i.test(combined)) {
   hint = result(

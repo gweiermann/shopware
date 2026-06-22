@@ -109,6 +109,36 @@ runCase('generic-chrome', {
   'test-results/repro/error-context.md': 'Error: PRECONDITION_NOT_FOUND: dashboard heading Howdy!',
 }, 'generic_chrome_precondition');
 
+const cmsConfigHint = runCase('cms-config-not-open', {
+  'reproduction-plan.json': basePlan,
+  'repro.spec.ts': `
+    await page.goto('/admin#/sw/cms/detail/11000000000000000000000000000001');
+    const upload = page.locator('.sw-cms-el-config-image .sw-media-upload-v2').first();
+    await upload.waitFor();
+  `,
+  'builder-result.json': {
+    status: 'inconclusive',
+    evidence: { reporter_output: 'failure was not a value assertion — Test timeout of 120000ms exceeded.' },
+  },
+  'test-results/repro/error-context.md': `
+Error: locator.waitFor: Test timeout of 120000ms exceeded.
+Call log:
+  - waiting for locator('.sw-cms-el-config-image .sw-media-upload-v2').first() to be visible
+
+# Page snapshot
+- heading "Seeded CMS page" [level=2]
+- paragraph: Seeded marker
+- complementary:
+  - button "Settings"
+  - button "Blocks"
+  - button "Navigator"
+  `,
+}, 'cms_element_config_not_open');
+if (!cmsConfigHint.repair.includes('Open the issue-specific CMS element settings first')) {
+  console.error(`Expected CMS config hint to mention opening settings first:\n${JSON.stringify(cmsConfigHint, null, 2)}`);
+  process.exit(1);
+}
+
 const mediaFolderHint = runCase('media-folder-empty', {
   'reproduction-plan.json': basePlan,
   'repro.spec.ts': `
