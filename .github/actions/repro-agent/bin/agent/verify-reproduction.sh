@@ -62,6 +62,23 @@ normalize_giveup_plan () {
   fi
 }
 
+normalize_unclassified_plan () {
+  [ -f "$PLAN" ] || return 0
+
+  local reason=${1:-"Verifier could not classify the reported version."}
+  local tmp
+  tmp=$(mktemp)
+  if jq --arg reason "$reason" '
+    .confidence = ((.confidence // 0.4) | if type == "number" and . <= 0.5 then . else 0.4 end)
+    | .confidence_reason = (.confidence_reason // $reason)
+    | .blocked_reason = (.blocked_reason // $reason)
+  ' "$PLAN" > "$tmp"; then
+    mv "$tmp" "$PLAN"
+  else
+    rm -f "$tmp"
+  fi
+}
+
 if [ "$MODE" = giveup ]; then
   echo "== verify-reproduction: giving up — handing off a 'could not reproduce' result =="
   normalize_giveup_plan
@@ -136,6 +153,7 @@ case "$status" in
     ;;
   *)
     reason=$(jq -r '.blocked_reason // .evidence.reporter_output // "see builder-result.json"' builder-result.json 2>/dev/null || echo "see builder-result.json")
+    normalize_unclassified_plan "$reason"
     echo "== verify-reproduction: status '$status' — NOT classified yet."
     echo "   Fix THIS one thing, then re-run verify-reproduction.sh (do not hand off): $reason =="
     exit 1

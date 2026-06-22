@@ -92,6 +92,7 @@ const specPath = plan?.script_path || 'repro.spec.ts';
 const spec = readText(specPath);
 const errorContextPath = newest(walkFiles('test-results', (file) => file.endsWith('error-context.md')));
 const errorContext = errorContextPath ? readText(errorContextPath) : '';
+const errorEvidence = errorContext.split(/\n# Test source\b/)[0] || errorContext;
 const screenshotPath = newest(walkFiles('test-results', (file) => /\.(png|jpe?g|webp)$/i.test(file)));
 const reporter = builder?.evidence?.reporter_output || builder?.blocked_reason || '';
 const status = builder?.status || 'missing';
@@ -120,7 +121,7 @@ if (!hint && /element is outside of the viewport/i.test(combined)) {
 
 if (!hint && /PRECONDITION_NOT_FOUND:[^\n]*(route change|route|URL)/i.test(combined)) {
   const families = routeFamiliesFromSpec(spec);
-  const matchedFamily = families.find((family) => containsRouteFamily(errorContext, family));
+  const matchedFamily = families.find((family) => containsRouteFamily(errorEvidence, family));
   if (matchedFamily) {
     hint = result(
       'over_exact_route_gate',

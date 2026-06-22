@@ -85,6 +85,27 @@ Error: PRECONDITION_NOT_FOUND: route change to Settings
   'test-results/repro/test-failed-1.png': 'not really an image',
 }, 'over_exact_route_gate');
 
+runCase('route-only-in-test-source', {
+  'reproduction-plan.json': basePlan,
+  'repro.spec.ts': `
+    await page.goto('/admin#/sw/cms/create/landingpage');
+    await page.waitForURL(/\\/admin#\\/sw\\/cms\\/detail\\//, { timeout: 10000 })
+      .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: CMS detail route did not open'); });
+  `,
+  'builder-result.json': {
+    status: 'inconclusive',
+    evidence: { reporter_output: 'precondition absent — Error: PRECONDITION_NOT_FOUND: CMS detail route did not open' },
+  },
+  'test-results/repro/error-context.md': `
+# Error details
+Error: PRECONDITION_NOT_FOUND: CMS detail route did not open
+
+# Test source
+  1 | await page.goto('/admin#/sw/cms/create/landingpage');
+  2 | await page.waitForURL(/\\/admin#\\/sw\\/cms\\/detail\\//, { timeout: 10000 });
+  `,
+}, 'unknown');
+
 runCase('offscreen', {
   'reproduction-plan.json': basePlan,
   'repro.spec.ts': 'await page.getByText("Catalogues").click();',
