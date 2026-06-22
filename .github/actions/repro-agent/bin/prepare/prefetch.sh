@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Prefetch the analyze agent's context so it spends turns ANALYZING, not fetching:
-#   issue.md   — issue title + body + comments (minus our own "## Reproduction" verdicts)
+# Prefetch the build agent's context so it spends turns authoring, not fetching:
+#   issue.md   — issue title + body + human comments (minus prior bot repro reports)
 #   fixpr.diff — the first #-referenced upstream PR's description + diff (best-effort)
 #
 # Env: ISSUE (req), GH_TOKEN (req), REPO (issue repo; default $GITHUB_REPOSITORY),
@@ -11,11 +11,19 @@ set -euo pipefail
 REPO=${REPO:-${GITHUB_REPOSITORY:?REPO or GITHUB_REPOSITORY required}}
 UPSTREAM=${UPSTREAM:-shopware/shopware}
 
-# Issue title + body + COMMENTS — comments often hold the real repro steps, affected
-# version, and the "closed by #PR" cross-reference. EXCLUDE our own prior verdict comments
-# (they all start with "## Reproduction") to avoid a feedback loop / wasted context.
+# Issue title + body + HUMAN comments — comments often hold real repro clarifications, affected
+# version, and the "closed by #PR" cross-reference. EXCLUDE prior automation comments so the build
+# agent cannot learn issue-specific fixtures/tests from earlier repro-agent runs.
 gh issue view "$ISSUE" --repo "$REPO" --json title,body,comments \
-  --jq '"# " + .title + "\n\n" + (.body // "") + "\n\n## Comments\n\n" + ([.comments[]? | select(((.body // "") | contains("## Reproduction")) | not) | "**@" + (.author.login // "?") + ":** " + (.body // "")] | join("\n\n"))' \
+  --jq '
+    def is_repro_bot_comment:
+      ((.author.login // "") == "github-actions")
+      or ((.body // "") | contains("## AI Report (Reproduction)"))
+      or ((.body // "") | contains("gh-aw-comment-type"))
+      or ((.body // "") | contains("Reproduce Issue (gh-aw)"));
+    "# " + .title + "\n\n" + (.body // "") + "\n\n## Comments\n\n"
+    + ([.comments[]? | select(is_repro_bot_comment | not) | "**@" + (.author.login // "?") + ":** " + (.body // "")] | join("\n\n"))
+  ' \
   > issue.md 2>/dev/null || echo "(issue unavailable)" > issue.md
 head -c 60000 issue.md > issue.cap && mv issue.cap issue.md # bound context
 

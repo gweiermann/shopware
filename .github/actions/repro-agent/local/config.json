@@ -40,20 +40,6 @@
       "issue": 30,
       "expectedExecutor": "playwright",
       "visual": true
-    },
-    {
-      "name": "cookbook-cms-product-slider",
-      "bundleRoot": ".github/actions/repro-agent/references/cookbook/cms-product-slider",
-      "expectedExecutor": "playwright",
-      "visual": true
-    },
-    {
-      "name": "cookbook-variant-listing",
-      "bundleRoot": ".github/actions/repro-agent/references/cookbook/variant-listing"
-    },
-    {
-      "name": "cookbook-customer-addresses",
-      "bundleRoot": ".github/actions/repro-agent/references/cookbook/customer-addresses"
     }
   ]
 }

@@ -31,8 +31,8 @@ bash .github/actions/repro-agent/local/scripts/reset-instance.sh --artifacts-onl
 # Create local issue context for issue 30 using gh, then assemble build-context.md.
 ISSUE=30 REPO=gweiermann/shopware bash .github/actions/repro-agent/local/scripts/prepare-run.sh
 
-# Static smoke check of generated or cookbook bundle contracts.
-node .github/actions/repro-agent/local/scripts/verify-output.mjs --root .github/actions/repro-agent/references/cookbook/cms-product-slider
+# Static smoke check of the generated bundle contract.
+node .github/actions/repro-agent/local/scripts/verify-output.mjs
 
 # Simulated agent entrypoint. Uses the Codex CLI auth/session; no raw OPENAI_API_KEY is required.
 node .github/actions/repro-agent/local/scripts/run-agent.mjs --issue 30 --max-turns 12 --dry-run
