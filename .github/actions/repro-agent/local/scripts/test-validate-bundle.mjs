@@ -1117,6 +1117,55 @@ if (goodMediaReplacementLibraryUploadHelperResult.status !== 0) {
   process.exit(1);
 }
 
+const goodConstAliasFixtureMarker = writeAdminBundle(`
+import { test, expect, type Locator } from '@playwright/test';
+const cmsPageName = 'REPRO Issue 27 CMS Page';
+async function requireVisible(locator: Locator, marker: string): Promise<void> {
+  try {
+    await locator.waitFor({ state: 'visible', timeout: 30_000 });
+  } catch {
+    throw new Error(\`PRECONDITION_NOT_FOUND: \${marker}\`);
+  }
+}
+test('good const alias marker', async ({ page }) => {
+  await page.goto('/admin#/sw/cms/detail/27000000000000000000000000000002');
+  await requireVisible(page.getByText(cmsPageName, { exact: true }), cmsPageName);
+  await expect(page.getByRole('button', { name: /^Replace$/i })).toBeEnabled();
+});
+`, `# getEntityName is not a function when trying to replace an image that is used in a teaser
+
+When trying to replace an image via media gallery that is used in REPRO Issue 27 CMS Page, the Replace button stays gray.
+`);
+const goodConstAliasFixtureMarkerResult = run(goodConstAliasFixtureMarker);
+if (goodConstAliasFixtureMarkerResult.status !== 0) {
+  console.error(`Expected const alias fixture marker precondition to pass:\n${goodConstAliasFixtureMarkerResult.stdout}\n${goodConstAliasFixtureMarkerResult.stderr}`);
+  process.exit(1);
+}
+
+const badVisibleFileInputWait = writeAdminBundle(`
+import { test, expect } from '@playwright/test';
+test('bad visible file input wait', async ({ page }) => {
+  await page.goto('/admin#/sw/media/index');
+  const mediaUploadInput = page.locator('.sw-media-index .sw-media-upload-v2__file-input').first();
+  await mediaUploadInput.waitFor({ state: 'visible', timeout: 15_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: media module upload input'); });
+  await mediaUploadInput.setInputFiles('issue-assets/img-1.png');
+  await expect(page.getByText('img-1')).toBeVisible();
+});
+`, `# getEntityName is not a function when trying to replace an image that is used in a teaser
+
+When trying to replace an image via media gallery that is used in a product teaser slot, the Replace button stays gray.
+`);
+const badVisibleFileInputWaitResult = run(badVisibleFileInputWait);
+if (badVisibleFileInputWaitResult.status === 0) {
+  console.error('Expected visible file-input wait to be rejected');
+  process.exit(1);
+}
+if (!badVisibleFileInputWaitResult.stdout.includes('must not wait for input[type=file]')) {
+  console.error(`Unexpected visible-file-input output:\n${badVisibleFileInputWaitResult.stdout}\n${badVisibleFileInputWaitResult.stderr}`);
+  process.exit(1);
+}
+
 const badBootstrapUsesModuleLink = writeAdminBundle(`
 import { test, expect } from '@playwright/test';
 test.use({ viewport: { width: 375, height: 812 } });

@@ -165,6 +165,18 @@ if (!hint && /(?:Choose media|Media Library)/i.test(errorContext)
   );
 }
 
+if (!hint && /PRECONDITION_NOT_FOUND:[^\n]*(?:upload input|file input)/i.test(combined)
+  && /\bbutton\s+"Upload file/i.test(errorContext)
+  && /input\s*\[\s*type\s*=\s*["']?file|file-input/i.test(spec)) {
+  hint = result(
+    'missing_uploaded_binary_state',
+    'high',
+    'The page snapshot exposes a visible Upload file button, while the spec waited for a hidden file-input control.',
+    'Use page.waitForEvent("filechooser", { timeout }) around the visible Upload file button, or wait for the file input to be attached rather than visible only when source proves direct setInputFiles is required.',
+    { error_context: errorContextPath, screenshot: screenshotPath },
+  );
+}
+
 if (!hint && /(?:media|image|file|upload|replace)/i.test([combined, spec].join('\n'))
   && /(?:hasFile|uploaded bytes|file bytes|Replace button|disabled|media item missing|No media)/i.test([combined, errorContext].join('\n'))) {
   hint = result(

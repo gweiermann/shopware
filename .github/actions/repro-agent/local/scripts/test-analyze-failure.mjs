@@ -136,6 +136,28 @@ if (!mediaFolderHint.repair.includes('same media-library context/folder')) {
   process.exit(1);
 }
 
+const hiddenFileInputHint = runCase('hidden-file-input', {
+  'reproduction-plan.json': basePlan,
+  'repro.spec.ts': `
+    const mediaUploadInput = page.locator('.sw-media-index .sw-media-upload-v2__file-input').first();
+    await mediaUploadInput.waitFor({ state: 'visible', timeout: 15000 })
+      .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: media module upload input'); });
+  `,
+  'builder-result.json': {
+    status: 'inconclusive',
+    evidence: { reporter_output: 'precondition absent — Error: PRECONDITION_NOT_FOUND: media module upload input' },
+  },
+  'test-results/repro/error-context.md': `
+# Page snapshot
+- main:
+  - button "Upload file"
+  `,
+}, 'missing_uploaded_binary_state');
+if (!hiddenFileInputHint.repair.includes('filechooser')) {
+  console.error(`Expected hidden-file-input hint to mention filechooser:\n${JSON.stringify(hiddenFileInputHint, null, 2)}`);
+  process.exit(1);
+}
+
 runCase('unknown', {
   'reproduction-plan.json': basePlan,
   'repro.spec.ts': 'await expect(page.getByText("Specific value")).toBeVisible();',

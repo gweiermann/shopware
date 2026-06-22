@@ -419,6 +419,16 @@ function hasUnboundedFileChooserWait(source) {
     .some((match) => !/\btimeout\s*:/.test(match[1] ?? ''));
 }
 
+function waitsForVisibleFileInput(source) {
+  if (/locator\s*\([^)]*(?:input\s*\[\s*type\s*=\s*["']?file|file-input)[^)]*\)[\s\S]{0,180}\.waitFor\s*\(\s*\{[^}]*state\s*:\s*['"]visible['"]/i.test(source)) {
+    return true;
+  }
+
+  const fileInputLocators = [...source.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*[^;\n]*locator\s*\([^)]*(?:input\s*\[\s*type\s*=\s*["']?file|file-input)[^)]*\)/gi)]
+    .map((match) => match[1]);
+  return fileInputLocators.some((name) => new RegExp(`\\b${name}\\s*\\.\\s*waitFor\\s*\\(\\s*\\{[^}]*state\\s*:\\s*['"]visible['"]`, 's').test(source));
+}
+
 function usesAdminMobileModuleHeadingGate(source) {
   const moduleNames = /(?:Categories|Products|Orders|Customers|Media|Content|Catalogues|Dashboard|Settings|Landing pages)/i;
   return [...source.matchAll(/getByRole\s*\(\s*['"]heading['"]\s*,\s*\{[^}]*name\s*:\s*([^}\n]+)\}/g)]
@@ -544,6 +554,19 @@ function preconditionSnippet(source) {
   return [...picked].sort((a, b) => a - b).map((index) => lines[index]).join('\n');
 }
 
+function stringConstantAliases(source) {
+  const aliases = [];
+  for (const match of source.matchAll(/\bconst\s+([A-Za-z_$][\w$]*)\s*=\s*(['"`])([^'"`\n]{3,120})\2\s*;/g)) {
+    aliases.push({ name: match[1], value: match[3] });
+  }
+  return aliases;
+}
+
+function snippetContainsTermOrAlias(source, snippet, term) {
+  if (snippet.includes(term)) return true;
+  return stringConstantAliases(source).some((alias) => alias.value === term && new RegExp(`\\b${alias.name}\\b`).test(snippet));
+}
+
 function groupedPreconditionCatch(source) {
   const tryCatchBlocks = source.matchAll(/try\s*\{([\s\S]*?)\}\s*catch\s*\{([\s\S]*?PRECONDITION_NOT_FOUND[\s\S]*?)\}/g);
   return [...tryCatchBlocks].some((match) => {
@@ -578,6 +601,9 @@ if (executor === 'playwright') {
   }
   if (hasUnboundedFileChooserWait(executable)) {
     fail('Playwright file upload flows must bound page.waitForEvent("filechooser", { timeout: ... }); an upload selector that does not open the chooser should fail fast as setup drift instead of burning the full test timeout');
+  }
+  if (waitsForVisibleFileInput(executable)) {
+    fail('Playwright file upload flows must not wait for input[type=file] or Shopware file-input controls to become visible; these inputs can stay hidden while a visible Upload button opens the chooser. Use page.waitForEvent("filechooser", { timeout }) around the visible upload trigger, or wait for the input to be attached only when source proves direct setInputFiles is required');
   }
   if (usesAdminDetailTabAsLink(executable)) {
     fail('Admin detail page tabs such as General, Layout, Variants, SEO, Cross Selling, and Reviews expose ARIA role "tab", not "link"; use getByRole("tab", { name: ... }) for tab-strip navigation to avoid false PRECONDITION_NOT_FOUND failures');
@@ -728,7 +754,7 @@ if (executor === 'playwright') {
   const fixtureTerms = normalizeTerms(collectControlledTerms(fixtures));
   if (issueClass === 'visual' && fixtureTerms.length > 0) {
     const preconditions = preconditionSnippet(executable);
-    const matched = fixtureTerms.filter((term) => preconditions.includes(term));
+    const matched = fixtureTerms.filter((term) => snippetContainsTermOrAlias(executable, preconditions, term));
     if (matched.length === 0) {
       fail([
         'visual playwright spec preconditions do not wait for any controlled seeded fixture marker',
