@@ -1319,6 +1319,33 @@ if (goodMobileAdminNavigationResult.status !== 0) {
   process.exit(1);
 }
 
+const goodMobileAdminNavigationSourceBackedToggle = writeAdminBundle(`
+import { test, expect } from '@playwright/test';
+test.use({ viewport: { width: 375, height: 812 } });
+test('good mobile admin navigation source-backed toggle', async ({ page }) => {
+  await page.goto('/admin#/sw/dashboard/index');
+  const menuButton = page.locator('.sw-search-bar__mobile-controls .sw-search-bar__button').first();
+  await menuButton.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: mobile menu button missing'); });
+  await menuButton.click({ timeout: 5_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: mobile menu button was not clickable'); });
+  const settings = page.getByRole('link', { name: /^Settings$/i });
+  await settings.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: Settings link missing'); });
+  await settings.click({ timeout: 5_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: Settings link was not clickable in the open mobile menu'); });
+  await expect(settings).not.toBeInViewport();
+});
+`, `# Administration sidebar does not close on mobile
+
+On a mobile viewport, opening the Administration sidebar and navigating to Settings leaves the off-canvas menu over the page.
+`);
+const goodMobileAdminNavigationSourceBackedToggleResult = run(goodMobileAdminNavigationSourceBackedToggle);
+if (goodMobileAdminNavigationSourceBackedToggleResult.status !== 0) {
+  console.error(`Expected mobile admin navigation with source-backed toggle locator to pass:\n${goodMobileAdminNavigationSourceBackedToggleResult.stdout}\n${goodMobileAdminNavigationSourceBackedToggleResult.stderr}`);
+  process.exit(1);
+}
+
 const badMobileAdminHeadingGate = writeAdminBundle(`
 import { test, expect } from '@playwright/test';
 test.use({ viewport: { width: 375, height: 812 } });

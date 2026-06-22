@@ -16,7 +16,10 @@ bundle, verify it, then only fix what the verifier names.
 3. For Admin UI Playwright issues, run one bounded live UI probe before writing `repro.spec.ts`:
    `bash .github/actions/repro-agent/bin/agent/probe-ui.sh <admin-route> [viewport]`. Use the
    route, visible roles/text, and screenshot path it prints to choose locators and precondition
-   gates. Use at most two probe routes and one viewport unless the issue is viewport-specific.
+   gates. Entries marked `offscreen` may be present in the accessibility tree but are poor click
+   targets. On narrow Admin viewports, prefer the `After Mobile Admin Menu Toggle` section for
+   menu/open-sidebar interactions. Use at most two probe routes and one viewport unless the issue is
+   viewport-specific.
 4. Write the whole bundle: `reproduction-plan.json`, plus `fixtures.json` when data is needed,
    plus exactly one executor artifact (`repro.spec.ts`, `ReproTest.php`, or inline HTTP plan).
 5. Run `bash .github/actions/repro-agent/bin/agent/verify-reproduction.sh` in the foreground and
@@ -101,11 +104,19 @@ spec/test.
 ## Playwright Rules
 - Use semantic locators (`getByRole`, `getByLabel`, `getByText`, `getByPlaceholder`,
   scoped `locator.getBy...` calls). Avoid CSS, data-test, and raw attribute selectors. Do not use
-  `page.getByDisplayValue(...)`; this runner's page fixture does not provide that method.
+  `page.getByDisplayValue(...)`; this runner's page fixture does not provide that method. If source
+  or the probe identifies an unlabeled control, a narrow component-class locator is acceptable for
+  that one control; never replace it with a generic `getByRole(...).first()` guess.
 - Admin UI specs start authenticated. Do not write Admin login steps.
 - For Admin UI repros, use the live probe output and nearby source/tests to learn the actual role
   and state of the controls before choosing locators. Do not assume menu items, tabs, toolbar
   controls, or module titles have the same role as their visible label suggests.
+- For Admin route-change/navigation symptoms, prefer the simplest in-viewport route link from the
+  probe evidence. Do not follow a multi-step example path from the issue when a direct visible route
+  link exercises the same navigation/close behavior.
+- Admin navigation links may redirect to a default child route after the click. Unless the exact
+  child route is the reported symptom, gate the route change with a stable hash prefix/module family
+  instead of one exact final URL.
 - Do not perform raw Admin API setup inside Playwright via `page.evaluate(fetch('/api/...'))` or
   `page.request.*('/api/...')`. Use `fixtures.json` for static state, or perform real UI actions
   when the uploaded/runtime object must be created through the browser.

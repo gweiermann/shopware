@@ -652,8 +652,10 @@ if (executor === 'playwright') {
       if (!/test\.use\s*\(\s*\{[^}]*viewport\s*:\s*\{[^}]*width\s*:\s*(?:[1-5]\d{2}|600)\b/s.test(executable)) {
         fail('mobile admin navigation repro must force a narrow viewport before loading the admin route');
       }
-      if (!/getByRole\s*\(\s*['"]banner['"]\s*\)[\s\S]{0,160}getByRole\s*\(\s*['"]button['"]/s.test(executable)) {
-        fail('mobile admin navigation repro must open the actual header hamburger/menu button before interacting with sidebar links; do not click nested menu text before proving the menu is open');
+      const opensHeaderMenuButton = /getByRole\s*\(\s*['"]banner['"]\s*\)[\s\S]{0,160}getByRole\s*\(\s*['"]button['"]/s.test(executable)
+        || /locator\s*\(\s*['"`]\.sw-search-bar__mobile-controls\s+\.sw-search-bar__button['"`]\s*\)/s.test(executable);
+      if (!opensHeaderMenuButton) {
+        fail('mobile admin navigation repro must open the actual header hamburger/menu button before interacting with sidebar links; use the scoped banner button or the source-backed .sw-search-bar__mobile-controls .sw-search-bar__button locator, not a generic first button or nested menu text');
       }
       if (adminMobileRouteNavigationIssue(`${issue}\n${JSON.stringify(plan.scenario ?? [])}`)
         && !/getByRole\s*\(\s*['"]link['"]/s.test(executable)) {
