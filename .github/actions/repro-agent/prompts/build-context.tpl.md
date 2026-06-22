@@ -126,6 +126,10 @@ spec/test.
   reachability bugs or stall on invisible elements. If scrolling is part of the symptom, use
   user-like wheel input after proving the relevant container is visible; otherwise navigate or set
   up state so the target control is directly reachable.
+- For file uploads, precondition the specific upload control in the current target surface before
+  clicking it. Use bounded file chooser waits such as
+  `page.waitForEvent('filechooser', { timeout: 10_000 })` and bounded trigger clicks so a wrong
+  upload selector fails fast as setup drift instead of timing out the whole test.
 - The final screenshot must visibly prove the issue-specific state, not just a generic page load.
 
 ## Available Commands

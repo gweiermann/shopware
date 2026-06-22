@@ -398,6 +398,11 @@ function hasUnboundedClick(source) {
     });
 }
 
+function hasUnboundedFileChooserWait(source) {
+  return [...source.matchAll(/\.waitForEvent\s*\(\s*['"]filechooser['"]\s*(?:,([^)]*))?\)/g)]
+    .some((match) => !/\btimeout\s*:/.test(match[1] ?? ''));
+}
+
 function hasSeededNavigationCategory(data) {
   return entityRows(data, 'category').some((row) => (
     row?.id
@@ -479,7 +484,7 @@ function preconditionSnippet(source) {
   const lines = source.split('\n');
   const picked = new Set();
   lines.forEach((line, index) => {
-    if (/PRECONDITION_NOT_FOUND|\.waitFor\s*\(/.test(line)) {
+    if (/PRECONDITION_NOT_FOUND|\.waitFor\s*\(|\brequireVisible\s*\(/.test(line)) {
       const maxOffset = /PRECONDITION_NOT_FOUND/.test(line) ? 0 : 1;
       for (let offset = -4; offset <= maxOffset; offset += 1) {
         const target = index + offset;
@@ -521,6 +526,9 @@ if (executor === 'playwright') {
   }
   if (/\bscrollIntoViewIfNeeded\s*\(/.test(executable)) {
     fail('Playwright repros must not use scrollIntoViewIfNeeded(); it uses automation-only scrolling and can hide reachability bugs or burn the test timeout on invisible elements. Use route/state setup, visible target waits, and user-like wheel scrolling only when scrolling itself is part of the reported symptom');
+  }
+  if (hasUnboundedFileChooserWait(executable)) {
+    fail('Playwright file upload flows must bound page.waitForEvent("filechooser", { timeout: ... }); an upload selector that does not open the chooser should fail fast as setup drift instead of burning the full test timeout');
   }
   if (!executable.includes('PRECONDITION_NOT_FOUND')) {
     fail('playwright spec has no PRECONDITION_NOT_FOUND precondition gate; missing setup must be inconclusive, not a reproduced/not_reproduced verdict');

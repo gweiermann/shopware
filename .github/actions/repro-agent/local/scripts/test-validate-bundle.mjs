@@ -724,6 +724,30 @@ if (!groupedPreconditionsResult.stdout.includes('must not group multiple distinc
   process.exit(1);
 }
 
+const unboundedFileChooser = writeBundle(`
+import { test, expect } from '@playwright/test';
+test('unbounded filechooser wait', async ({ page }) => {
+  const product = page.getByRole('heading', { name: /^Slider Variant Product$/i });
+  await product.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: seeded product missing'); });
+  const [chooser] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    page.getByRole('button', { name: /^Upload files$/i }).click(),
+  ]);
+  await chooser.setFiles('issue-assets/img-1.png');
+  await expect(page.getByText('Black')).toBeVisible();
+});
+`);
+const unboundedFileChooserResult = run(unboundedFileChooser);
+if (unboundedFileChooserResult.status === 0) {
+  console.error('Expected unbounded filechooser wait to be rejected');
+  process.exit(1);
+}
+if (!unboundedFileChooserResult.stdout.includes('file upload flows must bound')) {
+  console.error(`Unexpected unbounded-filechooser output:\n${unboundedFileChooserResult.stdout}\n${unboundedFileChooserResult.stderr}`);
+  process.exit(1);
+}
+
 const genericPrecondition = writeBundle(`
 import { test, expect } from '@playwright/test';
 test('generic page chrome precondition', async ({ page }) => {
@@ -849,6 +873,32 @@ test('good targeted admin precondition', async ({ page }) => {
 const goodAdminPreconditionResult = run(goodAdminPrecondition);
 if (goodAdminPreconditionResult.status !== 0) {
   console.error(`Expected targeted admin precondition to pass:\n${goodAdminPreconditionResult.stdout}\n${goodAdminPreconditionResult.stderr}`);
+  process.exit(1);
+}
+
+const goodAdminHelperPrecondition = writeAdminBundle(`
+import { test, expect, type Locator } from '@playwright/test';
+
+async function requireVisible(locator: Locator, marker: string): Promise<void> {
+  try {
+    await locator.waitFor({ state: 'visible', timeout: 30_000 });
+  } catch {
+    throw new Error(\`PRECONDITION_NOT_FOUND: \${marker}\`);
+  }
+}
+
+test('good targeted admin helper precondition', async ({ page }) => {
+  await page.goto('/admin#/sw/product/detail/99000000000000000000000000000001/base');
+  await requireVisible(page.getByText('Repro Issue 27 Product', { exact: true }).first(), 'product entity Repro Issue 27 Product');
+  await expect(page.getByRole('button', { name: /^Replace$/i })).toBeEnabled();
+});
+`, `# getEntityName is not a function when trying to replace an image that is used in a teaser
+
+When trying to replace an image via media gallery that is used in a product teaser slot, the Replace button stays gray.
+`);
+const goodAdminHelperPreconditionResult = run(goodAdminHelperPrecondition);
+if (goodAdminHelperPreconditionResult.status !== 0) {
+  console.error(`Expected targeted admin helper precondition to pass:\n${goodAdminHelperPreconditionResult.stdout}\n${goodAdminHelperPreconditionResult.stderr}`);
   process.exit(1);
 }
 
