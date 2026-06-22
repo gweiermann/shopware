@@ -702,6 +702,28 @@ if (!noPreconditionResult.stdout.includes('PRECONDITION_NOT_FOUND')) {
   process.exit(1);
 }
 
+const groupedPreconditions = writeBundle(`
+import { test, expect } from '@playwright/test';
+test('grouped preconditions hide exact missing state', async ({ page }) => {
+  try {
+    await page.getByRole('heading', { name: 'Slider Variant Product' }).waitFor({ state: 'visible', timeout: 30_000 });
+    await page.getByText('SLIDE-VAR-1.1').waitFor({ state: 'visible', timeout: 30_000 });
+  } catch {
+    throw new Error('PRECONDITION_NOT_FOUND: seeded product / variant state missing');
+  }
+  await expect(page.getByText('Black')).toBeVisible();
+});
+`);
+const groupedPreconditionsResult = run(groupedPreconditions);
+if (groupedPreconditionsResult.status === 0) {
+  console.error('Expected grouped Playwright preconditions to be rejected');
+  process.exit(1);
+}
+if (!groupedPreconditionsResult.stdout.includes('must not group multiple distinct waits')) {
+  console.error(`Unexpected grouped-preconditions output:\n${groupedPreconditionsResult.stdout}\n${groupedPreconditionsResult.stderr}`);
+  process.exit(1);
+}
+
 const genericPrecondition = writeBundle(`
 import { test, expect } from '@playwright/test';
 test('generic page chrome precondition', async ({ page }) => {

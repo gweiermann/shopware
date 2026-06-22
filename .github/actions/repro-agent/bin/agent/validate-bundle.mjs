@@ -490,6 +490,14 @@ function preconditionSnippet(source) {
   return [...picked].sort((a, b) => a - b).map((index) => lines[index]).join('\n');
 }
 
+function groupedPreconditionCatch(source) {
+  const tryCatchBlocks = source.matchAll(/try\s*\{([\s\S]*?)\}\s*catch\s*\{([\s\S]*?PRECONDITION_NOT_FOUND[\s\S]*?)\}/g);
+  return [...tryCatchBlocks].some((match) => {
+    const waitCount = (match[1].match(/\.waitFor\s*\(/g) ?? []).length;
+    return waitCount > 1;
+  });
+}
+
 validateUuidFields(fixtures);
 validateOrderFixtures(fixtures);
 
@@ -519,6 +527,9 @@ if (executor === 'playwright') {
   }
   if (!/\.waitFor\s*\(\s*\{[^}]*state\s*:\s*['"]visible['"]/s.test(executable)) {
     fail('playwright spec has no visible waitFor precondition; gate the rendered setup with locator.waitFor({ state: "visible", ... }) before the symptom expect');
+  }
+  if (groupedPreconditionCatch(executable)) {
+    fail('Playwright preconditions must not group multiple distinct waits in one PRECONDITION_NOT_FOUND catch; wrap each required marker/control separately so verifier failures name the exact missing state');
   }
 
   if (wishlistIssue(issue) && !hasEnabledWishlistConfig(fixtures)) {

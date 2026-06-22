@@ -114,6 +114,9 @@ spec/test.
 - Preconditions use `locator.waitFor({ state: 'visible', timeout })` and throw
   `PRECONDITION_NOT_FOUND: <specific state>` on miss. Preconditions must prove the seeded entity,
   selected value, CMS block, media, route, or control that makes the symptom possible.
+- Do not group multiple distinct precondition waits into one catch. Each required marker/control
+  must have its own `PRECONDITION_NOT_FOUND` message so screenshots and verifier errors identify
+  the exact missing state.
 - Use exactly one `await expect(...)` for the healthy symptom. That assertion is the only failure
   that should mean `reproduced`.
 - Reach newly seeded storefront content by technical routes such as `/detail/<productId>`,
