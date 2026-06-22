@@ -97,7 +97,8 @@ spec/test.
 
 ## Playwright Rules
 - Use semantic locators (`getByRole`, `getByLabel`, `getByText`, `getByPlaceholder`,
-  `getByDisplayValue`). Avoid CSS, data-test, and raw attribute selectors.
+  scoped `locator.getBy...` calls). Avoid CSS, data-test, and raw attribute selectors. Do not use
+  `page.getByDisplayValue(...)`; this runner's page fixture does not provide that method.
 - Admin UI specs start authenticated. Do not write Admin login steps.
 - Admin detail page tab strips expose navigation items such as `General`, `Layout`, `Variants`,
   `SEO`, `Cross Selling`, and `Reviews` as ARIA `tab`, not `link`. Use

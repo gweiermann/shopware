@@ -262,13 +262,24 @@ function productLayoutPreconditionForMediaReplacement(source) {
 }
 
 function cmsEditorTextClick(source) {
-  if (!/\/admin#\/sw\/cms\/detail\//.test(source)) return false;
-  if (/getByText\s*\([^)]*\)\s*\.click\s*\(/s.test(source)) return true;
+  const cmsSegments = [];
+  const gotoMatches = [...source.matchAll(/\bpage\.goto\s*\(\s*(['"`])([^'"`]+)\1\s*\)/g)];
+  for (const [index, match] of gotoMatches.entries()) {
+    if (!/\/admin#\/sw\/cms\/detail\//.test(match[2])) continue;
+    const start = match.index ?? 0;
+    const next = gotoMatches[index + 1]?.index ?? source.length;
+    cmsSegments.push(source.slice(start, next));
+  }
+  if (cmsSegments.length === 0) return false;
 
-  const textLocatorVariables = [...source.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*[^;\n]*getByText\s*\(/g)]
-    .map((match) => match[1]);
+  return cmsSegments.some((segment) => {
+    if (/getByText\s*\([^)]*\)\s*\.click\s*\(/s.test(segment)) return true;
 
-  return textLocatorVariables.some((name) => new RegExp(`\\b${name}\\s*\\.\\s*click\\s*\\(`).test(source));
+    const textLocatorVariables = [...segment.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*[^;\n]*getByText\s*\(/g)]
+      .map((match) => match[1]);
+
+    return textLocatorVariables.some((name) => new RegExp(`\\b${name}\\s*\\.\\s*click\\s*\\(`).test(segment));
+  });
 }
 
 function rawAdminApiCallInPlaywright(source) {
@@ -411,6 +422,10 @@ function usesAdminDetailTabAsLink(source) {
       .some((match) => detailTabNames.test(match[1]));
 }
 
+function usesUnsupportedPageDisplayValueLocator(source) {
+  return /\bpage\.getByDisplayValue\s*\(/.test(source);
+}
+
 function hasSeededNavigationCategory(data) {
   return entityRows(data, 'category').some((row) => (
     row?.id
@@ -541,6 +556,9 @@ if (executor === 'playwright') {
   if (usesAdminDetailTabAsLink(executable)) {
     fail('Admin detail page tabs such as General, Layout, Variants, SEO, Cross Selling, and Reviews expose ARIA role "tab", not "link"; use getByRole("tab", { name: ... }) for tab-strip navigation to avoid false PRECONDITION_NOT_FOUND failures');
   }
+  if (usesUnsupportedPageDisplayValueLocator(executable)) {
+    fail('This Playwright runtime does not provide page.getByDisplayValue(); use supported semantic locators such as getByRole("textbox", { name: ... }), getByLabel, getByText markers, or a scoped locator from a visible field/container');
+  }
   if (!executable.includes('PRECONDITION_NOT_FOUND')) {
     fail('playwright spec has no PRECONDITION_NOT_FOUND precondition gate; missing setup must be inconclusive, not a reproduced/not_reproduced verdict');
   }
@@ -630,11 +648,6 @@ if (executor === 'playwright') {
         && hasUnboundedClick(executable)) {
         fail('mobile admin route-navigation repro must bound setup clicks with click({ timeout: ... }) and convert failures to PRECONDITION_NOT_FOUND; off-canvas text can be visible while outside the viewport and an unbounded click can waste the full test timeout');
       }
-    }
-    if (adminPriceEditIssue(`${issue}\n${JSON.stringify(plan.scenario ?? [])}`)
-      && /\bprice\s*\(gross\)|\bgross price\b|\bgross\b/i.test(preconditionSnippet(executable))
-      && !/\bgetByDisplayValue\s*\(/s.test(executable)) {
-      fail('admin price/form editing repro must precondition on the seeded field value with getByDisplayValue when labels drift; a guessed Gross/Price label can false-negative before the edit symptom runs');
     }
     if (!bootstrapIssue && !hasTargetedAdminPrecondition(executable)) {
       fail([

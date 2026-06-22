@@ -834,40 +834,37 @@ if (!genericAdminChromeGateResult.stdout.includes('generic Admin chrome')
   process.exit(1);
 }
 
-const badAdminPriceLabelPrecondition = writeAdminBundle(`
+const unsupportedPageDisplayValue = writeAdminBundle(`
 import { test, expect } from '@playwright/test';
-test('bad admin price label precondition', async ({ page }) => {
+test('unsupported page display value locator', async ({ page }) => {
   await page.goto('/admin#/sw/product/detail/99000000000000000000000000000001');
-  const productNumber = page.getByRole('textbox', { name: /^Product number$/i });
-  await productNumber.waitFor({ state: 'visible', timeout: 30_000 })
-    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: seeded product detail page missing'); });
-  const grossPrice = page.getByRole('textbox', { name: /^Price \\(gross\\)$/i });
-  await grossPrice.waitFor({ state: 'visible', timeout: 30_000 })
-    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: gross price field missing'); });
-  await expect(grossPrice).toHaveValue(/^1[,.]0$/);
+  const productName = page.getByDisplayValue('Repro Issue 27 Product');
+  await productName.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: product entity Repro Issue 27 Product'); });
+  await expect(productName).toBeVisible();
 });
-`, `# Gross price editing loses trailing decimal zero
+`, `# getEntityName is not a function when trying to replace an image that is used in a teaser
 
-Editing the gross price field with Backspace removes the decimal zero while focused.
+When trying to replace an image via media gallery that is used in a product teaser slot, the Replace button stays gray.
 `);
-const badAdminPriceLabelPreconditionResult = run(badAdminPriceLabelPrecondition);
-if (badAdminPriceLabelPreconditionResult.status === 0) {
-  console.error('Expected admin price edit repro with guessed gross label precondition to be rejected');
+const unsupportedPageDisplayValueResult = run(unsupportedPageDisplayValue);
+if (unsupportedPageDisplayValueResult.status === 0) {
+  console.error('Expected page.getByDisplayValue to be rejected');
   process.exit(1);
 }
-if (!badAdminPriceLabelPreconditionResult.stdout.includes('getByDisplayValue')) {
-  console.error(`Unexpected bad-admin-price-label output:\n${badAdminPriceLabelPreconditionResult.stdout}\n${badAdminPriceLabelPreconditionResult.stderr}`);
+if (!unsupportedPageDisplayValueResult.stdout.includes('does not provide page.getByDisplayValue')) {
+  console.error(`Unexpected unsupported-page-display-value output:\n${unsupportedPageDisplayValueResult.stdout}\n${unsupportedPageDisplayValueResult.stderr}`);
   process.exit(1);
 }
 
 const goodAdminPrecondition = writeAdminBundle(`
 import { test, expect } from '@playwright/test';
 test('good targeted admin precondition', async ({ page }) => {
-  await page.goto('/admin#/sw/product/index');
-  const grossPrice = page.getByDisplayValue(/1[,.]07/);
-  await grossPrice.waitFor({ state: 'visible', timeout: 30_000 })
-    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: seeded gross price value missing'); });
-  await expect(grossPrice).toBeEnabled();
+  await page.goto('/admin#/sw/product/detail/99000000000000000000000000000001/base');
+  const productNumber = page.getByRole('textbox', { name: /^Product number$/i });
+  await productNumber.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: seeded product number field missing'); });
+  await expect(productNumber).toBeEnabled();
 });
 `);
 const goodAdminPreconditionResult = run(goodAdminPrecondition);
@@ -947,6 +944,54 @@ When trying to replace an image via media gallery that is used in a product teas
 const goodAdminTabRoleResult = run(goodAdminTabRole);
 if (goodAdminTabRoleResult.status !== 0) {
   console.error(`Expected admin detail tab queried as tab to pass:\n${goodAdminTabRoleResult.stdout}\n${goodAdminTabRoleResult.stderr}`);
+  process.exit(1);
+}
+
+const goodCmsGateThenMediaTextClick = writeAdminBundle(`
+import { test, expect } from '@playwright/test';
+test('good cms gate then media-library click', async ({ page }) => {
+  await page.goto('/admin#/sw/cms/detail/44000000000000000000000000000000');
+  const cmsMarker = page.getByText('REPRO Issue 27 CMS Page', { exact: true });
+  await cmsMarker.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: REPRO Issue 27 CMS Page'); });
+  await page.goto('/admin#/sw/media/index');
+  const mediaTile = page.getByText('img-1.png', { exact: true });
+  await mediaTile.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: media tile img-1.png'); });
+  await mediaTile.click({ timeout: 5_000 });
+  await expect(page.getByRole('button', { name: /^Replace$/i })).toBeVisible();
+});
+`, `# getEntityName is not a function when trying to replace an image that is used in a teaser
+
+When trying to replace an image via media gallery that is used in REPRO Issue 27 CMS Page, the Replace button stays gray.
+`);
+const goodCmsGateThenMediaTextClickResult = run(goodCmsGateThenMediaTextClick);
+if (goodCmsGateThenMediaTextClickResult.status !== 0) {
+  console.error(`Expected CMS state gate followed by media-library text click to pass:\n${goodCmsGateThenMediaTextClickResult.stdout}\n${goodCmsGateThenMediaTextClickResult.stderr}`);
+  process.exit(1);
+}
+
+const badCmsTextClick = writeAdminBundle(`
+import { test, expect } from '@playwright/test';
+test('bad cms text click', async ({ page }) => {
+  await page.goto('/admin#/sw/cms/detail/44000000000000000000000000000000');
+  const cmsMarker = page.getByText('REPRO Issue 27 teaser marker', { exact: true });
+  await cmsMarker.waitFor({ state: 'visible', timeout: 30_000 })
+    .catch(() => { throw new Error('PRECONDITION_NOT_FOUND: REPRO Issue 27 teaser marker'); });
+  await cmsMarker.click({ timeout: 5_000 });
+  await expect(page.getByRole('button', { name: /^Replace$/i })).toBeVisible();
+});
+`, `# getEntityName is not a function when trying to replace an image that is used in a teaser
+
+When trying to replace an image via media gallery that is used in REPRO Issue 27 teaser marker, the Replace button stays gray.
+`);
+const badCmsTextClickResult = run(badCmsTextClick);
+if (badCmsTextClickResult.status === 0) {
+  console.error('Expected CMS detail getByText click to be rejected');
+  process.exit(1);
+}
+if (!badCmsTextClickResult.stdout.includes('must not click visible CMS block text')) {
+  console.error(`Unexpected bad-cms-text-click output:\n${badCmsTextClickResult.stdout}\n${badCmsTextClickResult.stderr}`);
   process.exit(1);
 }
 
