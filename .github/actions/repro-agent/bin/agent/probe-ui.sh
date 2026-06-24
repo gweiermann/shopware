@@ -21,7 +21,7 @@ fi
 
 STORAGE=""
 if [[ "$ROUTE" == /admin* ]] || [[ "$ROUTE" == "$APP_URL/admin"* ]]; then
-  STORAGE="$ROOT/admin-probe-state.json"
+  STORAGE="$ROOT/.repro-admin-probe-state.json"
   node "$SCRIPT_DIR/../execute/login-state.mjs" "$APP_URL" "$STORAGE" >/dev/null
 fi
 
