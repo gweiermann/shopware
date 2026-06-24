@@ -91,15 +91,21 @@ jobs:
           set -euo pipefail
           : "${APP_URL:?APP_URL is not set}"
           : "${REPRO_HOST_APP_URL:?REPRO_HOST_APP_URL is not set}"
-          for url in "$REPRO_HOST_APP_URL/admin" "$APP_URL/admin"; do
-            code=$(curl -sS -o /tmp/preflight-response.txt -w '%{http_code}' --max-time 15 "$url")
-            if [ "$code" = 000 ]; then
-              echo "::error::no HTTP response from $url"
-              cat /tmp/preflight-response.txt || true
-              exit 1
-            fi
-            echo "$url -> HTTP $code"
-          done
+          code=$(curl -sS -o /tmp/preflight-response.txt -w '%{http_code}' --max-time 15 "$REPRO_HOST_APP_URL/admin")
+          if [ "$code" = 000 ]; then
+            echo "::error::no HTTP response from runner URL $REPRO_HOST_APP_URL/admin"
+            cat /tmp/preflight-response.txt || true
+            exit 1
+          fi
+          echo "$REPRO_HOST_APP_URL/admin -> HTTP $code"
+
+          sandbox_code=$(docker run --rm --network host --add-host host.docker.internal:127.0.0.1 \
+            curlimages/curl:8.11.1 -sS -o /tmp/preflight-response.txt -w '%{http_code}' --max-time 15 "$APP_URL/admin")
+          if [ "$sandbox_code" = 000 ]; then
+            echo "::error::no HTTP response from sandbox-style URL $APP_URL/admin"
+            exit 1
+          fi
+          echo "$APP_URL/admin from host-network container -> HTTP $sandbox_code"
 
       - name: Snapshot clean DB
         run: bash .github/actions/repro-agent/bin/prepare/db-snapshot.sh
