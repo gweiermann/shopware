@@ -27,17 +27,15 @@ else
   echo "Shopware MCP tooling is not available on this version; agent will use source-derived fixtures."
 fi
 
-if [ "$mcp_available" = true ]; then
-  output=$(cd "$SHOP_DIR" && APP_ENV=prod MCP_SERVER=1 php bin/console integration:create ReproMcp --admin --no-interaction)
-  mcp_access_key=$(printf '%s\n' "$output" | sed -n 's/^SHOPWARE_ACCESS_KEY_ID=//p' | tail -n 1)
-  mcp_secret_access_key=$(printf '%s\n' "$output" | sed -n 's/^SHOPWARE_SECRET_ACCESS_KEY=//p' | tail -n 1)
-  if [ -z "$mcp_access_key" ] || [ -z "$mcp_secret_access_key" ]; then
-    echo "::error::Could not parse integration:create output for MCP credentials."
-    exit 1
-  fi
-  echo "::add-mask::$mcp_access_key"
-  echo "::add-mask::$mcp_secret_access_key"
+output=$(cd "$SHOP_DIR" && APP_ENV=prod MCP_SERVER=1 php bin/console integration:create ReproMcp --admin --no-interaction)
+mcp_access_key=$(printf '%s\n' "$output" | sed -n 's/^SHOPWARE_ACCESS_KEY_ID=//p' | tail -n 1)
+mcp_secret_access_key=$(printf '%s\n' "$output" | sed -n 's/^SHOPWARE_SECRET_ACCESS_KEY=//p' | tail -n 1)
+if [ -z "$mcp_access_key" ] || [ -z "$mcp_secret_access_key" ]; then
+  echo "::error::Could not parse integration:create output for fixture introspection credentials."
+  exit 1
 fi
+echo "::add-mask::$mcp_access_key"
+echo "::add-mask::$mcp_secret_access_key"
 
 if [ "$DEMODATA" = true ]; then
   (

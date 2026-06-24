@@ -1,0 +1,266 @@
+name: Reproduce Preflight
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: "Issue number used for version parsing/context preflight"
+        required: false
+        type: number
+        default: 30
+
+run-name: "Reproduce preflight #${{ inputs.issue_number || 30 }}"
+
+permissions:
+  contents: read
+  issues: read
+
+concurrency:
+  group: reproduce-preflight-${{ inputs.issue_number || 30 }}
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    name: Preflight reported repro infrastructure
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      COMPOSER_PROCESS_TIMEOUT: 0
+      COMPOSER_NO_INTERACTION: 1
+      COMPOSER_NO_AUDIT: 1
+      APP_ENV: prod
+      SHOPWARE_HTTP_CACHE_ENABLED: 0
+      SHOPWARE_DISABLE_UPDATE_CHECK: true
+      BLUE_GREEN_DEPLOYMENT: 1
+      MCP_SERVER: 1
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Prefetch issue context
+        env:
+          ISSUE: ${{ inputs.issue_number || 30 }}
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/actions/repro-agent/bin/prepare/prefetch.sh
+
+      - name: Parse reported version
+        id: parse
+        env:
+          ISSUE: ${{ inputs.issue_number || 30 }}
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/actions/repro-agent/bin/prepare/parse-version.sh
+
+      - name: Register legacy Shopware 6.6 conflicts package alias
+        if: steps.parse.outputs.legacy_conflicts_alias == 'true'
+        run: bash .github/actions/repro-agent/bin/prepare/provision-legacy-alias.sh
+
+      - name: Setup reported Shopware
+        uses: shopware/setup-shopware@e12701e21d8a6003103426969ba544cdc91bf41c # v2.0.12
+        with:
+          shopware-version: ${{ steps.parse.outputs.provision_version }}
+          shopware-repository: shopware/shopware
+          path: shop
+          php-version: "8.4"
+          composer-root-version: ${{ steps.parse.outputs.composer_root_version }}
+          mysql-version: "builtin"
+          install: "true"
+          install-admin: "true"
+          install-storefront: "true"
+          skip-js-build: "false"
+          allow-insecure-versions: "true"
+          env: prod
+
+      - name: Finalize reported provision
+        id: provision
+        env:
+          SHOP_DIR: shop
+          DEMODATA: "false"
+        run: bash .github/actions/repro-agent/bin/prepare/provision-finalize.sh
+
+      - name: Expose Shopware on sandbox host port
+        env:
+          TARGET_URL: ${{ steps.provision.outputs.app_url }}
+          SANDBOX_APP_PORT: "18080"
+        run: bash .github/actions/repro-agent/bin/prepare/expose-sandbox-port.sh
+
+      - name: Assert runner and sandbox URLs
+        run: |
+          set -euo pipefail
+          : "${APP_URL:?APP_URL is not set}"
+          : "${REPRO_HOST_APP_URL:?REPRO_HOST_APP_URL is not set}"
+          for url in "$REPRO_HOST_APP_URL/admin" "$APP_URL/admin"; do
+            code=$(curl -sS -o /tmp/preflight-response.txt -w '%{http_code}' --max-time 15 "$url")
+            if [ "$code" = 000 ]; then
+              echo "::error::no HTTP response from $url"
+              cat /tmp/preflight-response.txt || true
+              exit 1
+            fi
+            echo "$url -> HTTP $code"
+          done
+
+      - name: Snapshot clean DB
+        run: bash .github/actions/repro-agent/bin/prepare/db-snapshot.sh
+
+      - name: Assert DB restore prerequisites
+        run: |
+          set -euo pipefail
+          test -s repro-clean-db.sql.gz
+          source .github/actions/repro-agent/bin/lib/db-env.sh
+          mysqladmin ping -h"$DBH" -P"$DBP" -u"$DBU" ${DBPW:+-p"$DBPW"}
+          gzip -t repro-clean-db.sql.gz
+
+      - name: Setup Node + Playwright
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+
+      - name: Install Playwright
+        run: |
+          npm init -y >/dev/null
+          npm i -D @playwright/test
+          npx playwright install --with-deps chromium
+
+      - name: Install immutable reproctl
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/reproctl /tmp/repro-playwright
+          mkdir -p /tmp/reproctl
+          cp -R .github/actions/repro-agent/bin /tmp/reproctl/bin
+          cp .github/actions/repro-agent/bin/agent/reproctl.mjs /tmp/reproctl/reproctl.mjs
+          cp .github/actions/repro-agent/repro.playwright.config.ts /tmp/reproctl/repro.playwright.config.ts
+          cp .github/actions/repro-agent/repro-video.js /tmp/reproctl/repro-video.js
+          ln -s "$PWD/node_modules" /tmp/reproctl/node_modules
+          chmod -R a-w /tmp/reproctl
+          echo "REPROCTL_ROOT=/tmp/reproctl" >> "$GITHUB_ENV"
+          echo "REPRO_AGENT_ROOT=/tmp/reproctl" >> "$GITHUB_ENV"
+          echo "REPRO_AGENT_BIN=/tmp/reproctl/bin" >> "$GITHUB_ENV"
+
+      - name: Start Shopware MCP bridge
+        env:
+          SHOPWARE_MCP_AVAILABLE: ${{ steps.provision.outputs.mcp_available }}
+          SHOPWARE_MCP_URL: "http://127.0.0.1:18080/api/_mcp"
+          SHOPWARE_MCP_ACCESS_KEY: ${{ steps.provision.outputs.mcp_access_key }}
+          SHOPWARE_MCP_SECRET_ACCESS_KEY: ${{ steps.provision.outputs.mcp_secret_access_key }}
+          SHOPWARE_MCP_BRIDGE_PORT: "18765"
+        run: |
+          set -euo pipefail
+          nohup node /tmp/reproctl/bin/agent/shopware-mcp-bridge.mjs --http >/tmp/shopware-mcp-bridge.log 2>&1 &
+          echo "$!" > /tmp/shopware-mcp-bridge.pid
+          for i in $(seq 1 20); do
+            if curl -s -o /dev/null -w '%{http_code}' --max-time 1 http://127.0.0.1:18765/mcp | grep -q '^405$'; then
+              echo "Shopware MCP bridge listening on 127.0.0.1:18765"
+              exit 0
+            fi
+            sleep 0.5
+          done
+          cat /tmp/shopware-mcp-bridge.log || true
+          echo "::error::Shopware MCP bridge did not start."
+          exit 1
+
+      - name: Assert Shopware MCP fixture tools
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const endpoint = 'http://127.0.0.1:18765/mcp';
+          async function rpc(id, method, params = {}) {
+            const response = await fetch(endpoint, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json', accept: 'application/json' },
+              body: JSON.stringify({ jsonrpc: '2.0', id, method, params }),
+            });
+            const text = await response.text();
+            if (!response.ok) {
+              throw new Error(`${method} HTTP ${response.status}: ${text}`);
+            }
+            return text ? JSON.parse(text) : {};
+          }
+          await rpc(1, 'initialize', {
+            protocolVersion: '2025-03-26',
+            capabilities: {},
+            clientInfo: { name: 'reproduce-preflight', version: '1.0.0' },
+          });
+          await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', accept: 'application/json' },
+            body: JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized', params: {} }),
+          });
+          const tools = await rpc(2, 'tools/list');
+          const names = new Set((tools.result?.tools || []).map((tool) => tool.name));
+          for (const required of ['shopware-entity-schema', 'shopware-entity-search', 'shopware-entity-read', 'shopware-entity-upsert']) {
+            if (!names.has(required)) {
+              throw new Error(`missing MCP tool: ${required}; available=${[...names].join(',')}`);
+            }
+          }
+          const search = await rpc(3, 'tools/call', {
+            name: 'shopware-entity-search',
+            arguments: { entity: 'sales-channel', criteria: { limit: 1 } },
+          });
+          if (search.result?.isError) {
+            throw new Error(`shopware-entity-search failed: ${JSON.stringify(search.result)}`);
+          }
+          const dryRun = await rpc(4, 'tools/call', {
+            name: 'shopware-entity-upsert',
+            arguments: {
+              entity: 'property_group',
+              payload: [{ id: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', name: 'Preflight Dry Run' }],
+            },
+          });
+          if (dryRun.result?.isError || !JSON.stringify(dryRun).includes('repro-property_group')) {
+            throw new Error(`shopware-entity-upsert dry run failed: ${JSON.stringify(dryRun)}`);
+          }
+          console.log(`MCP tools OK: ${[...names].sort().join(', ')}`);
+          NODE
+
+      - name: Assert probe artifacts stay in allowed bundle paths
+        run: |
+          set -euo pipefail
+          before=$(mktemp)
+          after=$(mktemp)
+          git status --porcelain > "$before"
+          node /tmp/reproctl/reproctl.mjs probe-ui /admin 1280x900 >/tmp/preflight-probe.txt
+          test -s .repro-admin-probe-state.json
+          ! test -e admin-probe-state.json
+          git status --porcelain > "$after"
+          new_status=$(comm -13 <(sort "$before") <(sort "$after") || true)
+          blocked=""
+          while IFS= read -r line; do
+            [ -n "$line" ] || continue
+            path=${line:3}
+            path=${path#\"}
+            path=${path%\"}
+            case "$path" in
+              .repro-*|test-results/*)
+                ;;
+              *)
+                blocked="${blocked}${line}"$'\n'
+                ;;
+            esac
+          done <<< "$new_status"
+          if [ -n "$blocked" ]; then
+            echo "::error::probe generated disallowed workspace files"
+            printf '%s\n' "$blocked"
+            exit 1
+          fi
+
+      - name: Assert verifier temp path is writable
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNNER_TEMP/repro-playwright"
+          mkdir -p "$RUNNER_TEMP/repro-playwright"
+          test -w "$RUNNER_TEMP/repro-playwright"
+
+      - name: Upload preflight diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: reproduce-preflight-diagnostics
+          path: |
+            /tmp/shopware-mcp-bridge.log
+            /tmp/preflight-response.txt
+            /tmp/preflight-probe.txt
+            /tmp/repro-shopware-proxy.log
+            test-results/ui-probes/**
+          if-no-files-found: ignore
