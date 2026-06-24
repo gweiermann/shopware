@@ -226,7 +226,8 @@ jobs:
           before=$(mktemp)
           after=$(mktemp)
           git status --porcelain > "$before"
-          node /tmp/reproctl/reproctl.mjs probe-ui /admin 1280x900 >/tmp/preflight-probe.txt
+          APP_URL="${REPRO_HOST_APP_URL:?REPRO_HOST_APP_URL is not set}" \
+            node /tmp/reproctl/reproctl.mjs probe-ui /admin 1280x900 >/tmp/preflight-probe.txt
           test -s .repro-admin-probe-state.json
           ! test -e admin-probe-state.json
           git status --porcelain > "$after"
