@@ -1,0 +1,242 @@
+name: "Reproduce — provision"
+description: >
+  Boot a Shopware instance at a specific version, building only the surface the
+  bug lives on (build_profile). Outputs APP_URL and a store-api access key.
+  Reuses shopware/setup-shopware; mirrors the server-start flow of .github/actions/ats.
+
+inputs:
+  version:
+    description: "Shopware ref: 'trunk' for the checked-out branch, or a tag like 'v6.6.10.0' for the reported version"
+    required: true
+  repository:
+    description: "Shopware repository"
+    required: false
+    default: "shopware/shopware"
+  php-version:
+    required: false
+    default: "8.4"
+  composer-root-version:
+    description: >
+      COMPOSER_ROOT_VERSION passed to shopware/setup-shopware. Use 6.6.x-dev for older 6.6 tags
+      whose composer.json still requires Shopware split packages at the branch alias.
+    required: false
+    default: ".auto"
+  legacy-conflicts-alias:
+    description: >
+      Register a Composer metapackage alias for shopware/conflicts:6.6.x-dev. Needed by early
+      6.6.10.0 tags whose root composer.json references a branch alias that was never published.
+      The alias mirrors the published shopware/conflicts:0.4.0 constraints.
+    required: false
+    default: "false"
+  path:
+    description: "Subdir to install the shop into (keeps the workspace root tooling/analysis intact)"
+    required: false
+    default: "shop"
+  storefront-build:
+    description: "Build storefront assets (only needed for storefront-ui layer)"
+    required: false
+    default: "false"
+  admin-build:
+    description: "Build admin assets (only needed for admin-ui layer)"
+    required: false
+    default: "false"
+  demodata:
+    description: >
+      Generate a bounded demo dataset after install (products, categories, properties→variants,
+      product-streams, CMS pages) so bugs whose symptom needs a realistic, pre-populated, indexed
+      dataset can be reproduced against it, instead of a hand-seeded graph that must clear the
+      system's runtime filters (visibility, indexing, availability, variant resolution) to take
+      effect. Off by default (lean + deterministic). NOTE: demodata is randomized, so a repro must
+      target by structural role or the run's OWN seeded delta, never a specific generated item.
+    required: false
+    default: "false"
+
+outputs:
+  app_url:
+    description: "Base URL of the running shop"
+    value: ${{ steps.serve.outputs.app_url }}
+  access_key:
+    description: "store-api sales-channel access key"
+    value: ${{ steps.access-key.outputs.key }}
+  mcp_available:
+    description: "true when the installed Shopware version exposes the MCP server tooling"
+    value: ${{ steps.mcp-available.outputs.available }}
+  mcp_access_key:
+    description: "Admin integration access key for Shopware MCP"
+    value: ${{ steps.mcp-integration.outputs.access_key }}
+  mcp_secret_access_key:
+    description: "Admin integration secret access key for Shopware MCP"
+    value: ${{ steps.mcp-integration.outputs.secret_access_key }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Register legacy Shopware 6.6 conflicts package alias
+      if: inputs.legacy-conflicts-alias == 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        composer_home="${RUNNER_TEMP:-/tmp}/composer-home-legacy-shopware"
+        mkdir -p "$composer_home"
+        echo "COMPOSER_HOME=$composer_home" >> "$GITHUB_ENV"
+        cat > "$composer_home/config.json" <<'JSON'
+        {
+          "repositories": {
+            "shopware-conflicts-legacy-66": {
+              "type": "package",
+              "canonical": false,
+              "package": {
+                "name": "shopware/conflicts",
+                "version": "6.6.x-dev",
+                "type": "metapackage",
+                "description": "Shopware 6 conflicting packages",
+                "license": "MIT",
+                "conflict": {
+                  "phenx/php-font-lib": "<0.5.5",
+                  "symfony/var-exporter": "v6.3.9 || v6.4.0",
+                  "symfony/notifier": "v5.3.8",
+                  "symfony/symfony": "*",
+                  "symfony/cache": "6.2.3 || 5.4.17",
+                  "symfony/messenger": "6.3.5",
+                  "zircote/swagger-php": "4.8.7",
+                  "symfony/phpunit-bridge": "6.4.8 || 7.0.8",
+                  "opensearch-project/opensearch-php": ">2.3.1",
+                  "shopware/k8s-meta": "<=1.0.3",
+                  "twig/twig": ">=3.21",
+                  "symfony/framework-bundle": ">=6.4.19 <7.0 || >=7.2.4"
+                }
+              }
+            }
+          }
+        }
+        JSON
+        echo "Registered shopware/conflicts 6.6.x-dev metapackage alias."
+
+    # Install only what the surface needs. http/direct → no JS build at all.
+    - name: Setup Shopware
+      uses: shopware/setup-shopware@e12701e21d8a6003103426969ba544cdc91bf41c # v2.0.12
+      with:
+        shopware-version: ${{ inputs.version }}
+        shopware-repository: ${{ inputs.repository }}
+        path: ${{ inputs.path }}
+        php-version: ${{ inputs.php-version }}
+        composer-root-version: ${{ inputs.composer-root-version }}
+        mysql-version: "builtin"
+        install: "true"
+        install-admin: ${{ inputs.admin-build }}
+        install-storefront: ${{ inputs.storefront-build }}
+        skip-js-build: ${{ (inputs.admin-build == 'false' && inputs.storefront-build == 'false') && 'true' || 'false' }}
+        allow-insecure-versions: "true" # reported version may be an old release
+        env: "prod"
+
+    - name: Define minimal environment
+      shell: bash
+      run: |
+        echo "SHOPWARE_HTTP_CACHE_ENABLED=0" >> "$GITHUB_ENV"
+        echo "SHOPWARE_DISABLE_UPDATE_CHECK=true" >> "$GITHUB_ENV"
+        echo "BLUE_GREEN_DEPLOYMENT=1" >> "$GITHUB_ENV"
+        echo "MCP_SERVER=1" >> "$GITHUB_ENV"
+
+    - name: Detect Shopware MCP support
+      id: mcp-available
+      shell: bash
+      working-directory: ${{ inputs.path }}
+      env:
+        APP_ENV: prod
+        MCP_SERVER: "1"
+      run: |
+        set -euo pipefail
+        if php bin/console list --raw | grep -q '^debug:mcp '; then
+          echo "available=true" >> "$GITHUB_OUTPUT"
+          echo "Shopware MCP tooling is available."
+        else
+          echo "available=false" >> "$GITHUB_OUTPUT"
+          echo "Shopware MCP tooling is not available on this version; agent will use source-derived fixtures."
+        fi
+
+    - name: Create MCP integration credentials
+      id: mcp-integration
+      if: steps.mcp-available.outputs.available == 'true'
+      shell: bash
+      working-directory: ${{ inputs.path }}
+      env:
+        APP_ENV: prod
+        MCP_SERVER: "1"
+      run: |
+        set -euo pipefail
+        output=$(php bin/console integration:create ReproMcp --admin --no-interaction)
+        access_key=$(printf '%s\n' "$output" | sed -n 's/^SHOPWARE_ACCESS_KEY_ID=//p' | tail -n 1)
+        secret_access_key=$(printf '%s\n' "$output" | sed -n 's/^SHOPWARE_SECRET_ACCESS_KEY=//p' | tail -n 1)
+        if [ -z "$access_key" ] || [ -z "$secret_access_key" ]; then
+          echo "::error::Could not parse integration:create output for MCP credentials."
+          exit 1
+        fi
+        echo "::add-mask::$access_key"
+        echo "::add-mask::$secret_access_key"
+        echo "access_key=$access_key" >> "$GITHUB_OUTPUT"
+        echo "secret_access_key=$secret_access_key" >> "$GITHUB_OUTPUT"
+
+    # Bounded demo dataset for bugs whose symptom needs realistic pre-populated data (opt-in via
+    # analysis.demodata). On an empty install a hand-seeded entity often can't take effect until it
+    # clears the system's runtime filters (visibility, indexing, availability, variant resolution)
+    # — a silent, hard-to-debug wall. With demodata that data already exists and is resolved; the
+    # run seeds only its small controlled delta. Counts are bounded (see below) to keep it ~15s.
+    - name: Generate demo data
+      if: inputs.demodata == 'true'
+      shell: bash
+      working-directory: ${{ inputs.path }}
+      env:
+        APP_ENV: prod
+      run: |
+        set -euo pipefail
+        echo "::group::framework:demodata (bounded) + reindex"
+        # Scale the DEFAULTS down with --multiplier (NOT --reset-defaults): the generator's
+        # default pool sizes are internally balanced, so the variant/media samplers always find
+        # enough elements. --reset-defaults zeroes pools the product generator draws from without
+        # a guard (media → "Cannot get 3 elements, only 0"; sparse property options → "Cannot get
+        # 2 elements, only 1"), crashing mid-run. We only cap --products and zero the heavy pools
+        # irrelevant to rendering (orders/reviews/promotions) to keep it fast (~15s incl. reindex).
+        # Verified live: 80 → ~107 products incl. ~27 variants, ~10 product-streams, CMS pages.
+        php bin/console framework:demodata --no-interaction --multiplier=0.1 \
+          --products=80 --orders=0 --reviews=0 --promotions=0
+        php bin/console dal:refresh:index --no-interaction
+        echo "::endgroup::"
+
+    - name: Start webserver and wait until READY
+      id: serve
+      shell: bash
+      working-directory: ${{ inputs.path }}
+      env:
+        SYMFONY_DAEMON: "1"
+        SYMFONY_NO_TLS: "1"
+        SYMFONY_ALLOW_HTTP: "1"
+        SYMFONY_PORT: "8000"
+        SYMFONY_ALLOW_ALL_IP: "1"
+      run: |
+        set -euo pipefail
+        symfony server:start
+        APP_URL="http://localhost:8000"
+        # one-shot start, then poll until READY (never yield mid-build).
+        # READY = the web server responds at all; ANY HTTP status counts (the
+        # executor probes the real endpoint). Do not require 2xx here.
+        ready=0
+        for i in $(seq 1 60); do
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$APP_URL/admin" || echo 000)
+          if [ "$code" != "000" ]; then echo "server responding (HTTP $code) after ${i}s"; ready=1; break; fi
+          sleep 1
+        done
+        [ "$ready" = 1 ] || { echo "::error::shop not READY after 60s"; exit 1; }
+        echo "app_url=$APP_URL" >> "$GITHUB_OUTPUT"
+
+    - name: Resolve store-api access key
+      id: access-key
+      shell: bash
+      run: |
+        set -euo pipefail
+        # DATABASE_URL is exported by setup-shopware. Read the default sales channel key.
+        eval "$(php -r '$u=parse_url(getenv("DATABASE_URL")); printf("DBH=%s DBP=%s DBU=%s DBPW=%s DBN=%s",
+          $u["host"]??"127.0.0.1", $u["port"]??3306, $u["user"]??"root", $u["pass"]??"", ltrim($u["path"]??"/","/"));')"
+        KEY=$(mysql -h"$DBH" -P"$DBP" -u"$DBU" ${DBPW:+-p"$DBPW"} "$DBN" -N -e \
+          "SELECT access_key FROM sales_channel WHERE active=1 ORDER BY created_at LIMIT 1;")
+        echo "::add-mask::$KEY"
+        echo "key=$KEY" >> "$GITHUB_OUTPUT"
