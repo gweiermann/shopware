@@ -108,6 +108,9 @@ function hostilePlaywrightSpecReason(source) {
   if (remoteUrl) {
     return `Playwright spec references non-local network URL '${remoteUrl}'; generated specs may only drive the provisioned local Shopware instance`;
   }
+  if (/\b[A-Za-z_$][\w$]*\.goto\s*\(\s*['"`]https?:\/\/(?:127\.0\.0\.1|localhost|host\.docker\.internal)(?::\d+)?\//.test(executable)) {
+    return 'Playwright spec hardcodes a local absolute navigation URL; generated specs must use relative page.goto() paths so the harness baseURL controls sandbox and host verification URLs';
+  }
 
   return null;
 }

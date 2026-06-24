@@ -6,6 +6,7 @@ set -euo pipefail
 
 TARGET_URL=${TARGET_URL:?TARGET_URL is required}
 SANDBOX_APP_PORT=${SANDBOX_APP_PORT:-18080}
+SHOP_DIR=${SHOP_DIR:-shop}
 
 target_host=$(printf '%s' "$TARGET_URL" | sed -E 's#^https?://([^/:]+).*#\1#')
 target_port=$(printf '%s' "$TARGET_URL" | sed -E 's#^https?://[^/:]+:([0-9]+).*#\1#')
@@ -22,11 +23,7 @@ if command -v lsof >/dev/null 2>&1 && lsof -iTCP:"$SANDBOX_APP_PORT" -sTCP:LISTE
   exit 1
 fi
 
-if command -v socat >/dev/null 2>&1; then
-  nohup socat "TCP-LISTEN:${SANDBOX_APP_PORT},bind=0.0.0.0,reuseaddr,fork" "TCP:127.0.0.1:${target_port}" \
-    >/tmp/repro-shopware-proxy.log 2>&1 &
-else
-  python3 - "$SANDBOX_APP_PORT" "$target_port" >/tmp/repro-shopware-proxy.log 2>&1 <<'PY' &
+python3 - "$SANDBOX_APP_PORT" "$target_port" "${target_host}:${target_port}" >/tmp/repro-shopware-proxy.log 2>&1 <<'PY' &
 import socket
 import socketserver
 import sys
@@ -34,6 +31,32 @@ import threading
 
 listen_port = int(sys.argv[1])
 target_port = int(sys.argv[2])
+upstream_host_header = sys.argv[3]
+
+def rewrite_request_header(first_chunk):
+    marker = b'\r\n\r\n'
+    if marker not in first_chunk:
+        return first_chunk
+    header, body = first_chunk.split(marker, 1)
+    lines = header.split(b'\r\n')
+    rewritten = []
+    saw_host = False
+    saw_connection = False
+    for line in lines:
+        lower = line.lower()
+        if lower.startswith(b'host:'):
+            rewritten.append(f'Host: {upstream_host_header}'.encode('ascii'))
+            saw_host = True
+        elif lower.startswith(b'connection:'):
+            rewritten.append(b'Connection: close')
+            saw_connection = True
+        else:
+            rewritten.append(line)
+    if not saw_host:
+        rewritten.insert(1, f'Host: {upstream_host_header}'.encode('ascii'))
+    if not saw_connection:
+        rewritten.append(b'Connection: close')
+    return b'\r\n'.join(rewritten) + marker + body
 
 class Handler(socketserver.BaseRequestHandler):
     def handle(self):
@@ -58,6 +81,14 @@ class Handler(socketserver.BaseRequestHandler):
                     except OSError:
                         pass
 
+        first_chunk = b''
+        while b'\r\n\r\n' not in first_chunk and len(first_chunk) < 65536:
+            chunk = self.request.recv(65536)
+            if not chunk:
+                break
+            first_chunk += chunk
+        if first_chunk:
+            upstream.sendall(rewrite_request_header(first_chunk))
         threading.Thread(target=pump, args=(self.request, upstream), daemon=True).start()
         pump(upstream, self.request)
 
@@ -67,7 +98,6 @@ class Server(socketserver.ThreadingTCPServer):
 with Server(('0.0.0.0', listen_port), Handler) as server:
     server.serve_forever()
 PY
-fi
 proxy_pid=$!
 echo "$proxy_pid" > /tmp/repro-shopware-proxy.pid
 
@@ -91,6 +121,13 @@ if [ "$ready" != 1 ]; then
   echo "::error::Shopware sandbox proxy did not become ready"
   cat /tmp/repro-shopware-proxy.log 2>/dev/null || true
   exit 1
+fi
+
+ADMIN_API_URL="$host_app_url" \
+STOREFRONT_DOMAIN_URLS="${host_app_url},${agent_app_url}" \
+node "$(dirname "$0")/align-storefront-domains.mjs"
+if [ -x "$SHOP_DIR/bin/console" ]; then
+  ( cd "$SHOP_DIR" && APP_ENV=prod php bin/console cache:clear --no-warmup --no-interaction )
 fi
 
 {

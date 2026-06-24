@@ -107,6 +107,28 @@ jobs:
           fi
           echo "$APP_URL/admin from host-network container -> HTTP $sandbox_code"
 
+      - name: Assert storefront domain works from runner and sandbox URLs
+        run: |
+          set -euo pipefail
+          for url in "$REPRO_HOST_APP_URL" "$APP_URL"; do
+            if [ "$url" = "$APP_URL" ]; then
+              body=$(docker run --rm --network host --add-host host.docker.internal:127.0.0.1 \
+                curlimages/curl:8.11.1 -sS --max-time 20 "$url/")
+            else
+              body=$(curl -sS --max-time 20 "$url/")
+            fi
+            if grep -qi 'Sales Channel Not Found' <<< "$body"; then
+              echo "::error::storefront domain is not registered for $url"
+              exit 1
+            fi
+            if ! grep -qiE '<html|<!doctype' <<< "$body"; then
+              echo "::error::storefront did not return an HTML document for $url"
+              printf '%s\n' "${body:0:1000}"
+              exit 1
+            fi
+            echo "$url/ returned storefront HTML"
+          done
+
       - name: Snapshot clean DB
         run: bash .github/actions/repro-agent/bin/prepare/db-snapshot.sh
 
@@ -227,8 +249,7 @@ jobs:
           after=$(mktemp)
           git status --porcelain > "$before"
           APP_URL="${REPRO_HOST_APP_URL:?REPRO_HOST_APP_URL is not set}" \
-            node /tmp/reproctl/reproctl.mjs probe-ui /admin 1280x900 >/tmp/preflight-probe.txt
-          test -s .repro-admin-probe-state.json
+            node /tmp/reproctl/reproctl.mjs probe-ui / 1280x900 >/tmp/preflight-probe.txt
           ! test -e admin-probe-state.json
           git status --porcelain > "$after"
           new_status=$(comm -13 <(sort "$before") <(sort "$after") || true)
@@ -252,6 +273,104 @@ jobs:
             exit 1
           fi
 
+      - name: Assert generated specs must use harness baseURL
+        run: |
+          set -euo pipefail
+          tmp=$(mktemp -d)
+          printf 'preflight hardcoded URL validator fixture\n' > "$tmp/issue.md"
+          printf 'other\n' > "$tmp/issue-class.txt"
+          cat > "$tmp/reproduction-plan.json" <<'JSON'
+          {
+            "schema_version": "1",
+            "issue": 30,
+            "version": "preflight",
+            "executor": "playwright",
+            "layer": "storefront-ui",
+            "build_profile": { "admin_build": false, "storefront_build": true },
+            "fixtures": { "demodata": false, "sync_payload_path": "fixtures.json" },
+            "script_path": "repro.spec.ts",
+            "agent_explanation": "preflight validator fixture"
+          }
+          JSON
+          printf '{}\n' > "$tmp/fixtures.json"
+          cat > "$tmp/repro.spec.ts" <<'TS'
+          import { test, expect } from '@playwright/test';
+
+          test('bad absolute local url', async ({ page }) => {
+              await page.goto('http://localhost:8000/');
+              await page.locator('body').waitFor({ state: 'visible', timeout: 5000 }).catch(() => {
+                  throw new Error('PRECONDITION_NOT_FOUND: body missing');
+              });
+              await expect(page.locator('body')).toBeVisible();
+          });
+          TS
+          if (cd "$tmp" && REPRO_AGENT_ROOT=/tmp/reproctl REPRO_AGENT_BIN=/tmp/reproctl/bin node /tmp/reproctl/reproctl.mjs validate >/tmp/preflight-bad-url-validator.txt 2>&1); then
+            echo "::error::validator accepted a Playwright spec with a hardcoded local absolute URL"
+            cat /tmp/preflight-bad-url-validator.txt
+            exit 1
+          fi
+          grep -q 'hardcodes a local absolute navigation URL' /tmp/preflight-bad-url-validator.txt
+
+      - name: Assert minimal storefront Playwright run
+        run: |
+          set -euo pipefail
+          tmp=$(mktemp -d)
+          ln -s "$PWD/node_modules" "$tmp/node_modules"
+          cat > "$tmp/reproduction-plan.json" <<'JSON'
+          {
+            "schema_version": "1",
+            "issue": 30,
+            "version": "preflight",
+            "executor": "playwright",
+            "layer": "storefront-ui",
+            "build_profile": { "admin_build": false, "storefront_build": true },
+            "fixtures": { "demodata": false, "sync_payload_path": "fixtures.json" },
+            "script_path": "repro.spec.ts",
+            "agent_explanation": "preflight storefront execution fixture"
+          }
+          JSON
+          cat > "$tmp/repro.spec.ts" <<'TS'
+          import { test, expect } from '@playwright/test';
+
+          test('storefront resolves through harness baseURL', async ({ page }) => {
+              await page.goto('/');
+              const body = page.locator('body');
+              await body.waitFor({ state: 'visible', timeout: 15000 }).catch(() => {
+                  throw new Error('PRECONDITION_NOT_FOUND: storefront body did not render');
+              });
+              const text = await body.innerText();
+              if (/Sales Channel Not Found/i.test(text)) {
+                  throw new Error('PRECONDITION_NOT_FOUND: sandbox storefront domain is not registered');
+              }
+              await expect(body).toBeVisible();
+          });
+          TS
+          (
+            cd "$tmp"
+            APP_URL="${REPRO_HOST_APP_URL:?REPRO_HOST_APP_URL is not set}" \
+              TARGET=preflight \
+              REPRO_AGENT_ROOT=/tmp/reproctl \
+              REPRO_AGENT_BIN=/tmp/reproctl/bin \
+              PW_JSON_REPORT=/tmp/preflight-storefront-pw-report.json \
+              PW_STDOUT=/tmp/preflight-storefront-pw-stdout.txt \
+              PW_STDERR=/tmp/preflight-storefront-pw-stderr.txt \
+              PW_OUTPUT_DIR="$RUNNER_TEMP/preflight-storefront-results" \
+              PW_RUN_DIR="$RUNNER_TEMP/preflight-storefront-run" \
+              bash /tmp/reproctl/bin/execute/run-playwright.sh
+          )
+          status=$(jq -r '.status // empty' "$tmp/result.json")
+          if [ "$status" != "not_reproduced" ]; then
+            echo "::error::minimal storefront Playwright run did not produce a clean pass"
+            cat "$tmp/result.json"
+            echo "::group::preflight storefront Playwright stdout"
+            cat /tmp/preflight-storefront-pw-stdout.txt 2>/dev/null || true
+            echo "::endgroup::"
+            echo "::group::preflight storefront Playwright stderr"
+            cat /tmp/preflight-storefront-pw-stderr.txt 2>/dev/null || true
+            echo "::endgroup::"
+            exit 1
+          fi
+
       - name: Assert verifier temp path is writable
         run: |
           set -euo pipefail
@@ -268,6 +387,9 @@ jobs:
             /tmp/shopware-mcp-bridge.log
             /tmp/preflight-response.txt
             /tmp/preflight-probe.txt
+            /tmp/preflight-storefront-pw-report.json
+            /tmp/preflight-storefront-pw-stdout.txt
+            /tmp/preflight-storefront-pw-stderr.txt
             /tmp/repro-shopware-proxy.log
             test-results/ui-probes/**
           if-no-files-found: ignore
