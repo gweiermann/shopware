@@ -52,6 +52,15 @@ engine:
   id: claude
   model: claude-sonnet-4-6
 
+# Temporary rollback: the sandboxed agent path passed deterministic preflight but failed to produce
+# a trusted reported-leg artifact in the real workflow. Keep the follow-up tracked in todo.md and
+# run the agent unsandboxed until the gh-aw sandbox artifact handoff is fixed.
+strict: false
+sandbox:
+  agent: false
+features:
+  dangerously-disable-sandbox-agent: "Temporary rollback after run 28107396157; see todo.md"
+
 # Per-run gh-aw AI Credits cap. This keeps the workflow optimized around cost/token efficiency
 # instead of trying to consume the whole turn budget.
 max-ai-credits: 400
@@ -356,9 +365,9 @@ post-steps:
 # bin/report/status-comment.mjs and posts the concise final status comment for crash/noop/skipped
 # handoff/giveup cases.
 safe-outputs:
-  # The agent is sandboxed again; keep gh-aw threat detection enabled for the tiny safe-output
-  # request that only asks the deterministic trunk job to inspect post-agent artifacts.
-  threat-detection: true
+  # Threat detection requires the gh-aw sandbox. It stays disabled while sandbox.agent is rolled
+  # back; see todo.md for the tracked follow-up.
+  threat-detection: false
   jobs:
     reproduce-on-trunk:
       description: >
