@@ -65,6 +65,9 @@ if [ -z "${PW_REPORT:-}" ]; then
   # copy of the immutable config. The tool directory stays read-only; this workdir is scratch.
   rm -rf "$PW_RUN_DIR"
   mkdir -p "$PW_RUN_DIR"
+  if [ -d node_modules ] && [ ! -e "$PW_RUN_DIR/node_modules" ]; then
+    ln -s "$(pwd)/node_modules" "$PW_RUN_DIR/node_modules"
+  fi
   cp "$CONFIG_SRC" "$PW_RUN_DIR/repro.playwright.config.ts"
   cp "$REPRO_AGENT_ROOT/repro-video.js" "$PW_RUN_DIR/repro-video.js" 2>/dev/null || true
   RUN_SPEC=$(mktemp)

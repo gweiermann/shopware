@@ -475,6 +475,7 @@ jobs:
           cp .github/actions/repro-agent/bin/agent/reproctl.mjs /tmp/reproctl/reproctl.mjs
           cp .github/actions/repro-agent/repro.playwright.config.ts /tmp/reproctl/repro.playwright.config.ts
           cp .github/actions/repro-agent/repro-video.js /tmp/reproctl/repro-video.js
+          ln -s "$PWD/node_modules" /tmp/reproctl/node_modules
           chmod -R a-w /tmp/reproctl
           echo "REPROCTL_ROOT=/tmp/reproctl" >> "$GITHUB_ENV"
           echo "REPRO_AGENT_ROOT=/tmp/reproctl" >> "$GITHUB_ENV"
