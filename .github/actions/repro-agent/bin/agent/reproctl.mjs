@@ -73,6 +73,7 @@ switch (command) {
   case 'verify':
     run('bash', [path.join(bin, 'agent/verify-reproduction.sh')], {
       REPRO_AGENT_DEFER_REPORTED_RESULT: '1',
+      REPRO_SKIP_DB_RESTORE: '1',
     });
     break;
   case 'giveup':

@@ -41,8 +41,8 @@ permissions:
   issues: read     # prefetch.sh reads the issue body/comments + attached screenshots
 
 # The agent reaches the provisioned Shopware proxy through host.docker.internal:18080.
-# gh-aw v0.79.8 exposes only domain allowlisting here; after compiling, keep the generated
-# lock-file AWF invocation patched with `--allow-host-ports 80,443,8080,18080`.
+# gh-aw source frontmatter does not yet expose a custom host-port field, so compile the lock
+# file and then run the checked lock patch script to append 18080 to the generated AWF command.
 network:
   allowed:
     - defaults
