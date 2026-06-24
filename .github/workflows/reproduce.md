@@ -128,16 +128,32 @@ steps:
   # mid-run — any executor works immediately. The agent still records which builds its repro needs
   # in reproduction-plan.json's build_profile so the TRUNK leg builds only those. demodata stays off
   # (it's cheap + conditional; reproctl verify generates it on demand). Then snapshot.
-  - name: Provision reported version (Phase 2)
-    id: provision
-    uses: ./.github/actions/repro-agent/provision
+  - name: Register legacy Shopware 6.6 conflicts package alias
+    if: steps.parse.outputs.legacy_conflicts_alias == 'true'
+    run: bash .github/actions/repro-agent/bin/prepare/provision-legacy-alias.sh
+
+  - name: Setup reported Shopware (Phase 2)
+    uses: shopware/setup-shopware@e12701e21d8a6003103426969ba544cdc91bf41c # v2.0.12
     with:
-      version: ${{ steps.parse.outputs.provision_version }}
+      shopware-version: ${{ steps.parse.outputs.provision_version }}
+      shopware-repository: shopware/shopware
+      path: shop
+      php-version: "8.4"
       composer-root-version: ${{ steps.parse.outputs.composer_root_version }}
-      legacy-conflicts-alias: ${{ steps.parse.outputs.legacy_conflicts_alias }}
-      admin-build: "true"
-      storefront-build: "true"
-      demodata: "false"
+      mysql-version: "builtin"
+      install: "true"
+      install-admin: "true"
+      install-storefront: "true"
+      skip-js-build: "false"
+      allow-insecure-versions: "true"
+      env: prod
+
+  - name: Finalize reported provision (Phase 2)
+    id: provision
+    env:
+      SHOP_DIR: shop
+      DEMODATA: "false"
+    run: bash .github/actions/repro-agent/bin/prepare/provision-finalize.sh
 
   - name: Expose Shopware on sandbox host port
     env:
@@ -238,7 +254,6 @@ post-steps:
       protected_status=$(git status --porcelain -- \
         .github/actions/repro-agent/bin \
         .github/actions/repro-agent/prompts \
-        .github/actions/repro-agent/provision \
         .github/actions/repro-agent/README.md \
         .github/actions/repro-agent/repro.playwright.config.ts \
         .github/actions/repro-agent/repro-video.js \
@@ -423,15 +438,33 @@ safe-outputs:
           run: REPRO_PLAN=reproduction-plan.json bash .github/actions/repro-agent/bin/report/leg-plan.sh
 
         - name: Provision trunk (Phase 6)
+          if: steps.bundle.outputs.has == 'true'
+          id: provision-setup
+          continue-on-error: true
+          uses: shopware/setup-shopware@e12701e21d8a6003103426969ba544cdc91bf41c # v2.0.12
+          with:
+            shopware-version: trunk
+            shopware-repository: shopware/shopware
+            path: shop
+            php-version: "8.4"
+            composer-root-version: ".auto"
+            mysql-version: "builtin"
+            install: "true"
+            install-admin: ${{ steps.plan.outputs.admin_build }}
+            install-storefront: ${{ steps.plan.outputs.storefront_build }}
+            skip-js-build: ${{ (steps.plan.outputs.admin_build == 'false' && steps.plan.outputs.storefront_build == 'false') && 'true' || 'false' }}
+            allow-insecure-versions: "true"
+            env: prod
+
+        - name: Finalize trunk provision (Phase 6)
           id: provision
           if: steps.bundle.outputs.has == 'true'
           continue-on-error: true
-          uses: ./.github/actions/repro-agent/provision
-          with:
-            version: trunk
-            admin-build: ${{ steps.plan.outputs.admin_build }}
-            storefront-build: ${{ steps.plan.outputs.storefront_build }}
-            demodata: ${{ steps.plan.outputs.demodata }}
+          env:
+            PREVIOUS_OUTCOME: ${{ steps.provision-setup.outcome }}
+            SHOP_DIR: shop
+            DEMODATA: ${{ steps.plan.outputs.demodata }}
+          run: bash .github/actions/repro-agent/bin/prepare/provision-finalize.sh
 
         - name: Seed fixtures
           id: seed
