@@ -1368,6 +1368,20 @@ function sourceTrailPaths() {
     .filter(Boolean);
 }
 
+function validateSourceTrailIsFixtureScoped() {
+  const entries = Array.isArray(plan.source_trail) ? plan.source_trail : [];
+  for (const entry of entries) {
+    const sourcePath = String(entry?.path ?? entry ?? '');
+    const reason = String(entry?.reason ?? '');
+    if (/\.(?:s?css|less)(?:$|[?#])/i.test(sourcePath)) {
+      fail(`source_trail path '${sourcePath}' researches styling/layout code. Reproduction agents may inspect source only for fixture schema, route ownership, rendered seeded fields, or readiness selectors`);
+    }
+    if (/\b(?:root[- ]?cause|bug cause|culprit|fix(?:es|ed)?|regression|layout issue|css issue|min-width|flex(?:box)?|collapse[sd]?|overflow|intercept(?:ing|ion)?|z-index|stacking context)\b/i.test(reason)) {
+      fail(`source_trail reason for '${sourcePath || 'unknown'}' describes bug-cause analysis instead of fixture/schema/render-proof evidence`);
+    }
+  }
+}
+
 function templateConfigKeysForCmsElement(type) {
   const templatePath = `src/Storefront/Resources/views/storefront/element/cms-element-${type}.html.twig`;
   const source = read(templatePath);
@@ -1735,6 +1749,7 @@ validateMediaReferences(fixtures, plan);
 validateMediaFolderReferences(fixtures, plan);
 validateReproMediaUploads(fixtures);
 validateSeededReadinessChecks(plan);
+validateSourceTrailIsFixtureScoped();
 const mediaWriteProtectedFields = seededMediaRowsWithWriteProtectedFileFields(fixtures);
 if (mediaWriteProtectedFields.length > 0) {
   fail(`fixtures.json media rows must not set write-protected file state fields (${mediaWriteProtectedFields.join(', ')}); seed the media row metadata and use _repro_media_uploads for uploaded bytes`);
@@ -1748,6 +1763,9 @@ if (unknownPlaceholders.length > 0) {
 
 if (unfinishedBlockedReason(plan.blocked_reason)) {
   fail('blocked_reason describes unfinished agent work rather than an external reproduction blocker; attempt the source-backed setup once, or use a blocker that explains why the live shop cannot faithfully exercise the issue');
+}
+if (String(plan.derived_from ?? '').trim() && String(plan.derived_from).trim() !== 'null') {
+  fail('derived_from must stay null in reproduce bundles; do not research source history, likely fixes, or bug-cause provenance while building fixtures');
 }
 
 if (executor === 'playwright') {

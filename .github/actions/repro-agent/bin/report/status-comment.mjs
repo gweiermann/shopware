@@ -98,23 +98,11 @@ function cleanNullable(value) {
 function planSummaryLines(plan) {
   if (!plan || typeof plan !== 'object') return [];
 
-  const explanation = cleanNullable(plan.agent_explanation ?? plan.confidence_reason);
   const blockedReason = cleanNullable(plan.blocked_reason);
-  const derivedFrom = cleanNullable(plan.derived_from);
-  const confidence = cleanNullable(plan.confidence);
   const lines = [];
 
-  if (explanation) {
-    lines.push(`**Agent assessment:** ${compactPublicSummary(explanation)}`);
-  }
   if (blockedReason) {
-    lines.push(`**Blocked by:** ${compactPublicSummary(blockedReason)}`);
-  }
-  if (derivedFrom) {
-    lines.push(`**Candidate fix to inspect:** ${compactPublicSummary(derivedFrom)}`);
-  }
-  if (confidence) {
-    lines.push(`**Confidence:** ${compactPublicSummary(confidence)}`);
+    lines.push(`**Why it stopped:** ${compactPublicSummary(blockedReason)}`);
   }
 
   return lines;
@@ -186,7 +174,7 @@ if (shortPipelineFailed) {
     console.log();
     console.log(`**What happened:** ${pipelineSummary}`);
   } else {
-    console.log("The agent wasn't able to build a full reproduction within its limits.");
+    console.log('No trusted automated reproduction verdict was produced.');
   }
   printPlanSummary(planLines);
   if (runUrl) {

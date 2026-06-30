@@ -97,9 +97,6 @@ tools:
     - "wc:*"
     - "pwd"
     - "jq:*"
-    - "git log:*"
-    - "git show:*"
-    - "git blame:*"
 
 mcp-servers:
   shopware:

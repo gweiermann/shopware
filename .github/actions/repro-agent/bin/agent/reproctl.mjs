@@ -20,8 +20,7 @@ function usage(exitCode = 0) {
   node /tmp/reproctl/reproctl.mjs probe-ui <route-or-url> [viewport]
   node /tmp/reproctl/reproctl.mjs validate
   node /tmp/reproctl/reproctl.mjs verify
-  node /tmp/reproctl/reproctl.mjs giveup
-  node /tmp/reproctl/reproctl.mjs analyze`);
+  node /tmp/reproctl/reproctl.mjs giveup`);
   process.exit(exitCode);
 }
 
@@ -129,9 +128,6 @@ switch (command) {
       REPRO_VERIFY_ATTEMPT_FILE: '.repro-post-verify-attempts',
       REPRO_HANDOFF_SENT_FILE: '.repro-post-handoff-sent',
     });
-    break;
-  case 'analyze':
-    run('node', [path.join(bin, 'agent/analyze-failure.mjs'), ...args]);
     break;
   default:
     die(`unknown command '${command}'`);

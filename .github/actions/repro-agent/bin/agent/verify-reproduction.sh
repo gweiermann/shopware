@@ -24,6 +24,7 @@ SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 BIN=${REPRO_AGENT_BIN:-$(cd "$SCRIPT_DIR/.." && pwd)}
 VERIFY_ATTEMPT_LIMIT=${REPRO_VERIFY_ATTEMPT_LIMIT:-3}
 VERIFY_ATTEMPT_FILE=${REPRO_VERIFY_ATTEMPT_FILE:-.repro-verify-attempts}
+VERIFY_BLOCKER_FILE=${REPRO_VERIFY_BLOCKER_FILE:-.repro-last-blocker}
 HANDOFF_SENT_FILE=${REPRO_HANDOFF_SENT_FILE:-.repro-handoff-sent}
 VERIFY_ATTEMPT=0
 DEFER_REPORTED_RESULT=${REPRO_AGENT_DEFER_REPORTED_RESULT:-0}
@@ -169,6 +170,22 @@ handle_unclassified_result () { # <status> <reason>
   normalize_unclassified_plan "$reason"
 
   echo "== verify-reproduction: status '$status' — NOT classified yet."
+
+  local blocker_key previous_blocker_key
+  blocker_key=$(printf '%s\t%s' "$status" "$reason" | tr '\n\r' '  ' | tr -s ' ')
+  previous_blocker_key=$(cat "$VERIFY_BLOCKER_FILE" 2>/dev/null || true)
+  if [ -n "$previous_blocker_key" ] && [ "$previous_blocker_key" = "$blocker_key" ]; then
+    cat <<EOF
+   The same blocker repeated on consecutive verifier attempts:
+   $reason
+   This is no longer a useful retry loop. The workflow is handing off a pipeline-failed result now.
+   Stop after this command; do not repair, rerun, or call tools.
+==
+EOF
+    handoff none giveup || exit 1
+    exit 0
+  fi
+  printf '%s\n' "$blocker_key" > "$VERIFY_BLOCKER_FILE" 2>/dev/null || true
 
   if [ "$remaining" -le 0 ]; then
     cat <<EOF
