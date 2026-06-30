@@ -34,15 +34,15 @@ concurrency:
   group: reproduce-${{ github.event.issue.number || inputs.issue_number }}
   cancel-in-progress: false
 
-# Agent job stays READ-ONLY. All writes go through safe-outputs: the verdict comment via the
-# `reproduce-on-trunk` job, and the "could not build" comment is posted by that same job.
+# Agent job stays READ-ONLY. The public verdict comment is posted only by the deterministic
+# trunk/report job after it sees authoritative post-agent artifacts.
 permissions:
   contents: read
   issues: read     # prefetch.sh reads the issue body/comments + attached screenshots
 
 # The agent reaches the provisioned Shopware proxy through host.docker.internal:18080.
-# gh-aw source frontmatter does not yet expose a custom host-port field, so compile the lock
-# file and then run the checked lock patch script to append 18080 to the generated AWF command.
+# gh-aw source frontmatter does not yet expose a custom host-port field or an artifact-gated
+# safe-output job schedule. Compile the lock file, then run the checked lock patch script.
 network:
   allowed:
     - defaults
@@ -351,18 +351,18 @@ post-steps:
   # ingests $GH_AW_SAFE_OUTPUTS BEFORE post-steps run, so anything appended here is never read.
 
 # --- Phase 6 + 7: DETERMINISTIC trunk re-run + verdict + report (clean runner) ---
-# Triggered by the agent-facing reproctl verify command only as a downstream pipeline request. The
-# trusted reported leg is NOT the agent's feedback run: post-agent steps rerun validation and
+# Compiled as a safe-output job, then lock-patched to run after the agent whenever the agent job ran.
+# The trusted reported leg is NOT the agent's feedback run: post-agent steps rerun validation and
 # reported-version verification from the immutable tool copy, upload result.json only on success,
-# and this safe-output job refuses to continue when that authoritative artifact is missing. It runs
-# on a FRESH runner, provisions the next version FROM reproduction-plan.json
+# and this job refuses to continue when that authoritative artifact is missing. It runs on a FRESH
+# runner, provisions the next version FROM reproduction-plan.json
 # (executor/build_profile/demodata the agent recorded), runs the EXACT same authored bundle
 # (no regeneration, no agent), computes the verdict from the two leg statuses, renders the comment
 # from templates, and posts it.
 #
-# NOTE: gh-aw does not currently expose a source-level final/conclusion hook. After compiling this
-# file, keep the generated lock-file host-port patch above and the conclusion patch that renders
-# bin/report/status-comment.mjs and posts the concise final status comment for crash/noop/skipped
+# NOTE: gh-aw does not currently expose source-level hooks for the host-port allowlist or for
+# scheduling a custom safe-output job from post-agent artifacts. After compiling this file, run
+# bin/prepare/patch-aw-host-ports.sh and keep any generated conclusion patch for crash/noop/skipped
 # handoff/giveup cases.
 safe-outputs:
   # Threat detection requires the gh-aw sandbox. It stays disabled while sandbox.agent is rolled
@@ -371,10 +371,10 @@ safe-outputs:
   jobs:
     reproduce-on-trunk:
       description: >
-        INTERNAL — do NOT call this tool yourself. reproctl verify requests it automatically once
-        your candidate bundle is classified. The deterministic post-agent steps rerun the reported
-        leg before this job can use the bundle, then this job runs trunk and posts the verdict.
-        You decide nothing here.
+        INTERNAL — do NOT call this tool yourself. The compiled lock file is patched so this job
+        runs from authoritative post-agent artifacts, not from the agent's feedback safe output.
+        The deterministic post-agent steps rerun the reported leg before this job can use the
+        bundle, then this job runs trunk and posts the verdict. You decide nothing here.
       runs-on: ubuntu-latest
       permissions:
         contents: write   # embed-evidence pushes screenshots to the orphan evidence branch
