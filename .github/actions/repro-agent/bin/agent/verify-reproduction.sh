@@ -233,7 +233,7 @@ normalize_giveup_plan () {
   if jq --arg reason "$reason" '
     .confidence = ((.confidence // 0.4) | if type == "number" and . <= 0.5 then . else 0.4 end)
     | .agent_explanation = (.agent_explanation // .confidence_reason // $reason)
-    | .blocked_reason = (.blocked_reason // $reason)
+    | .blocked_reason = $reason
     | del(.confidence_reason)
   ' "$PLAN" > "$tmp"; then
     mv "$tmp" "$PLAN"
@@ -251,7 +251,7 @@ normalize_unclassified_plan () {
   if jq --arg reason "$reason" '
     .confidence = ((.confidence // 0.4) | if type == "number" and . <= 0.5 then . else 0.4 end)
     | .agent_explanation = (.agent_explanation // .confidence_reason // $reason)
-    | .blocked_reason = (.blocked_reason // $reason)
+    | .blocked_reason = $reason
     | del(.confidence_reason)
   ' "$PLAN" > "$tmp"; then
     mv "$tmp" "$PLAN"
