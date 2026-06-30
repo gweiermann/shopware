@@ -15,7 +15,7 @@
 #   admin_search <e> <body>  POST /api/search/<e>  → raw JSON
 #   admin_get <e> <id>       GET  /api/<e>/<id>     → raw JSON
 #   resolve_ids              sets globals SC NAV_CAT STOREFRONT_URL COUNTRY SALUTATION
-#                            SALUTATION2 TAX CURRENCY LANGUAGE CUSTOMER_GROUP PAYMENT_METHOD
+#                            SALUTATION2 TAX CURRENCY LANGUAGE SYSTEM_LANGUAGE CUSTOMER_GROUP PAYMENT_METHOD
 #                            SHIPPING_METHOD ORDER_STATE_OPEN ORDER_DELIVERY_STATE_OPEN
 #                            ORDER_TRANSACTION_STATE_OPEN
 #                            from the running shop
@@ -88,7 +88,11 @@ resolve_ids () {
   SALUTATION2=$(printf '%s' "$sals" | jq -r '.data[1].id // .data[0].id // empty')
   TAX=$(admin_search tax '{"limit":1}' | jq -r '.data[0].id // empty')
   CURRENCY=$(admin_search currency '{"limit":1,"filter":[{"type":"equals","field":"isoCode","value":"EUR"}]}' | jq -r '.data[0].id // empty')
-  LANGUAGE=$(admin_search language '{"limit":1}' | jq -r '.data[0].id // empty')
+  # Shopware validates required translations against Defaults::LANGUAGE_SYSTEM. That id is stable
+  # across installs; keep it separate from the sales-channel/display language.
+  SYSTEM_LANGUAGE="2fbb5fe2e29a4d70aa5854ce7ce3e20b"
+  LANGUAGE=$(admin_search sales-channel-domain '{"limit":1}' | jq -r '.data[0].languageId // empty')
+  LANGUAGE="${LANGUAGE:-$SYSTEM_LANGUAGE}"
   CUSTOMER_GROUP=$(admin_search customer-group '{"limit":1}' | jq -r '.data[0].id // empty')
   PAYMENT_METHOD=$(admin_search payment-method '{"limit":1,"filter":[{"type":"equals","field":"active","value":true}]}' | jq -r '.data[0].id // empty')
   SHIPPING_METHOD=$(admin_search shipping-method '{"limit":1,"filter":[{"type":"equals","field":"active","value":true}]}' | jq -r '.data[0].id // empty')

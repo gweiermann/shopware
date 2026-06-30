@@ -28,6 +28,7 @@ const allowedPlaceholders = new Set([
   'TAX',
   'CURRENCY',
   'LANGUAGE',
+  'SYSTEM_LANGUAGE',
   'CUSTOMER_GROUP',
   'PAYMENT_METHOD',
   'SHIPPING_METHOD',
@@ -1368,6 +1369,47 @@ function sourceTrailPaths() {
     .filter(Boolean);
 }
 
+function collectTranslationLanguagePlaceholders(value, paths = [], pathParts = []) {
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => collectTranslationLanguagePlaceholders(item, paths, [...pathParts, String(index)]));
+    return paths;
+  }
+  if (!value || typeof value !== 'object') return paths;
+
+  if (Object.hasOwn(value, 'translations') && value.translations && typeof value.translations === 'object') {
+    const translationPath = [...pathParts, 'translations'].join('.');
+    if (Array.isArray(value.translations)) {
+      value.translations.forEach((translation, index) => {
+        if (translation?.languageId === '{{LANGUAGE}}') {
+          paths.push(`${translationPath}.${index}.languageId`);
+        }
+      });
+    } else {
+      for (const key of Object.keys(value.translations)) {
+        if (key === '{{LANGUAGE}}') {
+          paths.push(`${translationPath}.{{LANGUAGE}}`);
+        }
+      }
+    }
+  }
+
+  for (const [key, child] of Object.entries(value)) {
+    collectTranslationLanguagePlaceholders(child, paths, [...pathParts, key]);
+  }
+  return paths;
+}
+
+function validateTranslationLanguagePlaceholders(data) {
+  const ambiguous = collectTranslationLanguagePlaceholders(data);
+  if (ambiguous.length > 0) {
+    fail([
+      'translation fixtures must use {{SYSTEM_LANGUAGE}} for required translated rows',
+      '{{LANGUAGE}} is the sales-channel/display language and may not satisfy DAL system-language validation',
+      `ambiguous translation language placeholder(s): ${ambiguous.slice(0, 10).join(', ')}`
+    ].join(' — '));
+  }
+}
+
 function validateSourceTrailIsFixtureScoped() {
   const entries = Array.isArray(plan.source_trail) ? plan.source_trail : [];
   for (const entry of entries) {
@@ -1745,6 +1787,7 @@ validateProductPriceCurrency(fixtures);
 validateProductVisibilityIds(fixtures);
 validateSystemConfigValues(fixtures);
 validateSyncOperationEnvelope(fixtures);
+validateTranslationLanguagePlaceholders(fixtures);
 validateMediaReferences(fixtures, plan);
 validateMediaFolderReferences(fixtures, plan);
 validateReproMediaUploads(fixtures);
@@ -1780,7 +1823,7 @@ if (executor === 'playwright') {
   if (/\{\{[A-Z0-9_]+\}\}/.test(executable)) {
     fail('Playwright spec contains unresolved {{PLACEHOLDER}} tokens; placeholders are substituted only in fixtures/plan seeding, not inside browser-executed test code');
   }
-  if (/\bprocess\.env\.(?:SC|NAV_CAT|TAX|CURRENCY|COUNTRY|SALUTATION2?|LANGUAGE|CUSTOMER_GROUP|PAYMENT_METHOD|SHIPPING_METHOD|ORDER_STATE_OPEN|ORDER_DELIVERY_STATE_OPEN|ORDER_TRANSACTION_STATE_OPEN)\b/.test(executable)) {
+  if (/\bprocess\.env\.(?:SC|NAV_CAT|TAX|CURRENCY|COUNTRY|SALUTATION2?|LANGUAGE|SYSTEM_LANGUAGE|CUSTOMER_GROUP|PAYMENT_METHOD|SHIPPING_METHOD|ORDER_STATE_OPEN|ORDER_DELIVERY_STATE_OPEN|ORDER_TRANSACTION_STATE_OPEN)\b/.test(executable)) {
     fail('Playwright spec must not read install placeholder ids from process.env; fixture placeholders are resolved only during seeding. Seed a concrete route/page/entity in fixtures and navigate by its source-backed technical URL or visible link');
   }
   if (rawAdminApiCallInPlaywright(executable)) {

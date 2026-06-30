@@ -108,8 +108,9 @@ Use the MCP path like this:
    or DAL write code. Then read only the source/tests needed to understand fields that the rendered
    surface consumes.
 2. Use `shopware-entity-search` or `shopware-entity-read` to inspect existing default entities
-   and relationships. Prefer placeholders such as `{{SC}}`, `{{NAV_CAT}}`, and `{{TAX}}` in
-   `fixtures.json`; do not copy install-specific ids from MCP output into the fixture file.
+   and relationships. Prefer placeholders such as `{{SC}}`, `{{NAV_CAT}}`, `{{TAX}}`, and
+   `{{SYSTEM_LANGUAGE}}` in `fixtures.json`; do not copy install-specific ids from MCP output into
+   the fixture file.
 3. Before finalizing `fixtures.json`, call `shopware-entity-upsert` with `dryRun=true` for the
    candidate entity payloads. Treat a successful dry run as schema/write-shape evidence, then
    mirror the same static payload into `fixtures.json`.
@@ -237,7 +238,12 @@ Derive fixture payloads from MCP first when available, then use the source trail
 locators, rendered fields, and setup actions that MCP cannot explain.
 Do not hardcode install-specific ids from this shop. Use supported placeholders in `fixtures.json`:
 `{{SC}}`, `{{NAV_CAT}}`, `{{TAX}}`, `{{CURRENCY}}`, `{{COUNTRY}}`, `{{SALUTATION}}`,
-`{{LANGUAGE}}`, `{{CUSTOMER_GROUP}}`, `{{PAYMENT_METHOD}}`, and `{{SHIPPING_METHOD}}`.
+`{{LANGUAGE}}`, `{{SYSTEM_LANGUAGE}}`, `{{CUSTOMER_GROUP}}`, `{{PAYMENT_METHOD}}`, and
+`{{SHIPPING_METHOD}}`.
+
+For entity `translations`, use `languageId: "{{SYSTEM_LANGUAGE}}"` for required translated rows.
+`{{LANGUAGE}}` is the sales-channel/display language and can differ from the DAL system language,
+which causes sync errors such as "Translation required for system language ...".
 
 If setup requires static entities, prefer `shopware-entity-schema` and `shopware-entity-upsert`
 `dryRun=true` for the write shape, then read only the relevant repository usage, migration,
