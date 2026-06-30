@@ -422,20 +422,25 @@ safe-outputs:
             echo "has=$has" >> "$GITHUB_OUTPUT"
             echo "bundle+reported-result present: $has"
 
-        # ---- No bundle: leave the final issue comment to the conclusion job. ----
-        - name: Record missing reproduction bundle (Phase 7)
+        # ---- No bundle: post a deterministic fallback comment from this job. ----
+        - name: Render missing reproduction bundle comment (Phase 7)
           if: steps.bundle.outputs.has != 'true'
           env:
+            AGENT_OUTPUT: ${{ runner.temp }}/gh-aw/safe-jobs/agent_output.json
+            AGENT_RESULT: ${{ needs.agent.result }}
+            REPRODUCE_ON_TRUNK_RESULT: missing_bundle
+            SAFE_OUTPUTS_RESULT: unknown
             RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          run: node .github/actions/repro-agent/bin/report/status-comment.mjs > comment.md
+
+        - name: Post missing reproduction bundle comment (Phase 7)
+          if: steps.bundle.outputs.has != 'true'
+          env:
+            GH_TOKEN: ${{ github.token }}
+            ISSUE: ${{ github.event.issue.number || inputs.issue_number }}
           run: |
-            {
-              echo "## Reproduction (gh-aw): Pipeline failed"
-              echo
-              echo "No classified reported-version result was uploaded. The conclusion job will post the final status comment with the agent summary."
-              echo
-              echo "[Run details]($RUN_URL)"
-            } > no-repro.md
-            cat no-repro.md >> "$GITHUB_STEP_SUMMARY"
+            cat comment.md >> "$GITHUB_STEP_SUMMARY"
+            gh issue comment "$ISSUE" --repo "${{ github.repository }}" --body-file comment.md
 
         # ---- Bundle present: Phase 6 (trunk re-run) + Phase 7 (verdict + report). ----
         - name: Derive trunk leg parameters

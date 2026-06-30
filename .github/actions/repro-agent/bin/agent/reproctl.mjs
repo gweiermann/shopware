@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
+import dns from 'node:dns';
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
@@ -29,14 +30,52 @@ function die(message, exitCode = 2) {
   process.exit(exitCode);
 }
 
+function normalizedShopEnv(extraEnv = {}) {
+  const env = {
+    ...process.env,
+    ...extraEnv,
+  };
+  const hostUrl = (env.REPRO_HOST_APP_URL || '').trim();
+  const appUrl = (env.APP_URL || '').trim();
+
+  if (!hostUrl) {
+    return extraEnv;
+  }
+
+  if (!appUrl) {
+    console.error(`reproctl: APP_URL is not set; using REPRO_HOST_APP_URL=${hostUrl}`);
+    return { ...extraEnv, APP_URL: hostUrl };
+  }
+
+  let hostname = '';
+  try {
+    hostname = new URL(appUrl).hostname;
+  } catch {
+    return extraEnv;
+  }
+
+  if (hostname !== 'host.docker.internal') {
+    return extraEnv;
+  }
+
+  try {
+    dns.lookupSync(hostname);
+    return extraEnv;
+  } catch {
+    console.error(`reproctl: ${hostname} is not resolvable here; using REPRO_HOST_APP_URL=${hostUrl}`);
+    return { ...extraEnv, APP_URL: hostUrl };
+  }
+}
+
 function run(command, args, extraEnv = {}) {
+  const resolvedExtraEnv = normalizedShopEnv(extraEnv);
   const result = spawnSync(command, args, {
     cwd: root,
     env: {
       ...process.env,
       REPRO_AGENT_ROOT: reproRoot,
       REPRO_AGENT_BIN: bin,
-      ...extraEnv,
+      ...resolvedExtraEnv,
     },
     stdio: 'inherit',
   });
