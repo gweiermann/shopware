@@ -1265,6 +1265,157 @@ function validateCmsPageFixtures(data) {
   }
 }
 
+function extractObjectLiteral(source, marker) {
+  const markerIndex = source.indexOf(marker);
+  if (markerIndex === -1) return '';
+  const open = source.indexOf('{', markerIndex + marker.length);
+  if (open === -1) return '';
+
+  let depth = 0;
+  let quote = '';
+  let escaped = false;
+  for (let index = open; index < source.length; index += 1) {
+    const char = source[index];
+    if (quote) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === '\\') {
+        escaped = true;
+      } else if (char === quote) {
+        quote = '';
+      }
+      continue;
+    }
+    if (char === '"' || char === "'" || char === '`') {
+      quote = char;
+      continue;
+    }
+    if (char === '{') depth += 1;
+    if (char === '}') {
+      depth -= 1;
+      if (depth === 0) return source.slice(open, index + 1);
+    }
+  }
+  return '';
+}
+
+function topLevelObjectKeys(objectLiteral) {
+  const keys = new Set();
+  let depth = 0;
+  let quote = '';
+  let escaped = false;
+  let token = '';
+  let collecting = true;
+
+  for (let index = 1; index < objectLiteral.length - 1; index += 1) {
+    const char = objectLiteral[index];
+    if (quote) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === '\\') {
+        escaped = true;
+      } else if (char === quote) {
+        quote = '';
+      }
+      if (collecting) token += char;
+      continue;
+    }
+    if (char === '"' || char === "'" || char === '`') {
+      quote = char;
+      if (collecting) token += char;
+      continue;
+    }
+    if (char === '{' || char === '[' || char === '(') {
+      depth += 1;
+      collecting = false;
+      continue;
+    }
+    if (char === '}' || char === ']' || char === ')') {
+      depth -= 1;
+      continue;
+    }
+    if (depth === 0 && char === ':') {
+      const key = token.trim().replace(/^['"`]|['"`]$/g, '');
+      if (/^[A-Za-z_$][\w$-]*$/.test(key)) keys.add(key);
+      token = '';
+      collecting = false;
+      continue;
+    }
+    if (depth === 0 && char === ',') {
+      token = '';
+      collecting = true;
+      continue;
+    }
+    if (depth === 0 && collecting) token += char;
+  }
+
+  return keys;
+}
+
+function cmsSlotEntries(data) {
+  return entityRows(data, 'cms_page').flatMap((page) => (
+    (page.sections ?? []).flatMap((section) => (
+      (section.blocks ?? []).flatMap((block) => (
+        (block.slots ?? []).map((slot) => ({ page, section, block, slot }))
+      ))
+    ))
+  ));
+}
+
+function sourceTrailPaths() {
+  return (Array.isArray(plan.source_trail) ? plan.source_trail : [])
+    .map((entry) => String(entry?.path ?? entry ?? ''))
+    .filter(Boolean);
+}
+
+function templateConfigKeysForCmsElement(type) {
+  const templatePath = `src/Storefront/Resources/views/storefront/element/cms-element-${type}.html.twig`;
+  const source = read(templatePath);
+  if (!source) return { templatePath, keys: new Set(), exists: false };
+
+  const keys = new Set();
+  for (const match of source.matchAll(/\b(?:sliderConfig|config)\.([A-Za-z_$][\w$]*)\.value\b/g)) {
+    keys.add(match[1]);
+  }
+  return { templatePath, keys, exists: true };
+}
+
+function defaultConfigKeysForCmsElement(type) {
+  const elementPath = `src/Administration/Resources/app/administration/src/module/sw-cms/elements/${type}/index.ts`;
+  const source = read(elementPath);
+  if (!source) return { elementPath, keys: new Set(), exists: false };
+
+  const literal = extractObjectLiteral(source, 'defaultConfig');
+  return { elementPath, keys: topLevelObjectKeys(literal), exists: true };
+}
+
+function validateCmsOpaqueConfigEvidence(data) {
+  const paths = sourceTrailPaths();
+  const checkedTypes = new Set();
+
+  for (const { block, slot } of cmsSlotEntries(data)) {
+    const type = String(slot?.type || block?.type || '');
+    if (!type || checkedTypes.has(type)) continue;
+    checkedTypes.add(type);
+
+    const template = templateConfigKeysForCmsElement(type);
+    if (!template.exists || template.keys.size === 0) continue;
+
+    const defaults = defaultConfigKeysForCmsElement(type);
+    const sourceEvidence = paths.some((sourcePath) => sourcePath.endsWith(`/sw-cms/elements/${type}/index.ts`))
+      && paths.some((sourcePath) => sourcePath.endsWith(`/cms-element-${type}.html.twig`));
+    if (!sourceEvidence) {
+      fail(`cms_page fixture uses CMS element '${type}' whose storefront template reads persisted config. source_trail must include the element defaultConfig source and storefront template so opaque cms_slot.config is schema-derived, not guessed`);
+    }
+
+    const requiredKeys = [...template.keys].filter((key) => defaults.keys.size === 0 || defaults.keys.has(key));
+    const missing = requiredKeys.filter((key) => !Object.hasOwn(slot?.config ?? {}, key));
+    if (missing.length > 0) {
+      fail(`cms_page fixture slot type '${type}' is missing config keys read by the storefront template: ${missing.join(', ')}. Seed the complete minimum opaque config shape from the CMS element defaultConfig`);
+    }
+  }
+}
+
 function validateProductPriceCurrency(data) {
   for (const product of entityRows(data, 'product')) {
     const prices = entityPayload(product.price);
@@ -1413,6 +1564,56 @@ function validateReproMediaUploads(data) {
   }
 }
 
+function validateSeededReadinessChecks(reproPlan) {
+  if (executor !== 'playwright' || !fs.existsSync(path.join(root, 'fixtures.json'))) return;
+
+  const checks = Array.isArray(reproPlan.seeded_readiness)
+    ? reproPlan.seeded_readiness
+    : (Array.isArray(reproPlan.readiness_checks) ? reproPlan.readiness_checks : []);
+
+  if (checks.length === 0) {
+    fail('playwright bundles with fixtures.json must declare seeded_readiness checks that prove the seeded target is reachable in the UI before the final symptom assertion');
+  }
+
+  checks.forEach((check, index) => {
+    const label = `seeded_readiness[${index}]`;
+    if (!check || typeof check !== 'object' || Array.isArray(check)) {
+      fail(`${label} must be an object`);
+    }
+    if ((check.kind ?? 'browser') !== 'browser') {
+      fail(`${label}.kind must be "browser"; HTTP/direct setup checks belong in plan assertions or the generated test`);
+    }
+
+    const target = check.path ?? check.url ?? check.route;
+    if (typeof target !== 'string' || target.trim() === '') {
+      fail(`${label} must include a local path/url/route for the surface that reads the seeded state`);
+    }
+    if (/^https?:\/\//i.test(target)) {
+      let host = '';
+      try {
+        host = new URL(target).hostname;
+      } catch {
+        fail(`${label} has an invalid url`);
+      }
+      if (!['localhost', '127.0.0.1', 'host.docker.internal'].includes(host)) {
+        fail(`${label} must not point at a remote url; readiness checks run against the provisioned local shop`);
+      }
+    }
+
+    if (typeof check.selector !== 'string' || check.selector.trim() === '') {
+      fail(`${label} must include a source/probe-backed selector for the seeded target or control`);
+    }
+    if (check.text !== undefined && typeof check.text !== 'string') {
+      fail(`${label}.text must be a string when present`);
+    }
+    for (const key of ['min_width', 'min_height', 'timeout_ms']) {
+      if (check[key] !== undefined && (!Number.isFinite(Number(check[key])) || Number(check[key]) < 0)) {
+        fail(`${label}.${key} must be a non-negative number`);
+      }
+    }
+  });
+}
+
 function assertionsFromPlan(data) {
   if (Array.isArray(data.assertions)) return data.assertions;
   if (data.assertion && typeof data.assertion === 'object') return [data.assertion];
@@ -1525,6 +1726,7 @@ function groupedPreconditionCatch(source) {
 validateUuidFields(fixtures);
 validateOrderFixtures(fixtures);
 validateCmsPageFixtures(fixtures);
+validateCmsOpaqueConfigEvidence(fixtures);
 validateProductPriceCurrency(fixtures);
 validateProductVisibilityIds(fixtures);
 validateSystemConfigValues(fixtures);
@@ -1532,6 +1734,7 @@ validateSyncOperationEnvelope(fixtures);
 validateMediaReferences(fixtures, plan);
 validateMediaFolderReferences(fixtures, plan);
 validateReproMediaUploads(fixtures);
+validateSeededReadinessChecks(plan);
 const mediaWriteProtectedFields = seededMediaRowsWithWriteProtectedFileFields(fixtures);
 if (mediaWriteProtectedFields.length > 0) {
   fail(`fixtures.json media rows must not set write-protected file state fields (${mediaWriteProtectedFields.join(', ')}); seed the media row metadata and use _repro_media_uploads for uploaded bytes`);

@@ -68,13 +68,15 @@ refresh_indexer_via_admin_api () {
 }
 
 refresh_indexes_via_admin_api () {
-  local indexers=${REPRO_INDEXERS:-"category.indexer product.indexer product_stream.indexer rule.indexer landing_page.indexer media.indexer media_folder.indexer media_folder_configuration.indexer"}
+  local indexers=${REPRO_INDEXERS:-"category.indexer product.indexer product_stream.indexer landing_page.indexer"}
   local indexer
+  local failed=0
 
   echo "refreshing storefront indexes via admin API..."
   for indexer in $indexers; do
-    refresh_indexer_via_admin_api "$indexer" || return 1
+    refresh_indexer_via_admin_api "$indexer" || failed=1
   done
+  return "$failed"
 }
 
 # A plan with no fixtures is valid (e.g. demodata:false + the bug needs no seed data).

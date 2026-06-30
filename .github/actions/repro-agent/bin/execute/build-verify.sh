@@ -70,6 +70,13 @@ if [ -f fixtures.json ]; then
   if ! PAYLOAD=fixtures.json bash "$BIN/execute/seed.sh"; then
     emit_blocked "seeding fixtures.json failed: $(head -c 300 seed-error.txt 2>/dev/null | tr -d '\r\n' | tr -s ' ')"; exit 1
   fi
+  if [ "$(jq -r '.executor // ""' "$PLAN" 2>/dev/null)" = playwright ]; then
+    echo "== build-verify ($TARGET): checking seeded readiness =="
+    if ! APP_URL="$APP_URL" REPRO_PLAN="$PLAN" node "$BIN/execute/verify-seeded-readiness.mjs"; then
+      emit_blocked "seeded readiness precondition failed: $(jq -r '.failures // [] | join(\"; \")' seeded-readiness.json 2>/dev/null | head -c 500)"
+      exit 1
+    fi
+  fi
 else
   echo "== build-verify ($TARGET): no fixtures.json — skipping seed =="
 fi
@@ -77,7 +84,8 @@ fi
 # Clear any leftover run artifacts BEFORE running, so a screenshot/report from a PRIOR attempt
 # (e.g. the agent tried `playwright` then switched the plan to `http`) can never be uploaded or
 # embedded as if it were THIS leg's evidence. Only the executor that actually runs now writes new ones.
-rm -rf test-results playwright-report phpunit-output.txt 2>/dev/null || true
+rm -rf playwright-report phpunit-output.txt 2>/dev/null || true
+find test-results -mindepth 1 ! -name 'seeded-readiness-*.png' -delete 2>/dev/null || true
 
 echo "== build-verify ($TARGET): running the executor =="
 TARGET="$TARGET" OUT="$OUT" REPRO_PLAN="$PLAN" bash "$BIN/execute/run-leg.sh"

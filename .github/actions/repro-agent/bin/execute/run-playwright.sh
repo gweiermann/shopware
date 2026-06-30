@@ -31,11 +31,17 @@ PW_STDERR=${PW_STDERR:-pw-stderr.txt}
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 BIN=${REPRO_AGENT_BIN:-$(cd "$SCRIPT_DIR/.." && pwd)}
 REPRO_AGENT_ROOT=${REPRO_AGENT_ROOT:-$(cd "$BIN/.." && pwd)}
+case "$REPORT" in
+  /*) ;;
+  *) REPORT="$(pwd)/$REPORT" ;;
+esac
 
 CONFIG_SRC="$REPRO_AGENT_ROOT/repro.playwright.config.ts"
 SANITIZER="$BIN/execute/sanitize-playwright-spec.mjs"
 if [ -z "${PW_RUN_DIR:-}" ]; then
-  if [ -d /tmp/gh-aw/agent ] && [ -w /tmp/gh-aw/agent ]; then
+  if [ -d "${RUNNER_TEMP:-}" ] && [ -w "${RUNNER_TEMP:-}" ]; then
+    PW_RUN_DIR="$RUNNER_TEMP/repro-playwright"
+  elif [ -d /tmp/gh-aw/agent ] && [ -w /tmp/gh-aw/agent ]; then
     PW_RUN_DIR=/tmp/gh-aw/agent/repro-playwright
   else
     PW_RUN_DIR=.repro-playwright
@@ -64,7 +70,11 @@ if [ -z "${PW_REPORT:-}" ]; then
   # Playwright's testDir is the config's directory, so the spec must live next to a run-local
   # copy of the immutable config. The tool directory stays read-only; this workdir is scratch.
   rm -rf "$PW_RUN_DIR"
-  mkdir -p "$PW_RUN_DIR"
+  if ! mkdir -p "$PW_RUN_DIR"; then
+    PW_RUN_DIR=.repro-playwright
+    rm -rf "$PW_RUN_DIR"
+    mkdir -p "$PW_RUN_DIR"
+  fi
   if [ -d node_modules ] && [ ! -e "$PW_RUN_DIR/node_modules" ]; then
     ln -s "$(pwd)/node_modules" "$PW_RUN_DIR/node_modules"
   fi

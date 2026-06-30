@@ -14,20 +14,22 @@ pipeline-failed result itself, and you must stop.
 2. Infer the likely surface from exact issue nouns: visible UI text, route/module names, entity
    names, API paths, component names, config keys, stack frames, or screenshots.
 3. If the repro needs static entity/config setup and the `shopware-*` MCP tools are available, use
-   MCP before any source deep dive. Call the relevant entity schema/search/read tools to learn the
-   live reported-version write shape/default relationships, then dry-run candidate payloads with
-   `shopware-entity-upsert` before finalizing `fixtures.json`. Source/test reads are secondary:
-   use them only for fields/rendering rules the MCP cannot explain, route/component owners,
-   locators, and the final healthy assertion.
+   MCP first. Call the relevant entity schema/search/read tools to learn the live reported-version
+   write shape/default relationships, then dry-run candidate payloads with `shopware-entity-upsert`
+   before finalizing `fixtures.json`. Know MCP's limit: it can prove DAL/Sync shape, but opaque JSON
+   fields such as `cms_slot.config` or `system_config.configurationValue` may need source schema
+   fallback. Use source only to discover that missing fixture/config schema and the rendered field
+   that proves setup; do not read source to investigate the product bug cause.
 4. Spend at most 8 read/search commands on a source-backed trail before authoring files. Use the
    normal shell read/search tools (`rg`, `find`, `sed -n`, `cat`, `ls`, `head`, `tail`, `grep`,
    `sort`, `wc`, `pwd`, `jq`) for repository inspection after the MCP fixture pass. Use the bounded
    source/test discovery budget primarily to complete or confirm the setup contract: CMS
    element/default config, rendering code, route/component owners, fixture examples, and source that
    reads the seeded state. Only read entity definitions or DAL write shape directly when MCP is
-   unavailable, incomplete, or contradicts the source. Only read suspected bug/root-cause code when
-   it changes the final healthy assertion. Read at most one prose documentation file, and only when
-   MCP plus source/tests do not expose the public workflow.
+   unavailable, incomplete, or contradicts the source. Do not read suspected bug/root-cause code
+   unless the setup schema is already known and the healthy assertion cannot otherwise be named.
+   Read at most one prose documentation file, and only when MCP plus source/tests do not expose the
+   public workflow.
 5. Stop discovery when you can write:
    `fixture_contract=<exact entities/config/browser state and the MCP/schema/source/test evidence proving each required field>`,
    `render_proof=<seeded marker/control that must be visibly present before the symptom>`,
@@ -90,11 +92,16 @@ already-provisioned reported-version shop and may expose `shopware-entity-schema
 
 MCP-first rule:
 - If `fixtures.json` will contain any static entity/config setup, call MCP before writing it.
+- MCP is preferred, not a blocker. If the Shopware MCP tools are missing, hidden behind a different
+  namespace, return only safeoutputs, or cannot answer the exact schema question, do not report a
+  missing required tool. State the limitation briefly in `agent_explanation` and immediately inspect
+  the codebase for entity definitions, fixtures, tests, migrations, templates, and DAL repository
+  usage that reveal the write shape.
 - If MCP provides the entity schema or a dry-run write result, treat that as the authoritative
   write-shape signal for the reported version.
-- Use source/tests only to answer questions MCP cannot answer: which seeded field is rendered,
-  which route/component consumes it, which locator proves it, or why a candidate payload is
-  insufficient.
+- Use source/tests only to answer questions MCP cannot answer: opaque JSON config shape, which
+  seeded field is rendered, which route/component consumes it, which locator proves it, or why a
+  candidate payload is insufficient.
 - If MCP tools are available but you intentionally do not use them for fixtures, explain why in
   `agent_explanation` before verification. Valid reasons are narrow: no `fixtures.json` is needed,
   the needed setup is browser-owned runtime state, or MCP returned no tools/errors for the required
@@ -164,6 +171,17 @@ proof unless the issue is about that chrome.
     { "path": "src/...", "reason": "route/module owner and stable visible state" },
     { "path": "tests/...", "reason": "fixture/API/entity shape used for setup" }
   ],
+  "seeded_readiness": [
+    {
+      "name": "seeded target is reachable in the UI surface",
+      "kind": "browser",
+      "path": "local relative route discovered from MCP/source ownership",
+      "selector": "source-backed selector for the seeded target/control",
+      "text": "unique seeded marker text when text proves the target",
+      "min_width": 1,
+      "min_height": 1
+    }
+  ],
   "scenario": ["Given ...", "When ...", "Then ..."],
   "script_path": "repro.spec.ts",
   "assertions": [],
@@ -210,6 +228,16 @@ to plain `locator.click()` / `locator.fill(value)` before running. The separate 
 pass runs only on trunk and uses the authored video layer. Never add extra assertions, brittle
 locators, or setup just to narrate the video.
 
+For Playwright runs with `fixtures.json`, add `seeded_readiness` checks for the seeded state that
+must exist before the symptom can be meaningful. These checks are not the bug assertion; they prove
+the setup. Derive the owning surface from MCP live examples and source ownership, not from a
+memorized surface list: identify which route/controller/component/template reads the seeded state,
+then declare a local path, selector, optional marker text, and optional minimum size that prove the
+seeded target is visible and not just generic page chrome. If MCP cannot identify the owning
+surface or rendered marker, use the narrow source fallback to discover only that route/selector/
+rendered-field fact. If the seed is only for an HTTP/direct executor, put setup checks in
+`assertions` or the test instead of browser readiness checks.
+
 ## Bundle Invariants
 Derive fixture payloads from MCP first when available, then use the source trail for routes,
 locators, rendered fields, and setup actions that MCP cannot explain.
@@ -223,11 +251,13 @@ fixture, template, or test needed to prove what the surface consumes. Seed the s
 MCP/source-proven graph. Nested child rows in fixtures must be idempotent too: when the source
 shape creates rows with composite uniqueness, give nested rows stable `id` values so repeated
 verifier runs update instead of duplicating them.
-For CMS element fixtures, source-read the registered element `defaultConfig` and at least one
-saved-page, migration, or test example for that element type before writing `fixtures.json`. Seed
-the complete minimum config the storefront/admin template reads directly, not only the field that
-seems related to the bug. If a Twig/Vue template reads `config.<key>.value`, that key must either be
-seeded or proven optional by source.
+For CMS element fixtures, MCP may prove only that `cms_slot.config` is writable JSON. If MCP does
+not return a live example with the exact element config, source-read the registered element
+`defaultConfig`, the CMS block slot registration, and the storefront/admin template that consumes
+the config before writing `fixtures.json`. Record these files in `source_trail`. Seed the complete
+minimum config the template reads directly, not only the field that seems related to the bug. If a
+Twig/Vue template reads `config.<key>.value` or an alias such as `sliderConfig.<key>.value`, that
+key must either be seeded or proven optional by source.
 In `fixtures.json`, use either the bare entity shape (`"product": [{...}]`) or a complete Sync API
 operation envelope (`"product": {"entity": "product", "action": "upsert", "payload": [...]}`).
 Do not write payload-only objects; Sync API operations require `action`.
