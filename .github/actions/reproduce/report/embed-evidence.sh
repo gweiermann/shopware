@@ -22,8 +22,7 @@ for dir in "$ART"/repro-*/; do
   [ -d "$dir" ] || continue
   [ "$(jq -r '.executor // ""' "$dir/result.json" 2>/dev/null)" = playwright ] || continue
   png=$(find "$dir" -name 'test-*.png' 2>/dev/null | head -1); [ -n "$png" ] || continue
-  vid=$(find "$dir/narrated-video" -name '*.webm' 2>/dev/null | head -1 || true)
-  [ -n "$vid" ] || vid=$(find "$dir" -name '*.webm' 2>/dev/null | head -1 || true)
+  vid=$(find "$dir" -name '*.webm' 2>/dev/null | head -1 || true)   # present only when record_video opted in
   names+=("$(basename "$dir" | sed 's/^repro-//')"); pngs+=("$png"); vids+=("$vid")
   stats+=("$(jq -r '.status // "?"' "$dir/result.json" 2>/dev/null || echo '?')")
 done

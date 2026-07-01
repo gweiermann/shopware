@@ -342,6 +342,7 @@ safe-outputs:
             jq -r '"admin_build=\(.build_profile.admin_build // false)"' reproduction-plan.json >> "$GITHUB_OUTPUT"
             jq -r '"storefront_build=\(.build_profile.storefront_build // false)"' reproduction-plan.json >> "$GITHUB_OUTPUT"
             jq -r '"demodata=\(.fixtures.demodata // false)"' reproduction-plan.json >> "$GITHUB_OUTPUT"
+            jq -r '"record_video=\(.record_video // false)"' reproduction-plan.json >> "$GITHUB_OUTPUT"
 
         - name: Provision trunk
           id: provision-setup
@@ -393,6 +394,7 @@ safe-outputs:
             TARGET: trunk
             APP_URL: ${{ steps.provision.outputs.app_url }}
             SW_ACCESS_KEY: ${{ steps.provision.outputs.access_key }}
+            REPRO_RECORD_VIDEO: ${{ steps.plan.outputs.record_video == 'true' && '1' || '' }}
           run: node .github/actions/reproduce/cli/repro.mjs verify
 
         # Arrange the two legs + the plan the way verdict.mjs / comment.mjs expect.

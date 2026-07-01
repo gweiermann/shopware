@@ -1,12 +1,11 @@
 // `repro validate` — thin, structural contract check. Trust in the verdict comes from the
 // deterministic two-leg re-run, NOT from this file, so it enforces only what is structural or
 // genuinely trust/correctness-critical and leaves quality choices to the prompt guides. It also
-// sanitizes + inspects the Playwright spec so shape defects are caught WITHOUT executing anything.
+// inspects the Playwright spec so shape defects are caught WITHOUT executing anything.
 //
 // Refusals print `REFUSED — <reason>` and exit 1; a clean bundle prints `ok`.
 import fs from 'node:fs';
 import { FILES, EXECUTORS, LAYERS, readJson } from './lib.mjs';
-import { sanitizeSpec } from './sanitize-spec.mjs';
 
 const LOCAL_HOSTS = ['localhost', '127.0.0.1', 'host.docker.internal'];
 
@@ -45,7 +44,7 @@ function validateSpec(plan) {
   const specPath = plan.script_path || FILES.specTs;
   if (!fs.existsSync(specPath)) return [`playwright plan needs ${specPath}`];
   const errors = [];
-  const spec = sanitizeSpec(fs.readFileSync(specPath, 'utf8')); // check what will actually RUN
+  const spec = fs.readFileSync(specPath, 'utf8'); // the exact spec the deterministic leg will run
 
   const imports = [...spec.matchAll(/\bfrom\s+['"]([^'"]+)['"]/g)].map((m) => m[1]);
   const badImport = imports.find((m) => m !== '@playwright/test');

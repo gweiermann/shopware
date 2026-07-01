@@ -11,6 +11,7 @@ The deterministic handoff. `repro validate` enforces the required parts; everyth
   "version": "6.6.10.0",                 // reported version (given in context.md)
   "build_profile": { "admin_build": false, "storefront_build": true },
   "browser_state": { "auto_cookie_consent": true },
+  "record_video": false,                 // playwright: true → the trunk leg records a .webm (motion/interaction bugs)
   "fixtures": { "demodata": false },     // set demodata:true only if realistic catalog volume is needed
   "seeded_readiness": [                  // playwright + fixtures: prove the seeded state renders
     { "kind": "browser", "path": "/detail/<id>", "selector": ".product-detail-name", "text": "Seeded Product" }
@@ -31,6 +32,8 @@ The deterministic handoff. `repro validate` enforces the required parts; everyth
 - **build_profile** tells the trunk leg what to build — only what your repro needs, so trunk provisions fast.
 - **browser_state.auto_cookie_consent** — leave `true` for ordinary Storefront bugs (the harness
   pre-accepts consent). Set `false` only when the bug *is* the cookie/consent flow.
+- **record_video** — optional, playwright only. `true` records a `.webm` of the trunk run for the
+  comment; use it only for motion/interaction bugs a screenshot can't convey. See [playwright.md](playwright.md).
 - **seeded_readiness** — required when a playwright repro uses `fixtures.json`. It proves SETUP, not
   the symptom: use a stable seeded-identity marker (product title/number, a container), never the
   reported broken control. Details in [fixtures.md](fixtures.md).

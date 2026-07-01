@@ -5,8 +5,7 @@ the buggy version (⇒ reproduced) and passes when healthy (⇒ not_reproduced).
 
 ## The rules `repro validate` enforces
 
-- **Import only `@playwright/test`.** (You may `import … from './repro-video.js'` for optional
-  narration — it's stripped before the run.)
+- **Import only `@playwright/test`.**
 - **Exactly one awaited `expect(...)`** — the final healthy-symptom assertion. Everything before it
   is setup, expressed as waits/actions, not asserts.
 - **No API setup from the spec** — no `fetch`, `page.request.*`, or `page.evaluate(fetch…)`. Static
@@ -38,12 +37,12 @@ Keep each precondition its own gate so a failure names the missing state.
 - **storefront-ui:** the harness pre-accepts cookie consent by default. Don't clear cookies unless
   the bug is the consent flow (`browser_state.auto_cookie_consent: false`).
 
-## Optional video (trunk evidence only)
+## Optional video evidence
 
-You may wrap narration in `/* REPRO_VIDEO_ONLY_START */ … /* REPRO_VIDEO_ONLY_END */` and use
-`clickMarked(page, locator, "label")` / `fillMarked(page, locator, value, "label")` from
-`./repro-video.js`. These are stripped/unwrapped to plain actions before the deterministic run — never
-add assertions or brittle locators just to narrate.
+A screenshot + Playwright trace is captured for every run. If the bug is inherently about motion or a
+multi-step interaction (an animation, a drag, a flow that a still frame can't convey), set
+`"record_video": true` in `reproduction-plan.json` — the trunk leg then records a `.webm` and the
+comment links it. Leave it off (the default) otherwise; a screenshot is enough for most bugs.
 
 Use `repro check` and `playwright-cli` to nail selectors and timing before committing the spec; a
 final `repro try` gives a non-authoritative preview and points you at the screenshot to review.

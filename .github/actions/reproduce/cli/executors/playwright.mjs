@@ -9,10 +9,8 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { FILES, appUrl, makeResult, readJson } from '../lib.mjs';
-import { sanitizeSpec } from '../sanitize-spec.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const videoMode = ['1', 'true'].includes(process.env.REPRO_VIDEO_MODE || '');
 const stripAnsi = (s) => s.replace(/\[[0-9;]*m/g, '');
 
 export async function run({ plan, target }) {
@@ -22,7 +20,7 @@ export async function run({ plan, target }) {
   const storage = prepareAuth(plan, target);
   if (storage.blocked) return storage.blocked;
 
-  const spec = videoMode ? fs.readFileSync(specPath, 'utf8') : sanitizeSpec(fs.readFileSync(specPath, 'utf8'));
+  const spec = fs.readFileSync(specPath, 'utf8');
   const report = runSpec(spec, storage.state);
   return classify(plan, target, spec, report);
 }
@@ -50,8 +48,6 @@ function runSpec(spec, storageState) {
   fs.mkdirSync(runDir, { recursive: true });
   if (fs.existsSync('node_modules') && !fs.existsSync(path.join(runDir, 'node_modules'))) fs.symlinkSync(path.resolve('node_modules'), path.join(runDir, 'node_modules'));
   fs.copyFileSync(path.join(here, '..', 'playwright.config.ts'), path.join(runDir, 'playwright.config.ts'));
-  const video = path.join(here, '..', '..', 'repro-video.js');
-  if (fs.existsSync(video)) fs.copyFileSync(video, path.join(runDir, 'repro-video.js'));
   fs.writeFileSync(path.join(runDir, FILES.specTs), spec);
 
   const reportPath = path.resolve('pw-report.json');
