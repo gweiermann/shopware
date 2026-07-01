@@ -12,6 +12,14 @@ DEMODATA=${DEMODATA:-false}
 
 { echo "SHOPWARE_HTTP_CACHE_ENABLED=0"; echo "SHOPWARE_DISABLE_UPDATE_CHECK=true"; echo "BLUE_GREEN_DEPLOYMENT=1"; echo "MCP_SERVER=1"; } >> "$GITHUB_ENV"
 
+# Persist to the shop's .env.local so the DEV SERVER (started below) and both legs pick it up —
+# a GITHUB_ENV write only reaches later steps, not the server we start in this one. Disabling the
+# update check makes /api/_action/update/check return empty, so the Admin never shows the
+# "new version available" banner that otherwise pops in async and intercepts clicks. Repro specs
+# no longer need to dismiss it; a repro specifically about that banner is the rare exception.
+grep -q '^SHOPWARE_DISABLE_UPDATE_CHECK=' "$SHOP_DIR/.env.local" 2>/dev/null \
+  || printf '\nSHOPWARE_DISABLE_UPDATE_CHECK=1\n' >> "$SHOP_DIR/.env.local"
+
 mcp_available=false
 if ( cd "$SHOP_DIR" && APP_ENV=prod MCP_SERVER=1 php bin/console list --raw | grep -q '^debug:mcp ' ); then
   mcp_available=true; echo "Shopware MCP tooling is available."

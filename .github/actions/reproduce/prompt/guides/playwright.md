@@ -33,7 +33,8 @@ Keep each precondition its own gate so a failure names the missing state.
 
 - **admin-ui:** the harness logs in and hands the spec an authenticated session. Navigate straight to
   `/admin#/sw/...`; do **not** author login steps. (A login/bootstrap bug is the exception — then
-  clear state, drive `/admin#/login` yourself, and assert the shell becomes usable.)
+  clear state, drive `/admin#/login` yourself, and assert the shell becomes usable.) The Admin
+  "new version available" banner is disabled by the harness, so don't add code to dismiss it.
 - **storefront-ui:** the harness pre-accepts cookie consent by default. Don't clear cookies unless
   the bug is the consent flow (`browser_state.auto_cookie_consent: false`).
 
