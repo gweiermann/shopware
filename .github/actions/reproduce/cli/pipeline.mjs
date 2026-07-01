@@ -7,8 +7,9 @@ import { spawnSync } from 'node:child_process';
 import { FILES, appUrl, readJson, writeJson, blockedResult } from './lib.mjs';
 import { reset } from './reset.mjs';
 import { seed } from './seed.mjs';
-import { check } from './check.mjs';
 import { runBundle } from './run-bundle.mjs';
+// check.mjs pulls in @playwright/test, which is only installed for playwright bundles — import it
+// lazily so an http/direct verify never needs Playwright.
 
 export async function pipeline({ target, out, reset: doReset }) {
   if (!appUrl()) return fail(target, out, 'APP_URL is not set — the live shop coordinates were not exported');
@@ -23,6 +24,7 @@ export async function pipeline({ target, out, reset: doReset }) {
     catch (err) { return fail(target, out, `seeding fixtures.json failed: ${err.message}`); }
 
     if (plan.executor === 'playwright') {
+      const { check } = await import('./check.mjs');
       const readiness = await check({ plan });
       if (!readiness.ok && !readiness.skipped) return fail(target, out, `seeded readiness precondition failed: ${(readiness.failures || []).join('; ').slice(0, 500)}`);
     }

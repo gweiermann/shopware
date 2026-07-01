@@ -169,8 +169,22 @@ function checksBlock(leg) {
     const name = ops[c.op] || 'Equals';
     const call = ['present', 'absent'].includes(c.op) ? `${verb}${name}(${c.subject})` : `${verb}${name}(${c.subject}, ${qval(String(c.expected))})`;
     const suffix = c.label && c.label !== 'null' ? ` - ${clean(c.label)}` : '';
-    lines.push(c.ok ? `${call} // ✅${suffix}` : `${call} // ❌ got ${qval(String(c.actual))}${suffix}`);
+    if (c.ok) { lines.push(`${call} // ✅${suffix}`); continue; }
+    const actual = String(c.actual);
+    if (actual.includes('\n')) {
+      // A multi-line value (e.g. a JSON error body) can't sit behind a `//` line comment — the
+      // second line would break the fence. Put it in a /* … */ block on its own lines.
+      lines.push(`${call} // ❌${suffix}`, `/* got:\n${blockSafe(actual)}\n*/`);
+    } else {
+      lines.push(`${call} // ❌ got ${qval(actual)}${suffix}`);
+    }
   }
   lines.push('```');
   return lines.join('\n');
+}
+
+// Keep a multi-line value intact for a block comment: cap the length and neutralize any `*/`.
+function blockSafe(s) {
+  const capped = s.length > 1200 ? `${s.slice(0, 1200)}\n… (truncated)` : s;
+  return capped.replace(/\*\//g, '* /');
 }
