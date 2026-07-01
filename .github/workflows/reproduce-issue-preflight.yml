@@ -50,12 +50,6 @@ jobs:
           DEMODATA: "false"
         run: bash .github/actions/reproduce/steps/finish-provision.sh
 
-      - name: Expose shop on sandbox port
-        env:
-          TARGET_URL: ${{ steps.provision.outputs.app_url }}
-          SANDBOX_APP_PORT: "18080"
-        run: bash .github/actions/reproduce/steps/expose-shop.sh
-
       - name: Snapshot clean DB
         run: bash .github/actions/reproduce/steps/snapshot-db.sh
 
@@ -72,7 +66,7 @@ jobs:
         if: steps.provision.outputs.mcp_available == 'true'
         env:
           SHOPWARE_MCP_AVAILABLE: ${{ steps.provision.outputs.mcp_available }}
-          SHOPWARE_MCP_URL: "http://127.0.0.1:18080/api/_mcp"
+          SHOPWARE_MCP_URL: "http://127.0.0.1:8000/api/_mcp"
           SHOPWARE_MCP_ACCESS_KEY: ${{ steps.provision.outputs.mcp_access_key }}
           SHOPWARE_MCP_SECRET_ACCESS_KEY: ${{ steps.provision.outputs.mcp_secret_access_key }}
           SHOPWARE_MCP_BRIDGE_PORT: "18765"
@@ -105,7 +99,7 @@ jobs:
 
       - name: repro validate / seed / check
         env:
-          APP_URL: ${{ env.REPRO_HOST_APP_URL }}
+          APP_URL: ${{ steps.provision.outputs.app_url }}
         run: |
           set -euo pipefail
           node .github/actions/reproduce/cli/repro.mjs validate

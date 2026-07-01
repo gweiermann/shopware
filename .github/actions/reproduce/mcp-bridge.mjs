@@ -12,7 +12,7 @@ import readline from 'node:readline';
 
 // Remote MCP is opt-in and requires Admin API credentials.
 const disabled = process.env.SHOPWARE_MCP_AVAILABLE !== 'true';
-const endpoint = process.env.SHOPWARE_MCP_URL || 'http://host.docker.internal:18080/api/_mcp';
+const endpoint = process.env.SHOPWARE_MCP_URL || 'http://127.0.0.1:8000/api/_mcp';
 const accessKey = process.env.SHOPWARE_MCP_ACCESS_KEY || '';
 const secretAccessKey = process.env.SHOPWARE_MCP_SECRET_ACCESS_KEY || '';
 const protocolVersion = '2025-03-26';

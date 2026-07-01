@@ -10,7 +10,7 @@ of this tooling on fresh runners, the agent cannot fake a result — so the evid
 ## Pipeline
 
 ```
-issue → fetch-issue → resolve-version → provision(reported) → expose-shop → snapshot-db → context.md
+issue → fetch-issue → resolve-version → provision(reported) → snapshot-db → context.md
       → AGENT: author bundle, verify assumptions (seed / check / playwright-cli), stop
       → post-steps: guard workspace → repro verify (reported, from the immutable copy) → upload artifacts
       → trunk job (fresh runner): provision(trunk) → repro verify (trunk) → verdict → comment

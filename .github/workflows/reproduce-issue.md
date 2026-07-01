@@ -127,12 +127,6 @@ steps:
       DEMODATA: "false"
     run: bash .github/actions/reproduce/steps/finish-provision.sh
 
-  - name: Expose shop on sandbox port
-    env:
-      TARGET_URL: ${{ steps.provision.outputs.app_url }}
-      SANDBOX_APP_PORT: "18080"
-    run: bash .github/actions/reproduce/steps/expose-shop.sh
-
   - name: Snapshot clean DB
     run: bash .github/actions/reproduce/steps/snapshot-db.sh
 
@@ -140,14 +134,15 @@ steps:
     env:
       ISSUE: ${{ github.event.issue.number || inputs.issue_number }}
       VERSION: ${{ steps.version.outputs.is_trunk == 'true' && 'trunk' || steps.version.outputs.target_version }}
-      APP_URL: ${{ env.REPRO_HOST_APP_URL }}
+      APP_URL: ${{ steps.provision.outputs.app_url }}
     run: bash .github/actions/reproduce/steps/compose-prompt.sh
 
-  # Point the agent's CLI + browser at the runner-visible proxy (unsandboxed), and hand it the keys.
+  # The agent runs unsandboxed, so it reaches the shop directly at its real URL — same origin as the
+  # Admin SPA, which avoids the cross-origin admin-login failure a Host-rewriting proxy caused.
   - name: Export shop coordinates
     run: |
       {
-        echo "APP_URL=${REPRO_HOST_APP_URL}"
+        echo "APP_URL=${{ steps.provision.outputs.app_url }}"
         echo "SW_ACCESS_KEY=${{ steps.provision.outputs.access_key }}"
         echo "ADMIN_USER=admin"
         echo "ADMIN_PASS=shopware"
@@ -180,7 +175,7 @@ steps:
   - name: Start Shopware MCP bridge
     env:
       SHOPWARE_MCP_AVAILABLE: ${{ steps.provision.outputs.mcp_available }}
-      SHOPWARE_MCP_URL: "http://127.0.0.1:18080/api/_mcp"
+      SHOPWARE_MCP_URL: "http://127.0.0.1:8000/api/_mcp"
       SHOPWARE_MCP_ACCESS_KEY: ${{ steps.provision.outputs.mcp_access_key }}
       SHOPWARE_MCP_SECRET_ACCESS_KEY: ${{ steps.provision.outputs.mcp_secret_access_key }}
       SHOPWARE_MCP_BRIDGE_PORT: "18765"
@@ -235,7 +230,7 @@ post-steps:
     env:
       REPRO_ALLOW_VERIFY: "1"
       TARGET: reported
-      APP_URL: ${{ env.REPRO_HOST_APP_URL }}
+      APP_URL: ${{ steps.provision.outputs.app_url }}
     run: |
       set -euo pipefail
       node /tmp/reproduce/cli/repro.mjs validate

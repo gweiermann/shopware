@@ -9,7 +9,7 @@ set -uo pipefail
 
 ISSUE=${ISSUE:-?}
 VERSION=${VERSION:-trunk}
-APP_URL=${APP_URL:-http://host.docker.internal:18080}
+APP_URL=${APP_URL:-http://localhost:8000}
 OUT=${OUT:-context.md}
 
 # Conservative visual/api classification. Errs toward `visual`: a false `visual` costs an agent
