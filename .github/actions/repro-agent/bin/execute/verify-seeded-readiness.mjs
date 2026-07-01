@@ -1,11 +1,14 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
 
 const appUrl = (process.env.APP_URL || '').replace(/\/$/, '');
 const planPath = process.env.REPRO_PLAN || 'reproduction-plan.json';
 const out = process.env.OUT || 'seeded-readiness.json';
+const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 
 function writeResult(result) {
   fs.writeFileSync(out, `${JSON.stringify(result, null, 2)}\n`);
@@ -61,6 +64,19 @@ const browser = await chromium.launch({ headless: true });
 
 try {
   const contextOptions = fs.existsSync('admin-state.json') ? { storageState: 'admin-state.json' } : {};
+  if (!contextOptions.storageState
+    && plan.layer === 'storefront-ui'
+    && plan.browser_state?.auto_cookie_consent !== false) {
+    const storageState = '.repro-storefront-readiness-state.json';
+    const result = spawnSync(process.execPath, [
+      path.join(scriptDir, 'storefront-consent-state.mjs'),
+      appUrl,
+      storageState,
+    ], { stdio: 'ignore' });
+    if (result.status === 0 && fs.existsSync(storageState)) {
+      contextOptions.storageState = storageState;
+    }
+  }
   const context = await browser.newContext({ ...contextOptions, viewport: { width: 1280, height: 840 } });
   const page = await context.newPage();
 

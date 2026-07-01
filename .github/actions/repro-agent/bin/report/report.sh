@@ -140,6 +140,7 @@ checks_block () { # <result.json>
     while IFS= read -r c; do
       subj=$(jq -r '.subject' <<<"$c"); op=$(jq -r '.op // "equals"' <<<"$c")
       role=$(jq -r '.role // "assert"' <<<"$c")
+      [ "$role" = precondition ] || role=assert
       exp=$(jq -r '.expected | tostring' <<<"$c"); act=$(jq -r '.actual | tostring' <<<"$c")
       ok=$(jq -r '.ok' <<<"$c")
       label=$(jq -r '.label // ""' <<<"$c")
@@ -163,7 +164,7 @@ checks_block () { # <result.json>
       [ -n "$label" ] && [ "$label" != null ] && suffix=" - $(jcomment "$label")"
       if [ "$ok" = true ]; then echo "${call} // ✅${suffix}"
       else echo "${call} // ❌ got $(qval "$act")${suffix}"; fi
-    done < <(jq -c '.assertion.checks[]' "$f")
+    done < <(jq -c '.assertion.checks | sort_by(if (.role // "assert") == "precondition" then 0 else 1 end)[]' "$f")
     echo '```'
   else
     local rep; rep=$(jq -r '.evidence.reporter_output // ""' "$f")

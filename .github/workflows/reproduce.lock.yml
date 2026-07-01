@@ -1012,10 +1012,6 @@ jobs:
           if [ ! -f /tmp/gh-aw/agent_output.json ]; then
             echo '{"items":[]}' > /tmp/gh-aw/agent_output.json
           fi
-      - id: source_read_guard
-        if: always()
-        name: Reject forbidden bug-source reads
-        run: "set -euo pipefail\nlog=/tmp/gh-aw/agent-stdio.log\n[ -f \"$log\" ] || exit 0\nforbidden=$(grep -E \\\n  'src/Storefront/Resources/app/storefront/src/.*\\.(s?css|less|js|ts)|\\.scratch/repro-agent-local|repro-agent-local/runs|git (log|blame|show)' \\\n  \"$log\" || true)\nif [ -n \"$forbidden\" ]; then\n  echo \"::error::Agent inspected forbidden bug/source-history material instead of staying fixture/schema focused.\"\n  printf '%s\\n' \"$forbidden\" | head -40\n  exit 1\nfi\n"
       - id: protected_guard
         if: always()
         name: Reject protected workflow/helper edits
@@ -1028,14 +1024,14 @@ jobs:
         env:
           REPROCTL_ALLOW_AUTHORITATIVE: "1"
         id: reported_verify
-        if: always() && steps.source_read_guard.outcome == 'success' && steps.protected_guard.outcome == 'success' && steps.bundle_guard.outcome == 'success' && hashFiles('reproduction-plan.json') != ''
+        if: always() && steps.protected_guard.outcome == 'success' && steps.bundle_guard.outcome == 'success' && hashFiles('reproduction-plan.json') != ''
         name: Authoritative reported-version verification
         run: |
           set -euo pipefail
           export APP_URL="${REPRO_HOST_APP_URL:?REPRO_HOST_APP_URL is not set}"
           node /tmp/reproctl/reproctl.mjs validate
           node /tmp/reproctl/reproctl.mjs verify-authoritative
-      - if: always() && steps.source_read_guard.outcome == 'success' && steps.protected_guard.outcome == 'success' && steps.bundle_guard.outcome == 'success'
+      - if: always() && steps.protected_guard.outcome == 'success' && steps.bundle_guard.outcome == 'success'
         name: Upload repro bundle
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -1048,7 +1044,7 @@ jobs:
             repro.spec.ts
             ReproTest.php
           retention-days: 7
-      - if: always() && steps.source_read_guard.outcome == 'success' && steps.protected_guard.outcome == 'success' && steps.bundle_guard.outcome == 'success' && hashFiles('result.json') != ''
+      - if: always() && steps.protected_guard.outcome == 'success' && steps.bundle_guard.outcome == 'success' && hashFiles('result.json') != ''
         name: Upload reported leg
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

@@ -180,6 +180,7 @@ proof unless the issue is about that chrome.
   "executor": "playwright",
   "version": "{{VERSION}}",
   "build_profile": { "admin_build": false, "storefront_build": true, "theme_build": true },
+  "browser_state": { "auto_cookie_consent": true },
   "fixtures": { "demodata": false, "sync_payload_path": "fixtures.json" },
   "source_trail": [
     { "path": "src/...", "reason": "route/module owner and stable visible state" },
@@ -225,6 +226,12 @@ when the scenario cannot be exercised. Keep each setup gate separate so verifier
 missing state. Do not decide a rendered precondition from an immediate `locator.count()` sample;
 SPA/Admin pages and throttled-network flows can still be loading. Use a bounded
 `locator.waitFor({ state: "visible", timeout: ... }).catch(...)` instead.
+For Storefront Playwright runs, the harness seeds the normal required-cookie consent state by
+default before browser exploration, seeded readiness, and final verification. Leave
+`browser_state.auto_cookie_consent` unset or `true` for ordinary Storefront bugs. Set it to `false`
+only when the reported bug is about the cookie/consent banner or cookie preference flow, and then
+make that banner behavior an explicit precondition/assertion. Do not clear Storefront cookies or
+storage in the generated spec unless the reported scenario requires a fresh consent state.
 Playwright specs must not call Admin API endpoints through `page.request`, browser `fetch`, or
 `page.evaluate(fetch(...))` to create or patch setup state. Put static entity/config state in
 `fixtures.json`; create browser-owned runtime state only through the owning UI flow or same-context

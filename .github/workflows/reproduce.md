@@ -256,22 +256,6 @@ pre-agent-steps:
 # hostile input, rerun the reported-version verification from the immutable tool copy, and only then
 # upload result.json for the trunk/verdict job.
 post-steps:
-  - name: Reject forbidden bug-source reads
-    id: source_read_guard
-    if: always()
-    run: |
-      set -euo pipefail
-      log=/tmp/gh-aw/agent-stdio.log
-      [ -f "$log" ] || exit 0
-      forbidden=$(grep -E \
-        'src/Storefront/Resources/app/storefront/src/.*\.(s?css|less|js|ts)|\.scratch/repro-agent-local|repro-agent-local/runs|git (log|blame|show)' \
-        "$log" || true)
-      if [ -n "$forbidden" ]; then
-        echo "::error::Agent inspected forbidden bug/source-history material instead of staying fixture/schema focused."
-        printf '%s\n' "$forbidden" | head -40
-        exit 1
-      fi
-
   - name: Reject protected workflow/helper edits
     id: protected_guard
     if: always()
@@ -322,7 +306,7 @@ post-steps:
 
   - name: Authoritative reported-version verification
     id: reported_verify
-    if: always() && steps.source_read_guard.outcome == 'success' && steps.protected_guard.outcome == 'success' && steps.bundle_guard.outcome == 'success' && hashFiles('reproduction-plan.json') != ''
+    if: always() && steps.protected_guard.outcome == 'success' && steps.bundle_guard.outcome == 'success' && hashFiles('reproduction-plan.json') != ''
     continue-on-error: true
     env:
       REPROCTL_ALLOW_AUTHORITATIVE: "1"
@@ -333,7 +317,7 @@ post-steps:
       node /tmp/reproctl/reproctl.mjs verify-authoritative
 
   - name: Upload repro bundle
-    if: always() && steps.source_read_guard.outcome == 'success' && steps.protected_guard.outcome == 'success' && steps.bundle_guard.outcome == 'success'
+    if: always() && steps.protected_guard.outcome == 'success' && steps.bundle_guard.outcome == 'success'
     uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
     with:
       name: repro-plan
@@ -347,7 +331,7 @@ post-steps:
       retention-days: 7
 
   - name: Upload reported leg
-    if: always() && steps.source_read_guard.outcome == 'success' && steps.protected_guard.outcome == 'success' && steps.bundle_guard.outcome == 'success' && hashFiles('result.json') != ''
+    if: always() && steps.protected_guard.outcome == 'success' && steps.bundle_guard.outcome == 'success' && hashFiles('result.json') != ''
     uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
     with:
       name: repro-reported

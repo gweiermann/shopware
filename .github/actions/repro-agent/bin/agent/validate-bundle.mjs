@@ -1835,6 +1835,14 @@ if (String(plan.derived_from ?? '').trim() && String(plan.derived_from).trim() !
   fail('derived_from must stay null in reproduce bundles; do not research source history, likely fixes, or bug-cause provenance while building fixtures');
 }
 
+if (plan.browser_state && typeof plan.browser_state !== 'object') {
+  fail('reproduction-plan.json browser_state must be an object when present');
+}
+
+if (plan.browser_state?.auto_cookie_consent !== undefined && typeof plan.browser_state.auto_cookie_consent !== 'boolean') {
+  fail('reproduction-plan.json browser_state.auto_cookie_consent must be a boolean; omit it or use true for ordinary Storefront runs, false only for cookie/consent-banner reports');
+}
+
 if (executor === 'playwright') {
   const specPath = String(plan.script_path || 'repro.spec.ts');
   const spec = read(specPath);

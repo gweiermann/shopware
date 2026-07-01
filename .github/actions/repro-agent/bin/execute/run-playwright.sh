@@ -49,12 +49,14 @@ if [ -z "${PW_RUN_DIR:-}" ]; then
 fi
 if [ -z "${PW_REPORT:-}" ]; then
   [ -f "$SPEC" ] || { echo "::error::generated spec '$SPEC' not found"; exit 1; }
+  LAYER=$(jq -r '.layer // ""' "$ANALYSIS")
+  AUTO_COOKIE_CONSENT=$(jq -r '.browser_state.auto_cookie_consent // true' "$ANALYSIS" 2>/dev/null || echo true)
   # admin-ui: the HARNESS logs in (proven locators, once) and hands the spec an
   # authenticated session via storageState — generated specs must not author login steps
   # (the recurring source of strict-mode locator fumbles). A login failure here is an env
   # problem, not a reproduction result => blocked.
   PW_STORAGE=""
-  if [ "$(jq -r '.layer // ""' "$ANALYSIS")" = "admin-ui" ]; then
+  if [ "$LAYER" = "admin-ui" ]; then
     if node "$BIN/execute/login-state.mjs" "$APP_URL" admin-state.json; then
       PW_STORAGE="admin-state.json"
     else
@@ -65,6 +67,12 @@ if [ -z "${PW_REPORT:-}" ]; then
           evidence:{script:"",script_lang:"ts",reporter_output:"harness admin login failed",http:[],artifacts:[],truncated:false},
           blocked_reason:"the harness could not log in to the admin (env problem, not a reproduction result)" }' > "$OUT"
       echo "status=blocked  (harness admin login failed)"; exit 0
+    fi
+  elif [ "$LAYER" = "storefront-ui" ] && [ "$AUTO_COOKIE_CONSENT" != "false" ]; then
+    if node "$BIN/execute/storefront-consent-state.mjs" "$APP_URL" storefront-state.json; then
+      PW_STORAGE="storefront-state.json"
+    else
+      echo "::warning::could not create storefront consent storage state; continuing without it"
     fi
   fi
   # Playwright's testDir is the config's directory, so the spec must live next to a run-local

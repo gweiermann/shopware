@@ -95,24 +95,13 @@ function cleanNullable(value) {
   return text === 'null' ? '' : text;
 }
 
-function planSummaryLines(plan) {
-  if (!plan || typeof plan !== 'object') return [];
-
-  const blockedReason = cleanNullable(plan.blocked_reason);
-  const lines = [];
-
-  if (blockedReason) {
-    lines.push(`**Why it stopped:** ${compactPublicSummary(blockedReason)}`);
-  }
-
-  return lines;
+function planBlockedReason(plan) {
+  if (!plan || typeof plan !== 'object') return '';
+  return compactPublicSummary(cleanNullable(plan.blocked_reason));
 }
 
-function printPlanSummary(lines) {
-  for (const line of lines) {
-    console.log();
-    console.log(line);
-  }
+function firstUsefulReason(...candidates) {
+  return candidates.map((candidate) => compactPublicSummary(candidate)).find(Boolean) || '';
 }
 
 const agentOutput = readJson(process.env.AGENT_OUTPUT || process.argv[2]);
@@ -131,19 +120,23 @@ const hasTrunkHandoff = types.has('reproduce_on_trunk');
 const hasGiveupHandoff = items.some((item) => item?.type === 'reproduce_on_trunk' && item?.status === 'giveup');
 const agentLog = readText(process.env.AGENT_LOG || '/tmp/gh-aw/agent-stdio.log');
 const transientProviderFailure = /(?:api_error_status":500|error_status":529|API Error: 500|Internal server error|overloaded_error|error":"overloaded"|Overloaded)/i.test(agentLog);
-const planLines = planSummaryLines(readPlan());
+const plan = readPlan();
+const planBlocked = planBlockedReason(plan);
 
 let status = 'No deterministic verdict produced';
 let summary = 'The agent finished without handing off a classified reported-version result to the deterministic trunk/verdict job.';
 let omitNotice = true;
 let shortPipelineFailed = false;
+let why = '';
 
 if (agentResult === 'failure' && transientProviderFailure) {
   status = 'Agent provider failure (retry later)';
   summary = 'The Claude API returned overload/internal-server errors before the agent could produce a reproduction bundle. This is likely transient; retrying later may resolve it.';
+  why = summary;
 } else if (['failure', 'cancelled', 'timed_out'].includes(agentResult)) {
-  status = `Agent job ${agentResult}`;
-  summary = 'The agent did not finish cleanly, so the workflow could not produce a trusted reproduction verdict.';
+  status = 'incomplete';
+  summary = 'The workflow was not able to confirm or disprove the bug report.';
+  why = firstUsefulReason(agentPipelineSummary(items), planBlocked, `the agent job ended with ${agentResult}`);
 } else if (hasGiveupHandoff) {
   shortPipelineFailed = true;
 } else if (hasTrunkHandoff && trunkResult === 'success') {
@@ -151,8 +144,9 @@ if (agentResult === 'failure' && transientProviderFailure) {
   summary = 'The agent handed off a reported-version result and the deterministic trunk/verdict job finished.';
   omitNotice = false;
 } else if (hasTrunkHandoff) {
-  status = `Deterministic report job ${trunkResult}`;
-  summary = 'The agent handed off a result, but the deterministic trunk/verdict job did not finish successfully.';
+  status = 'incomplete';
+  summary = 'The workflow was not able to confirm or disprove the bug report.';
+  why = firstUsefulReason(planBlocked, `the deterministic report job ended with ${trunkResult}`);
 } else if (items.some((item) => item?.type === 'report_incomplete')) {
   shortPipelineFailed = true;
 } else if (items.some((item) => item?.type === 'noop')) {
@@ -160,23 +154,34 @@ if (agentResult === 'failure' && transientProviderFailure) {
 } else if (items.some((item) => item?.type === 'missing_tool')) {
   shortPipelineFailed = true;
 } else if (errors.length > 0) {
-  status = 'Agent output could not be processed cleanly';
-  summary = 'Safe-output processing reported errors before a trusted verdict could be posted.';
+  status = 'incomplete';
+  summary = 'The workflow was not able to confirm or disprove the bug report.';
+  why = firstUsefulReason(errors.map((error) => error?.message || error).join('; '), 'safe-output processing reported errors before a trusted verdict could be posted');
 }
 
 if (shortPipelineFailed) {
-  const pipelineSummary = agentPipelineSummary(items);
+  const pipelineSummary = firstUsefulReason(agentPipelineSummary(items), planBlocked, 'the agent did not hand off a verified reproduction bundle');
 
-  console.log('## Reproduction (gh-aw): Pipeline failed');
+  console.log('## Reproduction: incomplete');
   console.log();
-  if (pipelineSummary) {
-    console.log('The agent could not produce a trusted reproduction verdict.');
+  console.log('The workflow was not able to confirm or disprove the bug report.');
+  console.log('The agent did not produce a verified reproduction bundle, so the deterministic checks could not reach a trusted verdict.');
+  console.log();
+  console.log(`**Why:** ${pipelineSummary}`);
+  if (runUrl) {
     console.log();
-    console.log(`**What happened:** ${pipelineSummary}`);
-  } else {
-    console.log('No trusted automated reproduction verdict was produced.');
+    console.log(`[Run details](${runUrl})`);
   }
-  printPlanSummary(planLines);
+  process.exit(0);
+}
+
+if (status === 'incomplete') {
+  console.log('## Reproduction: incomplete');
+  console.log();
+  console.log(summary);
+  console.log('The agent did not succeed with setting up its environment or required preconditions, so the deterministic checks could not reach a trusted verdict.');
+  console.log();
+  console.log(`**Why:** ${firstUsefulReason(why, planBlocked, 'the workflow stopped before a verified reproduction result was available')}`);
   if (runUrl) {
     console.log();
     console.log(`[Run details](${runUrl})`);
@@ -189,7 +194,6 @@ console.log();
 console.log(`**Status:** ${status}`);
 console.log();
 console.log(`**Summary:** ${summary}`);
-printPlanSummary(planLines);
 console.log();
 console.log(`**Jobs:** agent \`${agentResult}\`, trunk \`${trunkResult}\`, safe outputs \`${safeOutputsResult}\`.`);
 if (runUrl) {

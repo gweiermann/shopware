@@ -31,6 +31,15 @@ STORAGE=""
 if [[ "$TARGET" == /admin* ]] || [[ "$TARGET" == "$APP_URL/admin"* ]]; then
   STORAGE="$ROOT/.repro-admin-explore-state.json"
   node "$SCRIPT_DIR/../execute/login-state.mjs" "$APP_URL" "$STORAGE" >/dev/null
+else
+  AUTO_COOKIE_CONSENT=true
+  if [ -f reproduction-plan.json ]; then
+    AUTO_COOKIE_CONSENT=$(jq -r '.browser_state.auto_cookie_consent // true' reproduction-plan.json 2>/dev/null || echo true)
+  fi
+  if [ "$AUTO_COOKIE_CONSENT" != false ]; then
+    STORAGE="$ROOT/.repro-storefront-explore-state.json"
+    node "$SCRIPT_DIR/../execute/storefront-consent-state.mjs" "$APP_URL" "$STORAGE" >/dev/null || STORAGE=""
+  fi
 fi
 
 node "$SCRIPT_DIR/explore-ui.mjs" "$APP_URL" "$TARGET" "$VIEWPORT" "$STORAGE"
