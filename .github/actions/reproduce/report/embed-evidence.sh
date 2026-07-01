@@ -83,7 +83,6 @@ block=$(mktemp)
       [ -n "${vids[$i]}" ] && echo "▶ [Watch the ${names[$i]} recording](${raw}/${names[$i]}.webm)"
     done
   fi
-  echo; echo "_Screenshots + recordings above persist; the trace and interactive Playwright HTML report are in the \`repro-*\` run artifacts (they expire after 7 days)._"
 } > "$block"
 
 # Insert the block at report's marker; else append.
