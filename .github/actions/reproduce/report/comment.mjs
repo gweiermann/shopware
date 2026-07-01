@@ -101,20 +101,11 @@ function renderVerdict() {
   const fixturesPath = `${art}/repro-plan/fixtures.json`;
   const hasFixtures = !omitBundle && fs.existsSync(fixturesPath);
 
-  // Only link evidence that actually exists (mirrors what embed-evidence.sh will publish).
-  const evidence = findEvidence(art);
-  const evidenceLabel = [evidence.screenshot && 'Screenshots', evidence.video && 'video'].filter(Boolean).join(' & ');
-  const quicklinks = [`[Agent run](${process.env.RUN_URL || ''})`]
-    .concat(evidenceLabel ? [`[${evidenceLabel === 'video' ? 'Video' : evidenceLabel}](#evidence)`] : [])
-    .concat(script ? ['[Test case](#test-case)'] : [])
-    .concat(hasFixtures ? ['[Fixtures](#fixtures)'] : [])
-    .join(' · ');
-
   const ctx = {
     HEADLINE: fill(entry.headline, vars),
     SUMMARY: fill(entry.summary, vars),
     CALLOUT: fill(entry.callout, vars),
-    QUICKLINKS: quicklinks,
+    RUN_URL: process.env.RUN_URL || '',
     SCENARIO: scenarioBlock(plan),
     AGENT_EXPLANATION: agentExplanation(plan),
     RESULT: resultSection({ legA, legB, as, bs, labels }),
@@ -151,24 +142,6 @@ function legBlock(label, status, leg) {
   const parts = [`\n#### On ${label}: \`${status}\`\n`, checksBlock(leg), DATA.phrases.gloss[status] || ''];
   if (leg.blocked_reason && leg.blocked_reason !== 'null') parts.push(`\n> ${leg.blocked_reason}`);
   return parts.join('\n');
-}
-
-// Scan the collected leg dirs for the evidence embed-evidence.sh will publish: a leg screenshot
-// (test-*.png) and/or a recording (.webm). Lets the quicklinks name only what's actually there.
-function findEvidence(art) {
-  const found = { screenshot: false, video: false };
-  const walk = (dir) => {
-    let entries; try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
-    for (const e of entries) {
-      const full = path.join(dir, e.name);
-      if (e.isDirectory()) walk(full);
-      else if (/^test-.*\.png$/.test(e.name)) found.screenshot = true;
-      else if (e.name.endsWith('.webm')) found.video = true;
-    }
-  };
-  walk(`${art}/repro-reported`);
-  walk(`${art}/repro-trunk`);
-  return found;
 }
 
 function qval(v) { return /^\d+$/.test(v) ? v : `'${v}'`; }

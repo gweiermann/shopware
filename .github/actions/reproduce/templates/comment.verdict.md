@@ -1,7 +1,5 @@
 ## AI Report (Reproduction): {{HEADLINE}}
 
-**Quicklinks:** {{QUICKLINKS}}
-
 **Summary:** {{SUMMARY}}
 {{#CALLOUT}}
 {{CALLOUT}}
@@ -60,3 +58,6 @@
 
 </details>
 {{/FIXTURES}}
+
+<sub>🔁 <a href="{{RUN_URL}}">Reproduce run</a></sub>
+
