@@ -411,6 +411,7 @@ safe-outputs:
               node -e 'const p=require("./reproduction-plan.json");require("fs").writeFileSync("artifacts/repro-trunk/result.json",JSON.stringify({schema_version:"1",issue:p.issue,target:"trunk",version:"trunk",executor:p.executor,status:"blocked",assertion:{expect:null,actual:null,matched:null},duration_s:0,evidence:{script:"",script_lang:"sh",reporter_output:"trunk environment did not come up",http:[],artifacts:[],truncated:false},blocked_reason:"trunk provisioning failed (dead env)"}))'
             fi
             cp -r test-results playwright-report artifacts/repro-trunk/ 2>/dev/null || true
+            cp video.webm artifacts/repro-trunk/ 2>/dev/null || true   # only present when record_video opted in
 
         - name: Compute verdict
           id: verdict

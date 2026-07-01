@@ -9,6 +9,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { FILES, appUrl, makeResult, readJson } from '../lib.mjs';
+import { stripNarration } from '../strip-narration.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const stripAnsi = (s) => s.replace(/\[[0-9;]*m/g, '');
@@ -20,9 +21,16 @@ export async function run({ plan, target }) {
   const storage = prepareAuth(plan, target);
   if (storage.blocked) return storage.blocked;
 
-  const spec = fs.readFileSync(specPath, 'utf8');
-  const report = runSpec(spec, storage.state);
-  return classify(plan, target, spec, report);
+  const authored = fs.readFileSync(specPath, 'utf8');
+  const cleanSpec = stripNarration(authored); // the verdict runs — and the comment shows — exactly this
+  const report = runSpec(cleanSpec, storage.state, { video: false });
+
+  // Opt-in evidence only: a separate narrated pass records a followable video. Its result is ignored,
+  // so it can never affect the verdict. Best-effort — a failure just means no .webm.
+  if (process.env.REPRO_RECORD_VIDEO === '1') {
+    try { runSpec(authored, storage.state, { video: true }); } catch { /* video is optional */ }
+  }
+  return classify(plan, target, cleanSpec, report);
 }
 
 const nullAssertion = () => ({ expect: null, actual: null, matched: null });
@@ -42,20 +50,38 @@ function prepareAuth(plan, target) {
   return { state: '' };
 }
 
-function runSpec(spec, storageState) {
-  const runDir = process.env.RUNNER_TEMP && fs.existsSync(process.env.RUNNER_TEMP) ? path.join(process.env.RUNNER_TEMP, 'repro-playwright') : '.repro-playwright';
+// Run the spec in an isolated dir. The verdict run (video:false) drives the JSON report we classify.
+// The video run (video:true) records a narrated .webm into its own output dir — kept separate so it
+// never overwrites the verdict run's screenshot/trace — and the recording is copied to ./video.webm.
+function runSpec(spec, storageState, { video }) {
+  const suffix = video ? '-video' : '';
+  const runDir = process.env.RUNNER_TEMP && fs.existsSync(process.env.RUNNER_TEMP) ? path.join(process.env.RUNNER_TEMP, `repro-playwright${suffix}`) : `.repro-playwright${suffix}`;
   fs.rmSync(runDir, { recursive: true, force: true });
   fs.mkdirSync(runDir, { recursive: true });
   if (fs.existsSync('node_modules') && !fs.existsSync(path.join(runDir, 'node_modules'))) fs.symlinkSync(path.resolve('node_modules'), path.join(runDir, 'node_modules'));
   fs.copyFileSync(path.join(here, '..', 'playwright.config.ts'), path.join(runDir, 'playwright.config.ts'));
+  if (video) fs.copyFileSync(path.join(here, '..', 'video-helpers.js'), path.join(runDir, 'video-helpers.js'));
   fs.writeFileSync(path.join(runDir, FILES.specTs), spec);
 
-  const reportPath = path.resolve('pw-report.json');
+  const reportPath = path.resolve(`pw-report${suffix}.json`);
+  const outputDir = path.resolve(`test-results${suffix}`);
   spawnSync('npx', ['playwright', 'test', '--config', path.join(runDir, 'playwright.config.ts')], {
-    stdio: ['ignore', fs.openSync('pw-stdout.txt', 'w'), fs.openSync('pw-stderr.txt', 'w')],
-    env: { ...process.env, APP_URL: appUrl(), PW_STORAGE: storageState, PW_JSON_REPORT: reportPath },
+    stdio: ['ignore', fs.openSync(`pw-stdout${suffix}.txt`, 'w'), fs.openSync(`pw-stderr${suffix}.txt`, 'w')],
+    env: { ...process.env, APP_URL: appUrl(), PW_STORAGE: storageState, PW_JSON_REPORT: reportPath, PW_OUTPUT_DIR: outputDir, PW_VIDEO: video ? 'on' : 'off' },
   });
+
+  if (video) { const webm = findWebm(outputDir); if (webm) fs.copyFileSync(webm, 'video.webm'); return null; }
   return readJson(reportPath, null);
+}
+
+function findWebm(dir) {
+  if (!fs.existsSync(dir)) return null;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) { const hit = findWebm(full); if (hit) return hit; }
+    else if (entry.name.endsWith('.webm')) return full;
+  }
+  return null;
 }
 
 function classify(plan, target, spec, report) {

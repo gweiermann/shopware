@@ -44,5 +44,26 @@ multi-step interaction (an animation, a drag, a flow that a still frame can't co
 `"record_video": true` in `reproduction-plan.json` — the trunk leg then records a `.webm` and the
 comment links it. Leave it off (the default) otherwise; a screenshot is enough for most bugs.
 
+To make that video followable, you may narrate it with two helpers from `./video-helpers.js`:
+`narrate(page, "what's happening")` (a subtitle) and `mark(page, locator, "label")` (highlights the
+element about to be used). **Write each as its own single-line `await` statement, next to — never
+wrapping — the real action**, e.g.:
+
+```ts
+import { test, expect } from '@playwright/test';
+import { narrate, mark } from './video-helpers.js';   // stripped from the verdict run + the comment
+
+test('discount badge missing in slider', async ({ page }) => {
+  await narrate(page, 'Open the category with the product slider');
+  await page.goto('/navigation/<seeded-id>');
+  await mark(page, page.locator('.product-slider-item').first(), 'The seeded slider product');
+  await expect(page.locator('.product-slider-item .badge-discount')).toBeVisible();
+});
+```
+
+The verdict run and the code shown in the comment are this spec with the `narrate`/`mark` lines and
+the import **removed** — the actions and the single assertion are byte-identical. So narration only
+ever affects the video, never the result. Don't add extra assertions or locators just to narrate.
+
 Use `repro check` and `playwright-cli` to nail selectors and timing before committing the spec; a
 final `repro try` gives a non-authoritative preview and points you at the screenshot to review.

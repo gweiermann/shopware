@@ -6,6 +6,7 @@
 // Refusals print `REFUSED — <reason>` and exit 1; a clean bundle prints `ok`.
 import fs from 'node:fs';
 import { FILES, EXECUTORS, LAYERS, readJson } from './lib.mjs';
+import { stripNarration, hasLeftoverNarration } from './strip-narration.mjs';
 
 const LOCAL_HOSTS = ['localhost', '127.0.0.1', 'host.docker.internal'];
 
@@ -44,11 +45,13 @@ function validateSpec(plan) {
   const specPath = plan.script_path || FILES.specTs;
   if (!fs.existsSync(specPath)) return [`playwright plan needs ${specPath}`];
   const errors = [];
-  const spec = fs.readFileSync(specPath, 'utf8'); // the exact spec the deterministic leg will run
+  // Validate what the verdict actually runs + what the comment shows: the spec with narration stripped.
+  const spec = stripNarration(fs.readFileSync(specPath, 'utf8'));
+  if (hasLeftoverNarration(spec)) errors.push('narrate()/mark() must each be a standalone one-line `await …(…);` statement (so they strip cleanly for the verdict run)');
 
   const imports = [...spec.matchAll(/\bfrom\s+['"]([^'"]+)['"]/g)].map((m) => m[1]);
   const badImport = imports.find((m) => m !== '@playwright/test');
-  if (badImport) errors.push(`spec may only import @playwright/test, found ${JSON.stringify(badImport)}`);
+  if (badImport) errors.push(`spec may only import @playwright/test (video narration from ./video-helpers.js is allowed and stripped), found ${JSON.stringify(badImport)}`);
 
   const awaitedExpects = (spec.match(/await\s+expect\s*\(/g) || []).length;
   if (awaitedExpects !== 1) errors.push(`spec must contain exactly one awaited expect() — the final healthy assertion; found ${awaitedExpects}. Use locator.waitFor({state:'visible'}).catch(...) + PRECONDITION_NOT_FOUND for setup gates`);

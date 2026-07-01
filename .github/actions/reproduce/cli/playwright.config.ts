@@ -4,8 +4,9 @@ import { cwd } from 'node:process';
 // Config for a single generated repro spec. The playwright executor copies the spec next to this
 // file and runs it, so `testDir: '.'` collects exactly that one spec. baseURL is the leg's running
 // shop; the json report drives the machine verdict, the html report is uploaded for humans.
-// Video is opt-in (plan.record_video → REPRO_RECORD_VIDEO), recorded on the trunk leg only.
-const recordVideo = process.env['REPRO_RECORD_VIDEO'] === '1';
+// PW_VIDEO is set per-run by the executor: 'off' for the verdict run, 'on' for the separate trunk
+// video pass (which also slows actions down so the recording is followable).
+const video = process.env['PW_VIDEO'] === 'on';
 
 export default defineConfig({
   testDir: '.',
@@ -22,7 +23,8 @@ export default defineConfig({
     // (consent-state.mjs). Either is passed here so specs never author their own auth.
     storageState: process.env['PW_STORAGE'] || undefined,
     trace: 'on',
-    video: recordVideo ? 'on' : 'off',
+    video: video ? 'on' : 'off',
     screenshot: 'on',
+    launchOptions: { slowMo: video ? Number(process.env['REPRO_VIDEO_SLOWMO'] || 400) : 0 },
   },
 });
