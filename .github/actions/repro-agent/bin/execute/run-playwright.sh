@@ -69,8 +69,8 @@ if [ -z "${PW_REPORT:-}" ]; then
       echo "status=blocked  (harness admin login failed)"; exit 0
     fi
   elif [ "$LAYER" = "storefront-ui" ] && [ "$AUTO_COOKIE_CONSENT" != "false" ]; then
-    if node "$BIN/execute/storefront-consent-state.mjs" "$APP_URL" storefront-state.json; then
-      PW_STORAGE="storefront-state.json"
+    if node "$BIN/execute/storefront-consent-state.mjs" "$APP_URL" .repro-storefront-state.json; then
+      PW_STORAGE=".repro-storefront-state.json"
     else
       echo "::warning::could not create storefront consent storage state; continuing without it"
     fi

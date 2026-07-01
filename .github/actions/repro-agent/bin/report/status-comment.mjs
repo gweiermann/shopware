@@ -129,7 +129,14 @@ let omitNotice = true;
 let shortPipelineFailed = false;
 let why = '';
 
-if (agentResult === 'failure' && transientProviderFailure) {
+if (hasTrunkHandoff && trunkResult === 'missing_bundle') {
+  status = 'incomplete';
+  summary = 'The workflow was not able to complete the trunk comparison.';
+  why = firstUsefulReason(
+    planBlocked,
+    'the agent handed off a reported-version result, but the post-agent workflow did not publish the verified reproduction bundle or reported leg artifact for deterministic trunk comparison',
+  );
+} else if (agentResult === 'failure' && transientProviderFailure) {
   status = 'Agent provider failure (retry later)';
   summary = 'The Claude API returned overload/internal-server errors before the agent could produce a reproduction bundle. This is likely transient; retrying later may resolve it.';
   why = summary;
@@ -179,7 +186,11 @@ if (status === 'incomplete') {
   console.log('## Reproduction: incomplete');
   console.log();
   console.log(summary);
-  console.log('The agent did not succeed with setting up its environment or required preconditions, so the deterministic checks could not reach a trusted verdict.');
+  if (hasTrunkHandoff && trunkResult === 'missing_bundle') {
+    console.log('The agent reported a classified result for the reported version, but the workflow could not use it for the deterministic trunk comparison.');
+  } else {
+    console.log('The agent did not succeed with setting up its environment or required preconditions, so the deterministic checks could not reach a trusted verdict.');
+  }
   console.log();
   console.log(`**Why:** ${firstUsefulReason(why, planBlocked, 'the workflow stopped before a verified reproduction result was available')}`);
   if (runUrl) {
