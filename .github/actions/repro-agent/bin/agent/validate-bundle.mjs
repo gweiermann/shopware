@@ -1673,6 +1673,16 @@ function validateSeededReadinessChecks(reproPlan) {
     if (typeof check.selector !== 'string' || check.selector.trim() === '') {
       fail(`${label} must include a source/probe-backed selector for the seeded target or control`);
     }
+    const selector = check.selector.trim();
+    const textSelector = String(check.text_selector ?? '').trim();
+    const readinessTarget = `${selector} ${textSelector}`;
+    if (
+      /\bquantity\b/i.test(issue)
+      && /\b(?:unit|pack\s*unit|label|selector)\b/i.test(issue)
+      && /(?:quantity-selector|js-quantity-selector|product-detail-quantity|pack-unit|unit-label)/i.test(readinessTarget)
+    ) {
+      fail(`${label} targets the reported quantity/unit control itself; use a stable seeded identity marker such as the product title, product number, or product-detail container for readiness, and leave the fragile control to the final Playwright assertion`);
+    }
     if (check.text !== undefined && typeof check.text !== 'string') {
       fail(`${label}.text must be a string when present`);
     }

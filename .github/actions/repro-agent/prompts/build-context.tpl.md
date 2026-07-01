@@ -251,7 +251,10 @@ the final Playwright assertion is meant to test. If the issue says a field, labe
 item, option, image, style, or dynamic control is missing/broken/wrong, that exact thing belongs in
 the final assertion, not in `seeded_readiness`. Readiness should usually be one stable seeded entity
 identity marker, and at most one additional stable parent/container marker when the surface needs
-it. Extra readiness checks increase failure risk and must not duplicate the symptom. Use
+it. For product detail issues, prefer the seeded product title, product number, or a stable product
+detail container for readiness. Do not use the reported broken quantity selector, unit label,
+field, button, or dynamic control as readiness, even if it is visible during browser exploration.
+Extra readiness checks increase failure risk and must not duplicate the symptom. Use
 `playwright-cli` for normal interactive browser inspection. For seeded pages, run
 `node /tmp/reproctl/reproctl.mjs seed` before using `playwright-cli`; use `explore-ui` only as a
 fallback scripted wrapper. Put fragile waits/geometry checks in `repro.spec.ts`, not

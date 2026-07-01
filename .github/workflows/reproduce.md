@@ -51,7 +51,7 @@ network:
 
 engine:
   id: claude
-  model: claude-sonnet-4-6
+  model: claude-sonnet-5-0
 
 # Temporary rollback: the sandboxed agent path passed deterministic preflight but failed to produce
 # a trusted reported-leg artifact in the real workflow. Keep the follow-up tracked in todo.md and
@@ -237,9 +237,6 @@ steps:
       echo "::error::Shopware MCP bridge did not start."
       exit 1
 
-  - name: Record pre-agent workspace baseline
-    run: git status --porcelain > /tmp/repro-agent-pre-status.txt
-
 # gh-aw builds prompt.txt in the activation job and downloads it into /tmp/gh-aw later in the agent
 # job. Finalize the prompt here, after that artifact is restored and before MCP/engine setup, so the
 # activation artifact cannot overwrite the run-specific task/context.
@@ -250,12 +247,31 @@ pre-agent-steps:
       GH_AW_PROMPT: /tmp/gh-aw/aw-prompts/prompt.txt
     run: bash .github/actions/repro-agent/bin/prepare/agent-task-prompt.sh
 
+  - name: Record pre-agent workspace baseline
+    run: git status --porcelain > /tmp/repro-agent-pre-status.txt
+
 # --- Validate + publish only deterministic post-agent outputs ----------------
 # The agent can run reproctl verify for feedback, but that path does not publish result.json.
 # After the agent stops, trusted steps reject workspace tampering, validate the generated bundle as
 # hostile input, rerun the reported-version verification from the immutable tool copy, and only then
 # upload result.json for the trunk/verdict job.
 post-steps:
+  - name: Reject forbidden bug-source reads
+    id: source_read_guard
+    if: always()
+    run: |
+      set -euo pipefail
+      log=/tmp/gh-aw/agent-stdio.log
+      [ -f "$log" ] || exit 0
+      forbidden=$(grep -E \
+        'src/Storefront/Resources/app/storefront/src/.*\.(s?css|less|js|ts)|\.scratch/repro-agent-local|repro-agent-local/runs|git (log|blame|show)' \
+        "$log" || true)
+      if [ -n "$forbidden" ]; then
+        echo "::error::Agent inspected forbidden bug/source-history material instead of staying fixture/schema focused."
+        printf '%s\n' "$forbidden" | head -40
+        exit 1
+      fi
+
   - name: Reject protected workflow/helper edits
     id: protected_guard
     if: always()
@@ -291,7 +307,7 @@ post-steps:
         case "$path" in
           reproduction-plan.json|fixtures.json|repro.sh|repro.spec.ts|ReproTest.php|\
           builder-result.json|result.json|seed-error.txt|phpunit-output.txt|admin-state.json|\
-          pw-*.txt|pw-*.json|.repro-*|test-results/*|playwright-report/*)
+          pw-*.txt|pw-*.json|.repro-*|.playwright-cli/*|test-results/*|playwright-report/*)
             ;;
           *)
             blocked="${blocked}${line}"$'\n'
@@ -306,7 +322,7 @@ post-steps:
 
   - name: Authoritative reported-version verification
     id: reported_verify
-    if: always() && steps.protected_guard.outcome == 'success' && steps.bundle_guard.outcome == 'success' && hashFiles('reproduction-plan.json') != ''
+    if: always() && steps.source_read_guard.outcome == 'success' && steps.protected_guard.outcome == 'success' && steps.bundle_guard.outcome == 'success' && hashFiles('reproduction-plan.json') != ''
     continue-on-error: true
     env:
       REPROCTL_ALLOW_AUTHORITATIVE: "1"
@@ -317,7 +333,7 @@ post-steps:
       node /tmp/reproctl/reproctl.mjs verify-authoritative
 
   - name: Upload repro bundle
-    if: always() && steps.protected_guard.outcome == 'success' && steps.bundle_guard.outcome == 'success'
+    if: always() && steps.source_read_guard.outcome == 'success' && steps.protected_guard.outcome == 'success' && steps.bundle_guard.outcome == 'success'
     uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
     with:
       name: repro-plan
@@ -331,7 +347,7 @@ post-steps:
       retention-days: 7
 
   - name: Upload reported leg
-    if: always() && steps.protected_guard.outcome == 'success' && steps.bundle_guard.outcome == 'success' && hashFiles('result.json') != ''
+    if: always() && steps.source_read_guard.outcome == 'success' && steps.protected_guard.outcome == 'success' && steps.bundle_guard.outcome == 'success' && hashFiles('result.json') != ''
     uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
     with:
       name: repro-reported
