@@ -198,41 +198,39 @@ pre-agent-steps:
   - name: Record pre-agent workspace baseline
     run: git status --porcelain > /tmp/repro-pre-status.txt
 
-# --- Validate + publish only trusted post-agent outputs. The agent's `try` never writes result.json;
-#     these trusted steps re-run the reported leg from the immutable CLI copy. ---
+# --- Publish trusted post-agent outputs. The agent's `try` never writes result.json; the trusted
+#     verify re-runs the reported leg from the IMMUTABLE /tmp CLI copy — so even if the agent touched
+#     files in the workspace, the verdict is unaffected. Stray edits are recorded (not fatal) and
+#     surfaced in the comment for humans to judge. ---
 post-steps:
-  - name: Reject edits to protected files
-    id: protected_guard
-    if: always()
-    run: |
-      set -euo pipefail
-      changed=$(git status --porcelain -- .github/actions/reproduce .github/workflows/reproduce-issue.md .github/workflows/reproduce-issue.lock.yml)
-      if [ -n "$changed" ]; then echo "::error::agent modified protected workflow/CLI files"; printf '%s\n' "$changed"; exit 1; fi
-
-  - name: Reject edits outside the bundle
-    id: bundle_guard
+  - name: Audit workspace edits
     if: always()
     run: |
       set -euo pipefail
       git status --porcelain > /tmp/repro-post-status.txt
       new=$(comm -13 <(sort /tmp/repro-pre-status.txt) <(sort /tmp/repro-post-status.txt) || true)
-      blocked=""
+      : > workspace-edits.txt
       while IFS= read -r line; do
         [ -n "$line" ] || continue
         path=${line:3}; path=${path#\"}; path=${path%\"}
         case "$path" in
           reproduction-plan.json|fixtures.json|repro.spec.ts|ReproTest.php|repro.sh|\
           result.json|builder-result.json|seed-error.txt|phpunit-output.txt|giveup.txt|\
-          seeded-readiness.json|admin-state.json|context.md|issue-class.txt|\
-          pw-*.txt|pw-*.json|.repro-*|test-results/*|playwright-report/*|shop/*) ;;
-          *) blocked="${blocked}${line}"$'\n' ;;
+          seeded-readiness.json|admin-state.json|context.md|issue-class.txt|agent-summary.md|workspace-edits.txt|\
+          pw-*.txt|pw-*.json|.repro-*|.playwright-cli/*|.playwright-cli|\
+          test-results/*|playwright-report/*|shop/*|node_modules/*|package.json|package-lock.json) ;;
+          *) printf '%s\n' "$path" >> workspace-edits.txt ;;
         esac
       done <<< "$new"
-      if [ -n "$blocked" ]; then echo "::error::agent created/modified files outside the bundle"; printf '%s\n' "$blocked"; exit 1; fi
+      if [ -s workspace-edits.txt ]; then echo "::warning::agent changed files outside the bundle:"; cat workspace-edits.txt; else echo "no stray edits"; fi
+
+  - name: Extract agent summary
+    if: always()
+    run: node .github/actions/reproduce/report/agent-summary.mjs /tmp/gh-aw/agent-stdio.log > agent-summary.md || true
 
   - name: Authoritative reported-version verification
     id: reported_verify
-    if: always() && steps.protected_guard.outcome == 'success' && steps.bundle_guard.outcome == 'success' && hashFiles('reproduction-plan.json') != ''
+    if: always() && hashFiles('reproduction-plan.json') != ''
     continue-on-error: true
     env:
       REPRO_ALLOW_VERIFY: "1"
@@ -244,7 +242,7 @@ post-steps:
       node /tmp/reproduce/cli/repro.mjs verify
 
   - name: Upload repro bundle
-    if: always() && steps.protected_guard.outcome == 'success' && steps.bundle_guard.outcome == 'success'
+    if: always()
     uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
     with:
       name: repro-plan
@@ -254,11 +252,13 @@ post-steps:
         repro.spec.ts
         ReproTest.php
         giveup.txt
+        agent-summary.md
+        workspace-edits.txt
       if-no-files-found: ignore
       retention-days: 7
 
   - name: Upload reported leg
-    if: always() && steps.protected_guard.outcome == 'success' && steps.bundle_guard.outcome == 'success' && hashFiles('result.json') != ''
+    if: always() && hashFiles('result.json') != ''
     uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
     with:
       name: repro-reported
@@ -403,6 +403,7 @@ safe-outputs:
             mkdir -p artifacts/repro-plan artifacts/repro-trunk
             cp reproduction-plan.json artifacts/repro-plan/ 2>/dev/null || true
             cp fixtures.json artifacts/repro-plan/ 2>/dev/null || true
+            cp agent-summary.md workspace-edits.txt artifacts/repro-plan/ 2>/dev/null || true
             # A dead trunk env (provision failed) leaves no result → synthesize a blocked leg.
             if [ -f result.json ]; then cp result.json artifacts/repro-trunk/; else
               node -e 'const p=require("./reproduction-plan.json");require("fs").writeFileSync("artifacts/repro-trunk/result.json",JSON.stringify({schema_version:"1",issue:p.issue,target:"trunk",version:"trunk",executor:p.executor,status:"blocked",assertion:{expect:null,actual:null,matched:null},duration_s:0,evidence:{script:"",script_lang:"sh",reporter_output:"trunk environment did not come up",http:[],artifacts:[],truncated:false},blocked_reason:"trunk provisioning failed (dead env)"}))'

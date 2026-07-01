@@ -16,9 +16,20 @@ const OUT = process.env.OUT || 'comment.md';
 const readJson = (p) => { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return null; } };
 const fill = (str, vars) => String(str ?? '').replace(/{{(\w+)}}/g, (_, k) => vars[k] ?? '');
 
-// mustache-lite: {{#KEY}}…{{/KEY}} renders the block iff ctx[KEY] is truthy; {{KEY}} substitutes.
+// Read an extra file written by the agent job (agent-summary.md, workspace-edits.txt): from the
+// collected artifact dir first, then the working dir (where the incomplete path extracts it).
+function readExtra(name) {
+  for (const p of [`${process.env.ART || 'artifacts'}/repro-plan/${name}`, name]) {
+    try { const t = fs.readFileSync(p, 'utf8').trim(); if (t) return t; } catch { /* next */ }
+  }
+  return '';
+}
+
+// mustache-lite: {{#KEY}}…{{/KEY}} keeps the block iff ctx[KEY] is truthy; {{KEY}} substitutes.
+// Single var pass (sections just inline their body), so substituted values — e.g. the agent summary —
+// are never re-scanned for placeholders.
 function render(tpl, ctx) {
-  const withSections = tpl.replace(/{{#(\w+)}}\n?([\s\S]*?){{\/\1}}\n?/g, (_, key, inner) => (ctx[key] ? render(inner, ctx) : ''));
+  const withSections = tpl.replace(/{{#(\w+)}}\n?([\s\S]*?){{\/\1}}\n?/g, (_, key, inner) => (ctx[key] ? inner : ''));
   return withSections.replace(/{{(\w+)}}/g, (_, key) => ctx[key] ?? '');
 }
 
@@ -42,7 +53,13 @@ function write(markdown) {
 
 if (process.env.MODE === 'incomplete') {
   const tpl = fs.readFileSync(path.join(templates, 'comment.incomplete.md'), 'utf8');
-  write(render(tpl, { REASON: process.env.REASON || DATA.incomplete_reason_default, RUN_URL: process.env.RUN_URL || '' }));
+  const edits = readExtra('workspace-edits.txt');
+  write(render(tpl, {
+    REASON: process.env.REASON || DATA.incomplete_reason_default,
+    RUN_URL: process.env.RUN_URL || '',
+    AGENT_SUMMARY: readExtra('agent-summary.md'),
+    EDITS: edits,
+  }));
 } else {
   write(renderVerdict());
 }
@@ -95,6 +112,8 @@ function renderVerdict() {
     SCENARIO: scenarioBlock(plan),
     AGENT_EXPLANATION: agentExplanation(plan),
     RESULT: resultSection({ legA, legB, as, bs, labels }),
+    EDITS: readExtra('workspace-edits.txt'),
+    AGENT_SUMMARY: readExtra('agent-summary.md'),
     TESTCASE: script,
     TESTCASE_LANG: specLeg?.evidence?.script_lang || 'sh',
     TESTCASE_TOOL: p.testcase_tool[plan.executor] || specLeg?.evidence?.script_lang || 'sh',
