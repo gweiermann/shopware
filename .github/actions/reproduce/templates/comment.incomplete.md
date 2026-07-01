@@ -4,17 +4,17 @@ The workflow could not confirm or disprove this bug report. No verified reproduc
 produced, so the deterministic checks could not reach a trusted verdict.
 
 **Why:** {{REASON}}
-
-[Run details]({{RUN_URL}})
 {{#AGENT_SUMMARY}}
-<details><summary>Agent summary</summary>
+### Artifacts
+
+<details><summary>🕵️ What the agent tried — its own write-up</summary>
 
 {{AGENT_SUMMARY}}
 
 </details>
 {{/AGENT_SUMMARY}}
 {{#EDITS}}
-<details><summary>Files changed outside the bundle</summary>
+<details><summary>Files the agent changed outside the bundle</summary>
 
 ```
 {{EDITS}}
@@ -22,3 +22,5 @@ produced, so the deterministic checks could not reach a trusted verdict.
 
 </details>
 {{/EDITS}}
+
+<sub>🔁 <a href="{{RUN_URL}}">Reproduce run</a></sub>

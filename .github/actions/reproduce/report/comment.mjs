@@ -72,26 +72,19 @@ function renderVerdict() {
   const as = legA?.status ?? 'null';
   const bs = legB?.status ?? 'null';
   const rv = (legA || plan).version ?? '?';
-  const labels = { AL: `v${rv}`, BL: 'trunk', AS: as, BS: bs, RV: rv, DATE: process.env.DATE || new Date().toISOString().slice(0, 10) };
+  const labels = { AL: `v${rv}`, BL: 'trunk', AS: as, BS: bs };
 
   const verdict = process.env.VERDICT || 'needs_human_review';
   const fix = process.env.FIX || '';
   const unsure = process.env.UNSURE || '';
   const p = DATA.phrases;
-  const vars = {
-    ...labels,
-    SURFACE: p.surface[plan.layer] || plan.layer || 'unknown',
-    EXECUTOR: p.executor[plan.executor] || plan.executor || 'unknown',
-    FIX: fix,
-    FIX_SUFFIX: fix ? fill(p.fix_suffix, { FIX: fix }) : '',
+  // The only copy with placeholders: the needs_human_review headline/callout vary with the fix.
+  const nhrVars = {
     NHR_HEADLINE: fix ? p.nhr_headline_with_fix : p.nhr_headline,
-    NHR_UNDERLYING: fill(p.nhr_underlying[`${as}/${bs}`] || p.nhr_underlying.default, labels),
-    UNSURE_SUFFIX: unsure ? fill(p.unsure_suffix, { UNSURE: unsure }) : '',
-    NHR_TAIL: fix ? fill(p.nhr_tail_with_fix, { FIX: fix }) : p.nhr_tail,
     NHR_CALLOUT: fix ? fill(p.nhr_callout_with_fix, { FIX: fix }) : p.nhr_callout,
   };
+  const entry = DATA.verdicts[verdict] || { headline: verdict, badge: verdict, callout: '' };
 
-  const entry = DATA.verdicts[verdict] || { headline: verdict, summary: `Verdict: ${verdict}.`, callout: '' };
   // Show the bundle for confident verdicts, and always when a leg actually reproduced (the bundle is
   // demonstrably meaningful then) — only hide it for a blocked/unsure verdict where neither leg did.
   const reproduced = as === 'reproduced' || bs === 'reproduced';
@@ -100,21 +93,32 @@ function renderVerdict() {
   const script = omitBundle ? '' : (specLeg?.evidence?.script || '');
   const fixturesPath = `${art}/repro-plan/fixtures.json`;
   const hasFixtures = !omitBundle && fs.existsSync(fixturesPath);
+  const agentSummary = readExtra('agent-summary.md');
 
+  const legStatus = (s) => p.status[s] || p.status.null;
   const ctx = {
-    HEADLINE: fill(entry.headline, vars),
-    SUMMARY: fill(entry.summary, vars),
-    CALLOUT: fill(entry.callout, vars),
-    RUN_URL: process.env.RUN_URL || '',
+    HEADLINE: fill(entry.headline, nhrVars),
+    VERDICT_BADGE: entry.badge || verdict,
+    RV: rv,
+    REPORTED_STATUS: legStatus(as),
+    TRUNK_STATUS: legStatus(bs),
+    SURFACE_EXEC: `${p.surface[plan.layer] || plan.layer || 'unknown'} · ${p.executor[plan.executor] || plan.executor || 'unknown'}`,
+    CONFIDENCE: plan.confidence != null ? String(plan.confidence) : '—',
+    DATE: process.env.DATE || new Date().toISOString().slice(0, 10),
+    FIX: fix,
+    UNSURE: unsure,
+    CALLOUT: fill(entry.callout, nhrVars),
+    EDITS: readExtra('workspace-edits.txt'),
     SCENARIO: scenarioBlock(plan),
     AGENT_EXPLANATION: agentExplanation(plan),
     RESULT: resultSection({ legA, legB, as, bs, labels }),
-    EDITS: readExtra('workspace-edits.txt'),
-    AGENT_SUMMARY: readExtra('agent-summary.md'),
+    ARTIFACTS_HEADING: (agentSummary || script || hasFixtures) ? '### Artifacts' : '',
+    AGENT_SUMMARY: agentSummary,
     TESTCASE: script,
     TESTCASE_LANG: specLeg?.evidence?.script_lang || 'sh',
     TESTCASE_TOOL: p.testcase_tool[plan.executor] || specLeg?.evidence?.script_lang || 'sh',
     FIXTURES: hasFixtures ? fs.readFileSync(fixturesPath, 'utf8').trim() : '',
+    RUN_URL: process.env.RUN_URL || '',
   };
   return render(fs.readFileSync(path.join(templates, 'comment.verdict.md'), 'utf8'), ctx);
 }
