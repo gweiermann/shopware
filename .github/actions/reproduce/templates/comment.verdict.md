@@ -48,14 +48,14 @@
 <!-- EVIDENCE -->
 {{ARTIFACTS_HEADING}}
 {{#AGENT_SUMMARY}}
-<details><summary>🕵️ How the agent reproduced it — its own write-up</summary>
+<details><summary>🕵️ Agent summary — the agent's own recap of the investigation</summary>
 
 {{AGENT_SUMMARY}}
 
 </details>
 {{/AGENT_SUMMARY}}
 {{#TESTCASE}}
-<details><summary>🧪 Reproduction test — the exact {{TESTCASE_TOOL}} code that produced this verdict</summary>
+<details><summary>🧪 Reproduction test ({{TESTCASE_TOOL}})</summary>
 
 ```{{TESTCASE_LANG}}
 {{TESTCASE}}

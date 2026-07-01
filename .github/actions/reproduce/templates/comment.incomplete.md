@@ -7,7 +7,7 @@ produced, so the deterministic checks could not reach a trusted verdict.
 {{#AGENT_SUMMARY}}
 ### Artifacts
 
-<details><summary>🕵️ What the agent tried — its own write-up</summary>
+<details><summary>🕵️ Agent summary — the agent's own recap of what it tried</summary>
 
 {{AGENT_SUMMARY}}
 
