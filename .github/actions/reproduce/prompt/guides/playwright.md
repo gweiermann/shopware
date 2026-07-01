@@ -39,10 +39,11 @@ Keep each precondition its own gate so a failure names the missing state.
 
 ## Optional video evidence
 
-A screenshot + Playwright trace is captured for every run. If the bug is inherently about motion or a
-multi-step interaction (an animation, a drag, a flow that a still frame can't convey), set
-`"record_video": true` in `reproduction-plan.json` — the trunk leg then records a `.webm` and the
-comment links it. Leave it off (the default) otherwise; a screenshot is enough for most bugs.
+A screenshot + Playwright trace is captured for every run — enough for a static rendering, layout, or
+text bug. **Set `"record_video": true`** in `reproduction-plan.json` when the symptom only reads *in
+motion*: an animation or transition, a drag, a hover/toggle, scrolling, a loading/timing sequence, or
+an interaction where "clicking X does nothing / does the wrong thing" (e.g. a menu that won't close).
+Each leg then records a `.webm` that the comment links. Leave it off otherwise.
 
 To make that video followable, you may narrate it with two helpers from `./video-helpers.js`:
 `narrate(page, "what's happening")` (a subtitle) and `mark(page, locator, "label")` (highlights the

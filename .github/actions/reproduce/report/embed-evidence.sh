@@ -35,17 +35,19 @@ if [ "$n" -eq 2 ] && [ "${stats[0]}" = "${stats[1]}" ]; then
   collapsed=1; main=0; for j in $(seq 0 $((n - 1))); do [ "${names[$j]}" = trunk ] && main=$j; done; show=("$main")
 fi
 
+# When collapsed (both legs same outcome), show ONE video — the shown leg's, or any leg's as fallback.
+vidleg=""
+if [ "$collapsed" = 1 ]; then
+  vidleg=${show[0]}; [ -n "${vids[$vidleg]}" ] || for j in $(seq 0 $((n - 1))); do [ -n "${vids[$j]}" ] && vidleg="$j" && break; done
+fi
+
 staged=$(mktemp -d)
 for i in "${show[@]}"; do
   cp "${pngs[$i]}" "$staged/${names[$i]}.png"
   [ -n "${vids[$i]}" ] && cp "${vids[$i]}" "$staged/${names[$i]}.webm" || true
 done
-# When collapsed, still publish the other leg's recording so it can be linked.
-if [ "$collapsed" = 1 ]; then
-  for i in $(seq 0 $((n - 1))); do
-    [ -n "${vids[$i]}" ] && [ ! -f "$staged/${names[$i]}.webm" ] && cp "${vids[$i]}" "$staged/${names[$i]}.webm" || true
-  done
-fi
+# Ensure the single collapsed video is staged even if it belongs to a non-shown leg.
+[ -n "$vidleg" ] && [ -n "${vids[$vidleg]}" ] && [ ! -f "$staged/${names[$vidleg]}.webm" ] && cp "${vids[$vidleg]}" "$staged/${names[$vidleg]}.webm" || true
 
 if [ "${PUSH:-}" != skip ]; then
   : "${TOKEN:?TOKEN is required to push evidence}"
@@ -74,7 +76,7 @@ block=$(mktemp)
     i=${show[0]}
     echo; echo "**reported & trunk** — identical outcome (\`${stats[$i]}\`); showing the **${names[$i]}** evidence (most up-to-date UI)."
     echo "![reported & trunk](${raw}/${names[$i]}.png)"
-    for j in $(seq 0 $((n - 1))); do [ -n "${vids[$j]}" ] && echo "▶ [Watch the ${names[$j]} recording](${raw}/${names[$j]}.webm)"; done
+    [ -n "$vidleg" ] && [ -n "${vids[$vidleg]}" ] && echo "▶ [Watch the recording](${raw}/${names[$vidleg]}.webm)"
   else
     for i in "${show[@]}"; do
       echo; echo "**${names[$i]}** (\`${stats[$i]}\`)"

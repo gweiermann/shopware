@@ -24,7 +24,8 @@ The full field reference is in [guides/plan.md](guides/plan.md).
 
 Pick the executor for the symptom (see [guides/executors.md](guides/executors.md)): `playwright` for
 anything rendered/visual, `http` for API/JSON behaviour, `direct` for internal service/DAL bugs.
-A *visual* issue must use `playwright`.
+A *visual* issue must use `playwright`. If the bug is about **motion** (animation, drag, toggle,
+scrolling, a control that won't respond), set `record_video: true` so the comment gets a video.
 
 You have a normal shell (rg/find/sed/cat/jq/…), a live browser (`playwright-cli`), and — on Shopware
 6.7+ — Shopware MCP tools for live schema/data. Use them however helps. The reliable loop is:

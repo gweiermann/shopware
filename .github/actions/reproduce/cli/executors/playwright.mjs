@@ -25,9 +25,10 @@ export async function run({ plan, target }) {
   const cleanSpec = stripNarration(authored); // the verdict runs — and the comment shows — exactly this
   const report = runSpec(cleanSpec, storage.state, { video: false });
 
-  // Opt-in evidence only: a separate narrated pass records a followable video. Its result is ignored,
-  // so it can never affect the verdict. Best-effort — a failure just means no .webm.
-  if (process.env.REPRO_RECORD_VIDEO === '1') {
+  // Opt-in evidence: when the plan asks for it, a separate narrated pass records a followable video
+  // on each official leg (reported + trunk) — so whichever leg reproduces is captured — but never on
+  // the agent's fast `try`. Its result is ignored, so it can never affect the verdict. Best-effort.
+  if (plan.record_video === true && target !== 'builder') {
     try { runSpec(authored, storage.state, { video: true }); } catch { /* video is optional */ }
   }
   return classify(plan, target, cleanSpec, report);
