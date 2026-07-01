@@ -18,7 +18,9 @@ const bin = path.resolve(process.env.REPRO_AGENT_BIN || path.join(reproRoot, 'bi
 function usage(exitCode = 0) {
   console.log(`usage:
   node /tmp/reproctl/reproctl.mjs probe-ui <route-or-url> [viewport]
+  node /tmp/reproctl/reproctl.mjs explore-ui <route-or-local-script> [viewport]
   node /tmp/reproctl/reproctl.mjs validate
+  node /tmp/reproctl/reproctl.mjs seed
   node /tmp/reproctl/reproctl.mjs verify
   node /tmp/reproctl/reproctl.mjs giveup`);
   process.exit(exitCode);
@@ -83,12 +85,30 @@ function run(command, args, extraEnv = {}) {
   process.exit(result.status ?? 1);
 }
 
-function ensureLocalRoute(route) {
-  if (!route) die('probe-ui needs a route or local URL');
+function runValidateBeforeSeed() {
+  const result = spawnSync('node', [path.join(bin, 'agent/validate-bundle.mjs')], {
+    cwd: root,
+    env: {
+      ...process.env,
+      REPRO_AGENT_ROOT: reproRoot,
+      REPRO_AGENT_BIN: bin,
+    },
+    stdio: 'inherit',
+  });
+
+  if (result.error) die(result.error.message, 1);
+  if ((result.status ?? 1) !== 0) {
+    process.exit(result.status ?? 1);
+  }
+}
+
+function ensureLocalRoute(route, commandName = 'probe-ui') {
+  if (!route) die(`${commandName} needs a route, local URL, or local script`);
+  if (fs.existsSync(path.resolve(route))) return;
   if (/^https?:\/\//i.test(route)) {
     const url = new URL(route);
     if (!['127.0.0.1', 'localhost', 'host.docker.internal'].includes(url.hostname)) {
-      die(`probe-ui only accepts local URLs, got ${url.hostname}`);
+      die(`${commandName} only accepts local URLs, got ${url.hostname}`);
     }
   }
 }
@@ -105,8 +125,16 @@ switch (command) {
     ensureLocalRoute(args[0]);
     run('bash', [path.join(bin, 'agent/probe-ui.sh'), ...args]);
     break;
+  case 'explore-ui':
+    ensureLocalRoute(args[0], 'explore-ui');
+    run('bash', [path.join(bin, 'agent/explore-ui.sh'), ...args]);
+    break;
   case 'validate':
     run('node', [path.join(bin, 'agent/validate-bundle.mjs')]);
+    break;
+  case 'seed':
+    runValidateBeforeSeed();
+    run('bash', [path.join(bin, 'execute/seed.sh')]);
     break;
   case 'verify':
     run('bash', [path.join(bin, 'agent/verify-reproduction.sh')], {

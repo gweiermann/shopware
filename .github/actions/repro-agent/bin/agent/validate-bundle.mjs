@@ -1510,13 +1510,27 @@ function validateSyncOperationEnvelope(data) {
   for (const [key, value] of Object.entries(data)) {
     if (key === '_repro_media_uploads') continue;
     if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
-    if (!Object.hasOwn(value, 'payload')) continue;
+    if (!Object.hasOwn(value, 'payload')) {
+      const nestedOperationKeys = Object.entries(value)
+        .filter(([, nested]) => nested && typeof nested === 'object' && !Array.isArray(nested))
+        .filter(([, nested]) => Object.hasOwn(nested, 'entity') || Object.hasOwn(nested, 'action') || Object.hasOwn(nested, 'payload'))
+        .map(([nestedKey]) => nestedKey);
+      if (nestedOperationKeys.length > 0) {
+        fail(`fixtures.json operation '${key}' wraps sync operation(s) ${nestedOperationKeys.join(', ')}; put each operation at the top level instead of nesting under '${key}'`);
+      }
+      continue;
+    }
 
     if (!Object.hasOwn(value, 'action')) {
       fail(`fixtures.json operation '${key}' has a payload object but no action; use a bare array shape like "${key}": [...] or a full sync envelope with "action": "upsert"`);
     }
     if (!['upsert', 'delete'].includes(String(value.action))) {
       fail(`fixtures.json operation '${key}' has unsupported action '${value.action}'; Sync API supports "upsert" and "delete"`);
+    }
+    for (const [index, row] of value.payload.entries()) {
+      if (!row || typeof row !== 'object' || Array.isArray(row)) {
+        fail(`fixtures.json operation '${key}' payload.${index} must be an object; do not JSON-encode Sync payload rows as strings`);
+      }
     }
   }
 }

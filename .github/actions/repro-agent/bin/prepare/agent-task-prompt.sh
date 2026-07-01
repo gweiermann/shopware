@@ -27,7 +27,7 @@ trap 'rm -f "$TASK" "$NEXT"' EXIT
   cat <<EOF
 Your task is to build and verify one reproduction bundle for ${ISSUE_PHRASE}.
 
-Read \`build-context.md\` first and follow it as the controlling task instructions. Then read \`issue.md\` and listed screenshots. Produce \`reproduction-plan.json\`, optional \`fixtures.json\`, and exactly one executor artifact. Run the validator and verifier. Stop after the verifier classifies the bundle, after the allowed targeted repair, or when the hard verifier budget says no tries remain.
+Read \`build-context.md\` first and follow it as the controlling task instructions. Then read \`issue.md\` and listed screenshots. Produce \`reproduction-plan.json\`, optional \`fixtures.json\`, and exactly one executor artifact. Use exploration and validation before verification. Run the verifier exactly once, then stop after it classifies the bundle or hands off an unclassified pipeline-failed result.
 
 This is reproduction-only. Do not diagnose, fix, or explain the product bug except where needed to choose the fixture/setup/assertion.
 

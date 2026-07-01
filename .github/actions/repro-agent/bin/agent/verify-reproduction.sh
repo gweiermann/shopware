@@ -11,7 +11,7 @@
 #      deterministic trunk-and-report pipeline (gh-aw safe-output channel), and tells the agent to
 #      STOP — it decides nothing further. In reproctl agent mode the script does NOT publish
 #      result.json; deterministic post-agent steps rerun the same verification before upload;
-#      NOT classified (blocked | inconclusive)  → prints the ONE thing to fix and to re-run.
+#      NOT classified (blocked | inconclusive)  → hands off a pipeline-failed result.
 #
 # Usage through the agent wrapper:
 #   node /tmp/reproctl/reproctl.mjs verify   # feedback verify; requests deterministic pipeline iff classified
@@ -22,7 +22,7 @@ MODE=${1:-verify}
 PLAN=reproduction-plan.json
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 BIN=${REPRO_AGENT_BIN:-$(cd "$SCRIPT_DIR/.." && pwd)}
-VERIFY_ATTEMPT_LIMIT=${REPRO_VERIFY_ATTEMPT_LIMIT:-3}
+VERIFY_ATTEMPT_LIMIT=${REPRO_VERIFY_ATTEMPT_LIMIT:-1}
 VERIFY_ATTEMPT_FILE=${REPRO_VERIFY_ATTEMPT_FILE:-.repro-verify-attempts}
 VERIFY_BLOCKER_FILE=${REPRO_VERIFY_BLOCKER_FILE:-.repro-last-blocker}
 HANDOFF_SENT_FILE=${REPRO_HANDOFF_SENT_FILE:-.repro-handoff-sent}
@@ -31,7 +31,7 @@ DEFER_REPORTED_RESULT=${REPRO_AGENT_DEFER_REPORTED_RESULT:-0}
 SKIP_HANDOFF=${REPRO_AGENT_SKIP_HANDOFF:-0}
 
 case "$VERIFY_ATTEMPT_LIMIT" in
-  ''|*[!0-9]*|0) VERIFY_ATTEMPT_LIMIT=3 ;;
+  ''|*[!0-9]*|0) VERIFY_ATTEMPT_LIMIT=1 ;;
 esac
 
 # Trigger the deterministic trunk-and-report job exactly once through the gh-aw safe-output
@@ -187,28 +187,18 @@ EOF
   fi
   printf '%s\n' "$blocker_key" > "$VERIFY_BLOCKER_FILE" 2>/dev/null || true
 
-  if [ "$remaining" -le 0 ]; then
-    cat <<EOF
-   Verification budget: this was your last verifier try. You cannot run this command again in this workflow.
+  cat <<EOF
+   Verification budget: this verifier run was the only allowed try.
    The bundle is still unclassified, so the workflow is handing off a pipeline-failed result now.
    Stop after this command; do not repair, rerun, or call tools.
 ==
 EOF
-    if record_possible_fix_reported_leg "$reason"; then
-      handoff "$executor" "$status" || exit 1
-    else
-      handoff none giveup || exit 1
-    fi
-    exit 0
-  fi
-
-  if [ "$remaining" -eq 1 ]; then
-    echo "   Verification budget: only 1 verifier try left."
+  if record_possible_fix_reported_leg "$reason"; then
+    handoff "$executor" "$status" || exit 1
   else
-    echo "   Verification budget: only $remaining verifier tries left."
+    handoff none giveup || exit 1
   fi
-  echo "   Fix THIS one thing, then rerun the static validator and verifier: $reason =="
-  exit 1
+  exit 0
 }
 
 plan_executor () {

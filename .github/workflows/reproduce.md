@@ -47,6 +47,7 @@ network:
   allowed:
     - defaults
     - local
+    - playwright
 
 engine:
   id: claude
@@ -83,8 +84,11 @@ tools:
   timeout: 1800
   edit:                 # author/rewrite reproduction-plan.json + fixtures.json + the spec/test
   github: false         # context is prefetched to files; no GitHub MCP/API is needed in the agent
+  playwright:
+    mode: cli           # live browser exploration via playwright-cli, closer to interactive agents
   bash:
     - "node /tmp/reproctl/reproctl.mjs:*"
+    - "playwright-cli:*"
     - "rg:*"
     - "find:*"
     - "sed:*"
