@@ -51,7 +51,7 @@ network:
 
 engine:
   id: claude
-  model: claude-sonnet-5-0
+  model: claude-sonnet-5
 
 # Temporary rollback: the sandboxed agent path passed deterministic preflight but failed to produce
 # a trusted reported-leg artifact in the real workflow. Keep the follow-up tracked in todo.md and
