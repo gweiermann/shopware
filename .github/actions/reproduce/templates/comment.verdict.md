@@ -8,7 +8,6 @@
 | **Reported** `{{RV}}` | {{REPORTED_STATUS}} |
 | **Trunk** | {{TRUNK_STATUS}} |
 | **Surface** | {{SURFACE_EXEC}} |
-| **Confidence** | {{CONFIDENCE}} |
 | **Checked** | {{DATE}} |
 {{#FIX}}
 | **Likely fix** | {{FIX}} |

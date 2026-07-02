@@ -103,7 +103,6 @@ function renderVerdict() {
     REPORTED_STATUS: legStatus(as),
     TRUNK_STATUS: legStatus(bs),
     SURFACE_EXEC: `${p.surface[plan.layer] || plan.layer || 'unknown'} · ${p.executor[plan.executor] || plan.executor || 'unknown'}`,
-    CONFIDENCE: plan.confidence != null ? String(plan.confidence) : '—',
     DATE: process.env.DATE || new Date().toISOString().slice(0, 10),
     FIX: fix,
     UNSURE: unsure,
@@ -131,8 +130,7 @@ function scenarioBlock(plan) {
 function agentExplanation(plan) {
   const text = plan.agent_explanation || plan.confidence_reason;
   if (!text || text === 'null') return '';
-  const confidence = plan.confidence != null ? `\n\n**Confidence:** ${plan.confidence}` : '';
-  return `${String(text).replace(/\s+/g, ' ').trim()}${confidence}`;
+  return String(text).replace(/\s+/g, ' ').trim();
 }
 
 // One collapsible per leg — its status in the summary line, and everything for that leg inside it
