@@ -186,7 +186,7 @@ function checksBlock(leg) {
     const name = ops[c.op] || 'Equals';
     const call = ['present', 'absent'].includes(c.op) ? `${verb}${name}(${c.subject})` : `${verb}${name}(${c.subject}, ${qval(String(c.expected))})`;
     const suffix = c.label && c.label !== 'null' ? ` - ${clean(c.label)}` : '';
-    if (c.skipped) { lines.push(`${call} // ⏭ skipped — response was not 2xx${suffix}`); continue; }
+    if (c.skipped) { lines.push(`${call} // ⏭ not run (stopped at the first failure)${suffix}`); continue; }
     if (c.ok) { lines.push(`${call} // ✅${suffix}`); continue; }
     const actual = String(c.actual);
     if (actual.includes('\n')) {

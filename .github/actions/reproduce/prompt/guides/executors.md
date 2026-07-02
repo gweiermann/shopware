@@ -19,30 +19,26 @@ Assertion fields are jq filters on the final response. Ops: `equals` (default), 
 `matches`, `present`, `absent`, `gt`, `lt`. `expect` is the **healthy** value. Mark setup checks
 `"role": "precondition"` and the symptom `"role": "assert"`.
 
-**Assert the response body, not just the status.** A status code alone is weak evidence — many
-things return the same code — so it rarely proves *this* bug. Add assertions on the response
-**value** that embodies the healthy behaviour (the field that's wrong/missing when the bug is
-present): e.g. `.data present`, `.total equals 0`, `.errors[0].code contains "…"`, a computed price.
-Keep a status check too.
+**Assertions run in order and stop at the first failure** (like reading a test top to bottom). The
+failing check's role decides the leg: a **precondition** → `inconclusive` (the scenario wasn't set
+up); an **assert** → `reproduced` (the symptom). All pass ⇒ `not_reproduced`. So **order them**:
+reachability/status checks first, then the symptom, then deeper body checks.
 
-When the buggy response is an **error** (non-2xx), mark the body-value assertions
-`"only_if_2xx": true` — they describe the healthy response, so they're **skipped** on an error leg
-(not counted, no `inconclusive`) while the status assert still flags the bug:
+**Assert the response body, not just the status** — a status code alone is weak evidence (many things
+return the same code). Add assertions on the response **value** that's wrong/missing when the bug is
+present: `.data present`, `.total equals 0`, `.errors[0].code contains "…"`, a computed price.
 
-```json
-"assertions": [
-  { "kind": "http_status", "expect": 200, "label": "request succeeds" },
-  { "field": ".data", "op": "present", "only_if_2xx": true, "label": "language list returned" },
-  { "field": ".data[0].name", "op": "equals", "expect": "English", "only_if_2xx": true }
-]
-```
+Two shapes, depending on the healthy response:
+- Healthy is **2xx** (e.g. a wrong-value bug): make `status == 200` a `precondition`, then assert the
+  body field. A buggy non-2xx fails the precondition → `inconclusive`; a buggy 2xx with the wrong
+  value fails the assert → `reproduced`.
+- Healthy is 2xx but the bug makes it **error out** (e.g. #25's 412 crash): make `status == 200` the
+  first `assert`. The buggy error fails it → `reproduced`, and because evaluation stops there, the
+  later body checks (which would be unreadable on the error) simply don't run — no `inconclusive`.
+  Add those body checks anyway for the healthy leg (`.data present`, a returned value…).
 
-(Without `only_if_2xx`, a value comparison on a field unreadable on a non-2xx response is treated as
-`inconclusive` to avoid a bogus verdict; `present`/`absent` are exempt.)
-
-Status: all assertions pass ⇒ `not_reproduced`; a symptom assert fails ⇒ `reproduced`. Guards that
-force `inconclusive` instead of a bogus verdict: a failed precondition, an unasserted 401/403, or an
-unreadable field on a non-2xx response.
+(Safety net: if the deciding assert is a value comparison on a field that's unreadable on a non-2xx
+response, the leg is `inconclusive` rather than a bogus `reproduced`; `present`/`absent` are exempt.)
 
 ## direct — `ReproTest.php`
 

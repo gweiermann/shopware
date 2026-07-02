@@ -101,8 +101,12 @@ function classify(assertions, { code, bodyText, blocked }) {
     return { status: 'inconclusive', checks: [], reporter: `request returned HTTP ${code} (auth rejected) before the symptom could run — harness-credential failure, not the reported bug` };
   }
 
+  // Evaluate in order and STOP at the first failure — like reading a test top to bottom. The
+  // failing check's role decides the leg: a precondition → inconclusive (scenario not set up), an
+  // assert → reproduced (the symptom). Because we stop, a status-symptom bug fails at the status
+  // assert and never reaches later body checks. Remaining checks are recorded as "not run".
   const checks = [];
-  let precondOk = true; let symptomOk = true; let unreadableNon2xx = false;
+  let outcome = null;
   for (const a of assertions) {
     const op = OPS[a.op] ? a.op : 'equals';
     const role = a.role === 'precondition' ? 'precondition' : 'assert';
@@ -111,30 +115,21 @@ function classify(assertions, { code, bodyText, blocked }) {
     const subject = kind === 'http_status' ? 'status' : `response | ${a.field}`;
     const label = a.label || a.comment || '';
 
-    // `only_if_2xx` assertions describe the HEALTHY body — skip them (don't pass/fail/inconclusive)
-    // when the response is an error, so a status assert can still flag the bug without the body
-    // checks turning the error leg inconclusive.
-    if (a.only_if_2xx === true && !is2xx) {
-      checks.push({ subject, role, op, expected, actual: '(skipped — non-2xx)', label, ok: null, skipped: true });
-      continue;
-    }
+    if (outcome) { checks.push({ subject, role, op, expected, actual: '(not run)', label, ok: null, skipped: true }); continue; }
 
     const actual = kind === 'http_status' ? code : (jqField(a.field, bodyText) || '<unparseable>');
     const ok = OPS[op](actual, expected);
-    if (role === 'precondition') { if (!ok) precondOk = false; }
-    else {
-      if (!ok) symptomOk = false;
-      if (['equals', 'contains', 'matches', 'gt', 'lt'].includes(op) && actual === '<unparseable>' && !is2xx) unreadableNon2xx = true;
-    }
     checks.push({ subject, role, op, expected, actual, label, ok });
+    if (ok) continue;
+    if (role === 'precondition') {
+      outcome = { status: 'inconclusive', reporter: `precondition not met: ${subject} (expected ${expected}, got ${actual}) — the scenario was not set up as expected` };
+    } else if (['equals', 'contains', 'matches', 'gt', 'lt'].includes(op) && actual === '<unparseable>' && !is2xx) {
+      // A value check on a field that isn't readable on an error response can't confirm the symptom.
+      outcome = { status: 'inconclusive', reporter: `${subject} was unreadable on HTTP ${code} — can't confirm the symptom` };
+    } else {
+      outcome = { status: 'reproduced', reporter: `${subject} failed (expected ${expected}, got ${actual}); HTTP ${code}` };
+    }
   }
 
-  if (!precondOk) {
-    const failed = checks.filter((c) => c.role === 'precondition' && !c.ok && !c.skipped).map((c) => `${c.subject} (expected ${c.expected}, got ${c.actual})`).join('; ');
-    return { status: 'inconclusive', checks, reporter: `precondition(s) not met: ${failed} — the scenario was not set up as expected` };
-  }
-  if (unreadableNon2xx) return { status: 'inconclusive', checks: [], reporter: `final request returned HTTP ${code} and an asserted field was unreadable` };
-  if (symptomOk) return { status: 'not_reproduced', checks, reporter: `all assertions passed; HTTP ${code}` };
-  const failed = checks.filter((c) => c.role === 'assert' && !c.ok && !c.skipped).length;
-  return { status: 'reproduced', checks, reporter: `${failed} symptom assertion(s) failed; HTTP ${code}` };
+  return outcome ? { ...outcome, checks } : { status: 'not_reproduced', checks, reporter: `all assertions passed; HTTP ${code}` };
 }
