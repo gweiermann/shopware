@@ -3,6 +3,10 @@
 For any rendered/visual/interaction symptom. The spec asserts the **healthy** behaviour: it fails on
 the buggy version (⇒ reproduced) and passes when healthy (⇒ not_reproduced).
 
+The spec is shown verbatim in the issue comment, so **write it to be read**: a short `//` comment
+above each step (navigate, precondition, action, the final assertion) explaining what it does and
+why, so a reviewer can follow the scenario without reverse-engineering the selectors.
+
 ## The rules `repro validate` enforces
 
 - **Import only `@playwright/test`.**

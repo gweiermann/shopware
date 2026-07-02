@@ -177,16 +177,18 @@ function checksBlock(leg) {
   }
   const ops = { present: 'Present', absent: 'Absent', contains: 'Contains', matches: 'Matches', gt: 'GreaterThan', lt: 'LessThan', equals: 'Equals' };
   const sorted = [...checks].sort((a, b) => (a.role === 'precondition' ? 0 : 1) - (b.role === 'precondition' ? 0 : 1));
+  // Only label the two groups when both are present; a list of only-asserts needs no header.
+  const showHeaders = checks.some((c) => c.role === 'precondition') && checks.some((c) => (c.role || 'assert') !== 'precondition');
   const lines = ['```js'];
   let lastRole;
   for (const c of sorted) {
     const role = c.role === 'precondition' ? 'precondition' : 'assert';
-    if (role !== lastRole) { if (lastRole) lines.push(''); lines.push(`// === ${role === 'precondition' ? 'PRECONDITIONS' : 'ASSERTIONS'} ===`); lastRole = role; }
+    if (showHeaders && role !== lastRole) { if (lastRole) lines.push(''); lines.push(`// ${role === 'precondition' ? 'preconditions' : 'assertions'}`); lastRole = role; }
     const verb = role === 'precondition' ? 'require' : 'assert';
     const name = ops[c.op] || 'Equals';
     const call = ['present', 'absent'].includes(c.op) ? `${verb}${name}(${c.subject})` : `${verb}${name}(${c.subject}, ${qval(String(c.expected))})`;
     const suffix = c.label && c.label !== 'null' ? ` - ${clean(c.label)}` : '';
-    if (c.skipped) { lines.push(`${call} // ⏭ not run (stopped at the first failure)${suffix}`); continue; }
+    if (c.skipped) { lines.push(`${call} // skipped`); continue; }
     if (c.ok) { lines.push(`${call} // ✅${suffix}`); continue; }
     const actual = String(c.actual);
     if (actual.includes('\n')) {
