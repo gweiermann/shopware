@@ -183,7 +183,7 @@ function callOf(c) {
 function resultChecks(leg) {
   const checks = leg.assertion?.checks;
   if (Array.isArray(checks) && checks.length) {
-    const failed = checks.filter((c) => c.ok === false && !c.skipped);
+    const failed = checks.filter((c) => c.ok === false); // ok:null (not-run) checks are excluded
     if (!failed.length) return '';
     const lines = ['```js'];
     for (const c of failed) {

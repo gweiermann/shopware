@@ -120,7 +120,7 @@ function classify(assertions, { code, bodyText, blocked }) {
     const subject = kind === 'http_status' ? 'status' : `response | ${a.field}`;
     const label = a.label || a.comment || '';
 
-    if (outcome) { checks.push({ subject, role, op, expected, actual: '(not run)', label, ok: null, skipped: true }); continue; }
+    if (outcome) { checks.push({ subject, role, op, expected, actual: '(not run)', label, ok: null }); continue; }
 
     const actual = kind === 'http_status' ? code : (jqField(a.field, bodyText) || '<unparseable>');
     const ok = OPS[op](actual, expected);
