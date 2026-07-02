@@ -23,18 +23,27 @@ export async function run({ plan, target }) {
 
   const authored = fs.readFileSync(specPath, 'utf8');
   const cleanSpec = stripNarration(authored); // the verdict runs — and the comment shows — exactly this
-  const report = runSpec(cleanSpec, storage.state, { video: false });
+  // A declared viewport is applied at context creation (both runs) so a mobile repro is exercised —
+  // and recorded — at the right size, instead of a desktop frame the spec shrinks mid-test.
+  const viewport = viewportEnv(plan.viewport);
+  const report = runSpec(cleanSpec, storage.state, { video: false, viewport });
 
   // Opt-in evidence: when the plan asks for it, a separate narrated pass records a followable video
   // on each official leg (reported + trunk) — so whichever leg reproduces is captured — but never on
   // the agent's fast `try`. Its result is ignored, so it can never affect the verdict. Best-effort.
   if (plan.record_video === true && target !== 'builder') {
-    try { runSpec(authored, storage.state, { video: true }); } catch { /* video is optional */ }
+    try { runSpec(authored, storage.state, { video: true, viewport }); } catch { /* video is optional */ }
   }
   return classify(plan, target, cleanSpec, report);
 }
 
 const nullAssertion = () => ({ expect: null, actual: null, matched: null });
+
+// A valid {width,height} of positive integers ⇒ the JSON string the config parses; anything else ⇒ null.
+function viewportEnv(v) {
+  if (!v || !Number.isFinite(v.width) || !Number.isFinite(v.height) || v.width <= 0 || v.height <= 0) return null;
+  return JSON.stringify({ width: Math.round(v.width), height: Math.round(v.height) });
+}
 
 // admin-ui: log in once (proven locators) and hand the spec a session. A login failure is an env
 // problem, not a reproduction result ⇒ blocked. storefront-ui: pre-accept consent (best effort).
@@ -54,7 +63,7 @@ function prepareAuth(plan, target) {
 // Run the spec in an isolated dir. The verdict run (video:false) drives the JSON report we classify.
 // The video run (video:true) records a narrated .webm into its own output dir — kept separate so it
 // never overwrites the verdict run's screenshot/trace — and the recording is copied to ./video.webm.
-function runSpec(spec, storageState, { video }) {
+function runSpec(spec, storageState, { video, viewport }) {
   const suffix = video ? '-video' : '';
   const runDir = process.env.RUNNER_TEMP && fs.existsSync(process.env.RUNNER_TEMP) ? path.join(process.env.RUNNER_TEMP, `repro-playwright${suffix}`) : `.repro-playwright${suffix}`;
   fs.rmSync(runDir, { recursive: true, force: true });
@@ -68,7 +77,7 @@ function runSpec(spec, storageState, { video }) {
   const outputDir = path.resolve(`test-results${suffix}`);
   spawnSync('npx', ['playwright', 'test', '--config', path.join(runDir, 'playwright.config.ts')], {
     stdio: ['ignore', fs.openSync(`pw-stdout${suffix}.txt`, 'w'), fs.openSync(`pw-stderr${suffix}.txt`, 'w')],
-    env: { ...process.env, APP_URL: appUrl(), PW_STORAGE: storageState, PW_JSON_REPORT: reportPath, PW_OUTPUT_DIR: outputDir, PW_VIDEO: video ? 'on' : 'off' },
+    env: { ...process.env, APP_URL: appUrl(), PW_STORAGE: storageState, PW_JSON_REPORT: reportPath, PW_OUTPUT_DIR: outputDir, PW_VIDEO: video ? 'on' : 'off', ...(viewport ? { PW_VIEWPORT: viewport } : {}) },
   });
 
   if (video) { const webm = findWebm(outputDir); if (webm) fs.copyFileSync(webm, 'video.webm'); return null; }

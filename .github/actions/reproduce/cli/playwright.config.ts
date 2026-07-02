@@ -8,6 +8,12 @@ import { cwd } from 'node:process';
 // video pass (which also slows actions down so the recording is followable).
 const video = process.env['PW_VIDEO'] === 'on';
 
+// PW_VIEWPORT (JSON `{width,height}`) comes from the plan's `viewport`. It MUST be applied at context
+// creation — the video recorder fixes its frame size here — so a mobile/responsive repro records at
+// the right dimensions. Resizing later with page.setViewportSize() paints the smaller page inside the
+// original (desktop) frame, leaving a grey border. Absent ⇒ Playwright's default desktop viewport.
+const viewport = process.env['PW_VIEWPORT'] ? JSON.parse(process.env['PW_VIEWPORT']) : null;
+
 export default defineConfig({
   testDir: '.',
   testIgnore: ['**/demo/**'],
@@ -28,8 +34,9 @@ export default defineConfig({
     // Admin specs start authenticated (login-state.mjs); storefront specs start consented
     // (consent-state.mjs). Either is passed here so specs never author their own auth.
     storageState: process.env['PW_STORAGE'] || undefined,
+    ...(viewport ? { viewport } : {}),
     trace: 'on',
-    video: video ? 'on' : 'off',
+    video: video ? (viewport ? { mode: 'on', size: viewport } : 'on') : 'off',
     screenshot: 'on',
     launchOptions: { slowMo: video ? Number(process.env['REPRO_VIDEO_SLOWMO'] || 400) : 0 },
   },

@@ -12,6 +12,7 @@ The deterministic handoff. `repro validate` enforces the required parts; everyth
   "build_profile": { "admin_build": false, "storefront_build": true },
   "browser_state": { "auto_cookie_consent": true },
   "record_video": false,                 // playwright: true → each leg records a .webm (motion/interaction bugs)
+  "viewport": { "width": 390, "height": 844 }, // playwright: OMIT for desktop; set for mobile/responsive bugs
   "fixtures": { "demodata": false },     // set demodata:true only if realistic catalog volume is needed
   "seeded_readiness": [                  // playwright + fixtures: prove the seeded state renders
     { "kind": "browser", "path": "/detail/<id>", "selector": ".product-detail-name", "text": "Seeded Product" }
@@ -34,7 +35,10 @@ The deterministic handoff. `repro validate` enforces the required parts; everyth
   pre-accepts consent). Set `false` only when the bug *is* the cookie/consent flow.
 - **record_video** — optional, playwright only. `true` records a `.webm` of each leg for the comment;
   use it for motion/interaction bugs a screenshot can't convey (animation, drag, toggle, a control
-  that won't respond). See [playwright.md](playwright.md).
+  that won't respond). When you enable it, **narrate the spec** so the clip is followable. See [playwright.md](playwright.md).
+- **viewport** — optional, playwright only. Omit for desktop bugs. Set `{ "width", "height" }` for a
+  mobile/responsive/off-canvas symptom: the harness applies it at context creation so both legs run —
+  and the video records — at that size. Never resize with `page.setViewportSize()` in the spec.
 - **seeded_readiness** — required when a playwright repro uses `fixtures.json`. It proves SETUP, not
   the symptom: use a stable seeded-identity marker (product title/number, a container), never the
   reported broken control. Details in [fixtures.md](fixtures.md).

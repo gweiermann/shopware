@@ -39,6 +39,19 @@ control that only stays reachable because the bug leaves a menu open. If your pa
 the symptom is present, the trunk leg times out and comes back `inconclusive`. Prefer stable routes
 (`page.goto` a URL) over multi-step navigation that the fix would change.
 
+## Viewport — declare it, don't resize mid-test
+
+For a mobile/responsive/off-canvas symptom, set the viewport in `reproduction-plan.json`:
+
+```json
+{ "executor": "playwright", "viewport": { "width": 390, "height": 844 } }
+```
+
+The harness applies it at browser-context creation, so **both** legs run at that size and the recorded
+video frame matches. **Never call `page.setViewportSize()` in the spec** (`repro validate` rejects it):
+it resizes *after* the video frame is fixed, so the smaller page renders inside a desktop frame with a
+grey border. Omit `viewport` for normal desktop bugs.
+
 ## Auth — the harness owns it
 
 - **admin-ui:** the harness logs in and hands the spec an authenticated session. Navigate straight to
@@ -56,10 +69,12 @@ motion*: an animation or transition, a drag, a hover/toggle, scrolling, a loadin
 an interaction where "clicking X does nothing / does the wrong thing" (e.g. a menu that won't close).
 Each leg then records a `.webm` that the comment links. Leave it off otherwise.
 
-To make that video followable, you may narrate it with two helpers from `./video-helpers.js`:
-`narrate(page, "what's happening")` (a subtitle) and `mark(page, locator, "label")` (highlights the
-element about to be used). **Write each as its own single-line `await` statement, next to — never
-wrapping — the real action**, e.g.:
+**When you set `record_video: true`, narrate the recording** — a silent motion clip is hard to follow,
+and the whole point of the video is that a human can watch the symptom happen. Use the two helpers from
+`./video-helpers.js`: `narrate(page, "what's happening")` (a subtitle) and `mark(page, locator, "label")`
+(highlights the element about to be used). Narrate each meaningful step — the navigation, the action
+that triggers the symptom, and the failing state. **Write each as its own single-line `await` statement,
+next to — never wrapping — the real action**, e.g.:
 
 ```ts
 import { test, expect } from '@playwright/test';

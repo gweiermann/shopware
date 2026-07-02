@@ -61,6 +61,16 @@ function validateSpec(plan) {
   const remoteUrl = [...spec.matchAll(/https?:\/\/([^/"'`\s)]+)/g)].map((m) => m[1]).find((host) => !LOCAL_HOSTS.some((h) => host.startsWith(h)));
   if (remoteUrl) errors.push(`spec references a non-local URL (${remoteUrl}); navigate relative to baseURL`);
 
+  const vp = plan.viewport;
+  if (vp !== undefined && (typeof vp !== 'object' || !(vp.width > 0) || !(vp.height > 0))) {
+    errors.push('viewport must be {"width":<px>,"height":<px>} with positive numbers (it sizes the run and the recording)');
+  }
+  // The plan viewport is authoritative and applied at context creation; an in-spec resize records at
+  // the wrong size, so steer it to the plan field instead.
+  if (/\bpage\.setViewportSize\s*\(/.test(spec)) {
+    errors.push('do not call page.setViewportSize() — declare "viewport" in reproduction-plan.json so the context (and the video frame) start at the right size');
+  }
+
   return errors;
 }
 
