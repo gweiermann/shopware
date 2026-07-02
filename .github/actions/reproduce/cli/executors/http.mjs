@@ -109,23 +109,32 @@ function classify(assertions, { code, bodyText, blocked }) {
     const kind = a.kind || (a.field ? 'response_field' : 'http_status');
     const expected = a.expect !== undefined ? String(a.expect) : '';
     const subject = kind === 'http_status' ? 'status' : `response | ${a.field}`;
+    const label = a.label || a.comment || '';
+
+    // `only_if_2xx` assertions describe the HEALTHY body — skip them (don't pass/fail/inconclusive)
+    // when the response is an error, so a status assert can still flag the bug without the body
+    // checks turning the error leg inconclusive.
+    if (a.only_if_2xx === true && !is2xx) {
+      checks.push({ subject, role, op, expected, actual: '(skipped — non-2xx)', label, ok: null, skipped: true });
+      continue;
+    }
+
     const actual = kind === 'http_status' ? code : (jqField(a.field, bodyText) || '<unparseable>');
     const ok = OPS[op](actual, expected);
-
     if (role === 'precondition') { if (!ok) precondOk = false; }
     else {
       if (!ok) symptomOk = false;
       if (['equals', 'contains', 'matches', 'gt', 'lt'].includes(op) && actual === '<unparseable>' && !is2xx) unreadableNon2xx = true;
     }
-    checks.push({ subject, role, op, expected, actual, label: a.label || a.comment || '', ok });
+    checks.push({ subject, role, op, expected, actual, label, ok });
   }
 
   if (!precondOk) {
-    const failed = checks.filter((c) => c.role === 'precondition' && !c.ok).map((c) => `${c.subject} (expected ${c.expected}, got ${c.actual})`).join('; ');
+    const failed = checks.filter((c) => c.role === 'precondition' && !c.ok && !c.skipped).map((c) => `${c.subject} (expected ${c.expected}, got ${c.actual})`).join('; ');
     return { status: 'inconclusive', checks, reporter: `precondition(s) not met: ${failed} — the scenario was not set up as expected` };
   }
   if (unreadableNon2xx) return { status: 'inconclusive', checks: [], reporter: `final request returned HTTP ${code} and an asserted field was unreadable` };
   if (symptomOk) return { status: 'not_reproduced', checks, reporter: `all assertions passed; HTTP ${code}` };
-  const failed = checks.filter((c) => c.role === 'assert' && !c.ok).length;
+  const failed = checks.filter((c) => c.role === 'assert' && !c.ok && !c.skipped).length;
   return { status: 'reproduced', checks, reporter: `${failed} symptom assertion(s) failed; HTTP ${code}` };
 }

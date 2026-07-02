@@ -20,15 +20,25 @@ Assertion fields are jq filters on the final response. Ops: `equals` (default), 
 `"role": "precondition"` and the symptom `"role": "assert"`.
 
 **Assert the response body, not just the status.** A status code alone is weak evidence — many
-things return the same code — so it rarely proves *this* bug. Add an assertion on the response
+things return the same code — so it rarely proves *this* bug. Add assertions on the response
 **value** that embodies the healthy behaviour (the field that's wrong/missing when the bug is
 present): e.g. `.data present`, `.total equals 0`, `.errors[0].code contains "…"`, a computed price.
-Keep the status check too, usually as a `precondition`.
+Keep a status check too.
 
-One caveat: when the buggy response is an **error** (non-2xx), a value comparison (`equals`/`contains`/
-`matches`/`gt`/`lt`) on a field that isn't readable there is treated as `inconclusive` (to avoid a
-bogus verdict). `present`/`absent` are exempt — so for a "crashes / errors out" bug, assert the
-healthy field with `present` (e.g. healthy `.data` present; the error leg has none → fails → reproduced).
+When the buggy response is an **error** (non-2xx), mark the body-value assertions
+`"only_if_2xx": true` — they describe the healthy response, so they're **skipped** on an error leg
+(not counted, no `inconclusive`) while the status assert still flags the bug:
+
+```json
+"assertions": [
+  { "kind": "http_status", "expect": 200, "label": "request succeeds" },
+  { "field": ".data", "op": "present", "only_if_2xx": true, "label": "language list returned" },
+  { "field": ".data[0].name", "op": "equals", "expect": "English", "only_if_2xx": true }
+]
+```
+
+(Without `only_if_2xx`, a value comparison on a field unreadable on a non-2xx response is treated as
+`inconclusive` to avoid a bogus verdict; `present`/`absent` are exempt.)
 
 Status: all assertions pass ⇒ `not_reproduced`; a symptom assert fails ⇒ `reproduced`. Guards that
 force `inconclusive` instead of a bogus verdict: a failed precondition, an unasserted 401/403, or an
