@@ -38,7 +38,7 @@ network:
 
 engine:
   id: claude
-  model: claude-sonnet-5
+  model: claude-sonnet-4-6
 
 # The trusted post-step verifier does the authoritative run; the agent's own tools are feedback only.
 # Sandbox stays off until the gh-aw sandbox artifact handoff is confirmed on this workflow.
@@ -48,8 +48,9 @@ sandbox:
 features:
   dangerously-disable-sandbox-agent: "Run the agent unsandboxed; the trusted post-step owns the result"
 
-# Cost ceiling — the agent verifies its assumptions with cheap tools and stops; it does not run the pipeline.
-max-ai-credits: 400
+# Per-run AI-credit cap (~$20). The agent verifies its assumptions with cheap tools and stops; it
+# does not run the pipeline, so this is headroom rather than a target.
+max-ai-credits: 2000
 timeout-minutes: 40
 
 tools:
