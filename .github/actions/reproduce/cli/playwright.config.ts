@@ -19,6 +19,12 @@ export default defineConfig({
   ],
   use: {
     baseURL: process.env['APP_URL'],
+    // Bound per-action/navigation waits. Without this an action (e.g. a click on an element that
+    // never becomes actionable — common when the trunk UI diverges from the buggy version) waits the
+    // whole 120s test budget, yielding a vague timeout. A 15s cap fails fast with a precise "waiting
+    // for element … " so the classifier can name the missing state instead of just "timed out".
+    actionTimeout: 15_000,
+    navigationTimeout: 30_000,
     // Admin specs start authenticated (login-state.mjs); storefront specs start consented
     // (consent-state.mjs). Either is passed here so specs never author their own auth.
     storageState: process.env['PW_STORAGE'] || undefined,

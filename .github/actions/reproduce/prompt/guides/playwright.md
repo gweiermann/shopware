@@ -29,6 +29,12 @@ await expect(page.locator('.product-detail-price')).toHaveText('19,99 €'); // 
 
 Keep each precondition its own gate so a failure names the missing state.
 
+**Reach the assertion the same way on both versions.** The exact spec is re-run on trunk (where the
+bug is usually fixed), so don't rely on the *broken* behaviour to navigate — e.g. don't click a
+control that only stays reachable because the bug leaves a menu open. If your path only works while
+the symptom is present, the trunk leg times out and comes back `inconclusive`. Prefer stable routes
+(`page.goto` a URL) over multi-step navigation that the fix would change.
+
 ## Auth — the harness owns it
 
 - **admin-ui:** the harness logs in and hands the spec an authenticated session. Navigate straight to
