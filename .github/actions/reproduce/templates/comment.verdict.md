@@ -56,7 +56,12 @@
 ```{{TESTCASE_LANG}}
 {{TESTCASE}}
 ```
+{{#ASSERTIONS}}
 
+**Checks**
+
+{{ASSERTIONS}}
+{{/ASSERTIONS}}
 </details>
 {{/TESTCASE}}
 {{#FIXTURES}}

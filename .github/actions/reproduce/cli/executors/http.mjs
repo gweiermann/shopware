@@ -64,7 +64,12 @@ async function sendRequests(requests, ids) {
       headers[k] = fillPlaceholders(String(v), ids);
     }
     if (body && !Object.keys(headers).some((h) => h.toLowerCase() === 'content-type')) headers['Content-Type'] = 'application/json';
-    script += `curl -sS -X ${method} "$APP_URL${path}"${body ? ` --data '${body}'` : ''}\n`;
+    // Show the request's own headers in the script (the empty sw-language-id in #25 IS the repro);
+    // auth is injected by the executor, noted in the repro.sh header, so it's omitted here.
+    const shownHeaders = Object.entries(req.headers || {})
+      .filter(([k]) => !['authorization', 'sw-access-key'].includes(k.toLowerCase()))
+      .map(([k, v]) => ` -H "${k}: ${v}"`).join('');
+    script += `curl -sS -X ${method} "$APP_URL${path}"${shownHeaders}${body ? ` --data '${body}'` : ''}\n`;
 
     let res;
     try { res = await fetch(`${appUrl()}${path}`, { method, headers, body: body || undefined }); }

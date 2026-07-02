@@ -29,8 +29,11 @@ function readExtra(name) {
 // Single var pass (sections just inline their body), so substituted values — e.g. the agent summary —
 // are never re-scanned for placeholders.
 function render(tpl, ctx) {
-  const withSections = tpl.replace(/{{#(\w+)}}\n?([\s\S]*?){{\/\1}}\n?/g, (_, key, inner) => (ctx[key] ? inner : ''));
-  return withSections.replace(/{{(\w+)}}/g, (_, key) => ctx[key] ?? '');
+  // Resolve sections first, looping to handle nesting; then a single var pass (a substituted value
+  // is inserted last, so it is never re-scanned for placeholders).
+  let out = tpl; let prev;
+  do { prev = out; out = out.replace(/{{#(\w+)}}\n?([\s\S]*?){{\/\1}}\n?/g, (_, key, inner) => (ctx[key] ? inner : '')); } while (out !== prev);
+  return out.replace(/{{(\w+)}}/g, (_, key) => ctx[key] ?? '');
 }
 
 const redact = (text) => text
@@ -115,6 +118,7 @@ function renderVerdict() {
     TESTCASE: script,
     TESTCASE_LANG: specLeg?.evidence?.script_lang || 'sh',
     TESTCASE_TOOL: p.testcase_tool[plan.executor] || specLeg?.evidence?.script_lang || 'sh',
+    ASSERTIONS: script ? assertionList(specLeg?.assertion?.checks) : '', // http: the expectations, beside the curl
     FIXTURES: hasFixtures ? fs.readFileSync(fixturesPath, 'utf8').trim() : '',
     RUN_URL: process.env.RUN_URL || '',
   };
@@ -151,11 +155,11 @@ function resultSection({ legA, legB, as, bs, labels, explanation, evidence }) {
 }
 
 function legSpoiler(summary, leg, ev) {
-  // The `→` line explains the outcome: for inconclusive/blocked legs that's the specific reason,
-  // otherwise the generic gloss. Plain text (no blockquote), so it reads in context. Recording link
-  // goes ABOVE the screenshot so a tall image doesn't push it out of view.
+  // Result shows only what happened: the FAILING check(s) for a structured (http) leg, or the raw
+  // reporter for a playwright/direct leg — then the `→` gloss/reason. The full assertion list lives
+  // in the Reproduction test spoiler. Recording link goes above the screenshot (tall image).
   const reason = leg.blocked_reason && leg.blocked_reason !== 'null' ? leg.blocked_reason : '';
-  const body = [checksBlock(leg), reason ? `→ ${reason}` : (DATA.phrases.gloss[leg.status] || '')];
+  const body = [resultChecks(leg), reason ? `→ ${reason}` : (DATA.phrases.gloss[leg.status] || '')];
   if (ev.webm) body.push(`▶ [Watch the recording](${ev.webm})`);
   if (ev.png) body.push(`![screenshot](${ev.png})`);
   return spoiler(summary, body.filter(Boolean).join('\n\n'));
@@ -167,38 +171,40 @@ function spoiler(summary, body) { return `<details><summary>${summary}</summary>
 function qval(v) { return /^\d+$/.test(v) ? v : `'${v}'`; }
 function clean(s) { return String(s).replace(/\s+/g, ' ').replace(/\*\//g, '* /').trim(); }
 
-// Render assertion.checks as named asserts (require* = precondition, assert* = symptom) with ✅/❌;
-// fall back to the raw reporter line when an executor emits no checks.
-function checksBlock(leg) {
-  const checks = leg.assertion?.checks;
-  if (!Array.isArray(checks) || checks.length === 0) {
-    const reporter = leg.evidence?.reporter_output;
-    return reporter && reporter !== 'null' ? `\`\`\`\n${reporter}\n\`\`\`` : '';
-  }
+// require*/assert* call for a check (require* = precondition, assert* = symptom).
+function callOf(c) {
   const ops = { present: 'Present', absent: 'Absent', contains: 'Contains', matches: 'Matches', gt: 'GreaterThan', lt: 'LessThan', equals: 'Equals' };
-  const sorted = [...checks].sort((a, b) => (a.role === 'precondition' ? 0 : 1) - (b.role === 'precondition' ? 0 : 1));
-  // Only label the two groups when both are present; a list of only-asserts needs no header.
-  const showHeaders = checks.some((c) => c.role === 'precondition') && checks.some((c) => (c.role || 'assert') !== 'precondition');
-  const lines = ['```js'];
-  let lastRole;
-  for (const c of sorted) {
-    const role = c.role === 'precondition' ? 'precondition' : 'assert';
-    if (showHeaders && role !== lastRole) { if (lastRole) lines.push(''); lines.push(`// ${role === 'precondition' ? 'preconditions' : 'assertions'}`); lastRole = role; }
-    const verb = role === 'precondition' ? 'require' : 'assert';
-    const name = ops[c.op] || 'Equals';
-    const call = ['present', 'absent'].includes(c.op) ? `${verb}${name}(${c.subject})` : `${verb}${name}(${c.subject}, ${qval(String(c.expected))})`;
-    const suffix = c.label && c.label !== 'null' ? ` - ${clean(c.label)}` : '';
-    if (c.skipped) { lines.push(`${call} // skipped`); continue; }
-    if (c.ok) { lines.push(`${call} // ✅${suffix}`); continue; }
-    const actual = String(c.actual);
-    if (actual.includes('\n')) {
-      // A multi-line value (e.g. a JSON error body) can't sit behind a `//` line comment — the
-      // second line would break the fence. Put it in a /* … */ block on its own lines.
-      lines.push(`${call} // ❌${suffix}`, `/* got:\n${blockSafe(actual)}\n*/`);
-    } else {
-      lines.push(`${call} // ❌ got ${qval(actual)}${suffix}`);
+  const verb = c.role === 'precondition' ? 'require' : 'assert';
+  const name = ops[c.op] || 'Equals';
+  return ['present', 'absent'].includes(c.op) ? `${verb}${name}(${c.subject})` : `${verb}${name}(${c.subject}, ${qval(String(c.expected))})`;
+}
+
+// What Result shows for a leg: only the failing checks (http), or the raw reporter (playwright/direct).
+function resultChecks(leg) {
+  const checks = leg.assertion?.checks;
+  if (Array.isArray(checks) && checks.length) {
+    const failed = checks.filter((c) => c.ok === false && !c.skipped);
+    if (!failed.length) return '';
+    const lines = ['```js'];
+    for (const c of failed) {
+      if (c.label && c.label !== 'null') lines.push(`// failed: "${clean(c.label)}"`);
+      const actual = String(c.actual);
+      if (actual.includes('\n')) lines.push(`${callOf(c)} // ❌`, `/* got:\n${blockSafe(actual)}\n*/`);
+      else lines.push(`${callOf(c)} // ❌ got ${qval(actual)}`);
     }
+    lines.push('```');
+    return lines.join('\n');
   }
+  // No structured checks (playwright/direct): show the reporter, except on a plain healthy pass.
+  const reporter = leg.evidence?.reporter_output;
+  return (leg.status !== 'not_reproduced' && reporter && reporter !== 'null') ? `\`\`\`\n${reporter}\n\`\`\`` : '';
+}
+
+// The full expectation list for the Reproduction test spoiler (definitions, no pass/fail).
+function assertionList(checks) {
+  if (!Array.isArray(checks) || !checks.length) return '';
+  const lines = ['```js'];
+  for (const c of checks) lines.push(c.label && c.label !== 'null' ? `${callOf(c)} // ${clean(c.label)}` : callOf(c));
   lines.push('```');
   return lines.join('\n');
 }
