@@ -19,6 +19,17 @@ Assertion fields are jq filters on the final response. Ops: `equals` (default), 
 `matches`, `present`, `absent`, `gt`, `lt`. `expect` is the **healthy** value. Mark setup checks
 `"role": "precondition"` and the symptom `"role": "assert"`.
 
+**Assert the response body, not just the status.** A status code alone is weak evidence — many
+things return the same code — so it rarely proves *this* bug. Add an assertion on the response
+**value** that embodies the healthy behaviour (the field that's wrong/missing when the bug is
+present): e.g. `.data present`, `.total equals 0`, `.errors[0].code contains "…"`, a computed price.
+Keep the status check too, usually as a `precondition`.
+
+One caveat: when the buggy response is an **error** (non-2xx), a value comparison (`equals`/`contains`/
+`matches`/`gt`/`lt`) on a field that isn't readable there is treated as `inconclusive` (to avoid a
+bogus verdict). `present`/`absent` are exempt — so for a "crashes / errors out" bug, assert the
+healthy field with `present` (e.g. healthy `.data` present; the error leg has none → fails → reproduced).
+
 Status: all assertions pass ⇒ `not_reproduced`; a symptom assert fails ⇒ `reproduced`. Guards that
 force `inconclusive` instead of a bogus verdict: a failed precondition, an unasserted 401/403, or an
 unreadable field on a non-2xx response.
