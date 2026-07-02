@@ -15,6 +15,10 @@ auth by surface — `/api/*` gets an admin Bearer token, `/store-api/*` gets the
 drop any auth headers of your own. Multi-step: use `requests: [...]`; `sw-context-token` is captured
 and carried forward, and a non-final setup request that isn't 2xx makes the leg `blocked`.
 
+A request may set arbitrary `headers` (placeholders allowed in values), including **empty** ones —
+useful for header-handling bugs, e.g. `{ "method": "GET", "path": "/api/language",
+"headers": { "sw-language-id": "" } }`.
+
 Assertion fields are jq filters on the final response. Ops: `equals` (default), `contains`,
 `matches`, `present`, `absent`, `gt`, `lt`. `expect` is the **healthy** value. Mark setup checks
 `"role": "precondition"` and the symptom `"role": "assert"`.
