@@ -152,10 +152,13 @@ function resultSection({ legA, legB, as, bs, labels, explanation, evidence }) {
 }
 
 function legSpoiler(summary, leg, ev) {
-  const body = [checksBlock(leg), DATA.phrases.gloss[leg.status] || ''];
-  if (leg.blocked_reason && leg.blocked_reason !== 'null') body.push(`> ${leg.blocked_reason}`);
-  if (ev.png) body.push(`![screenshot](${ev.png})`);
+  // The `→` line explains the outcome: for inconclusive/blocked legs that's the specific reason,
+  // otherwise the generic gloss. Plain text (no blockquote), so it reads in context. Recording link
+  // goes ABOVE the screenshot so a tall image doesn't push it out of view.
+  const reason = leg.blocked_reason && leg.blocked_reason !== 'null' ? leg.blocked_reason : '';
+  const body = [checksBlock(leg), reason ? `→ ${reason}` : (DATA.phrases.gloss[leg.status] || '')];
   if (ev.webm) body.push(`▶ [Watch the recording](${ev.webm})`);
+  if (ev.png) body.push(`![screenshot](${ev.png})`);
   return spoiler(summary, body.filter(Boolean).join('\n\n'));
 }
 

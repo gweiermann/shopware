@@ -14,12 +14,12 @@
     "regression": {
       "headline": "Regression — fine on the reported version, broken on trunk",
       "badge": "🟠 Regression",
-      "callout": "> ⚠️ Confirm the reported leg actually exercised the symptom — a missing fixture can fake a regression."
+      "callout": "> [!WARNING]\n> Confirm the reported leg actually exercised the symptom — a missing fixture can fake a regression."
     },
     "not_reproducible": {
       "headline": "Could not reproduce the bug",
       "badge": "⚪ Not reproducible",
-      "callout": "> ℹ️ The symptom was observed on NEITHER version, including the reported (buggy) one — most often the repro doesn't faithfully hit the scenario. Confirm before closing."
+      "callout": "> [!NOTE]\n> The symptom was observed on NEITHER version, including the reported (buggy) one — most often the repro doesn't faithfully hit the scenario. Confirm before closing."
     },
     "needs_human_review": {
       "headline": "{{NHR_HEADLINE}}",
@@ -35,8 +35,8 @@
   "phrases": {
     "nhr_headline_with_fix": "Reported precondition not found — needs human review",
     "nhr_headline": "Needs human review",
-    "nhr_callout_with_fix": "> 🟡 Treat as inconclusive — inspect {{FIX}} as a possible fix candidate for the missing reported state.",
-    "nhr_callout": "> 🟡 Treat as unconfirmed — a human should verify the repro faithfully matches the report before acting.",
+    "nhr_callout_with_fix": "> [!CAUTION]\n> Treat as inconclusive — inspect {{FIX}} as a possible fix candidate for the missing reported state.",
+    "nhr_callout": "> [!CAUTION]\n> Treat as unconfirmed — a human should verify the repro faithfully matches the report before acting.",
     "status": {
       "reproduced": "🔴 reproduced",
       "not_reproduced": "🟢 not reproduced",
