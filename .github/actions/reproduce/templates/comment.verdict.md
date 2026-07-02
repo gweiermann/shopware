@@ -38,22 +38,10 @@
 {{SCENARIO}}
 {{/SCENARIO}}
 ### Result
-{{#AGENT_EXPLANATION}}
-#### Agent Explanation
 
-{{AGENT_EXPLANATION}}
-{{/AGENT_EXPLANATION}}
 {{RESULT}}
 
-<!-- EVIDENCE -->
 {{ARTIFACTS_HEADING}}
-{{#AGENT_SUMMARY}}
-<details><summary>🕵️ Agent summary — the agent's own recap of the investigation</summary>
-
-{{AGENT_SUMMARY}}
-
-</details>
-{{/AGENT_SUMMARY}}
 {{#TESTCASE}}
 <details><summary>🧪 Reproduction test ({{TESTCASE_TOOL}})</summary>
 
@@ -73,4 +61,4 @@
 </details>
 {{/FIXTURES}}
 
-<sub>🔁 <a href="{{RUN_URL}}">Reproduce run</a></sub>
+🔁 [Reproduce run]({{RUN_URL}})

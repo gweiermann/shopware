@@ -110,10 +110,8 @@ function renderVerdict() {
     CALLOUT: fill(entry.callout, nhrVars),
     EDITS: readExtra('workspace-edits.txt'),
     SCENARIO: scenarioBlock(plan),
-    AGENT_EXPLANATION: agentExplanation(plan),
-    RESULT: resultSection({ legA, legB, as, bs, labels }),
-    ARTIFACTS_HEADING: (agentSummary || script || hasFixtures) ? '### Artifacts' : '',
-    AGENT_SUMMARY: agentSummary,
+    RESULT: resultSection({ legA, legB, as, bs, labels, agentSummary, explanation: agentExplanation(plan), evidence: readJson('evidence.json') }),
+    ARTIFACTS_HEADING: (script || hasFixtures) ? '### Artifacts' : '',
     TESTCASE: script,
     TESTCASE_LANG: specLeg?.evidence?.script_lang || 'sh',
     TESTCASE_TOOL: p.testcase_tool[plan.executor] || specLeg?.evidence?.script_lang || 'sh',
@@ -136,17 +134,49 @@ function agentExplanation(plan) {
   return `${String(text).replace(/\s+/g, ' ').trim()}${confidence}`;
 }
 
-// Merge the two legs into one block when they reached the same status; otherwise show each.
-function resultSection({ legA, legB, as, bs, labels }) {
-  if (legA && legB && as === bs) return legBlock(`${labels.AL} & ${labels.BL}`, as, legA);
-  return [legA && legBlock(labels.AL, as, legA), legB && legBlock(labels.BL, bs, legB)].filter(Boolean).join('\n');
+// The Result body: a one-line lead, the agent's recap, then the checks + screenshot behind spoilers
+// with a recording link — combined into one set when both legs share an outcome, split per leg when
+// they differ. Evidence URLs come from the manifest embed-evidence.sh published.
+function resultSection({ legA, legB, as, bs, labels, agentSummary, explanation, evidence }) {
+  const out = [lead(legA, legB, as, bs, labels)];
+  if (explanation) out.push(`> ${explanation}`);
+  if (agentSummary) out.push(spoiler("🕵️ Agent summary — the agent's own recap of the investigation", agentSummary));
+
+  const evFor = (name) => (evidence?.legs || []).find((l) => l.name === name) || {};
+  if (legA && legB && as === bs) {
+    out.push("Both runs produced the same evidence, so it's shown once:");
+    out.push(...legEvidence(null, legB || legA, evFor('trunk').png ? evFor('trunk') : evFor('reported')));
+  } else {
+    if (legA) out.push(...legEvidence(`${labels.AL} — ${statusWord(as)}`, legA, evFor('reported')));
+    if (legB) out.push(...legEvidence(`${labels.BL} — ${statusWord(bs)}`, legB, evFor('trunk')));
+  }
+  return out.join('\n\n');
 }
 
-function legBlock(label, status, leg) {
-  const parts = [`\n#### On ${label}: \`${status}\`\n`, checksBlock(leg), DATA.phrases.gloss[status] || ''];
-  if (leg.blocked_reason && leg.blocked_reason !== 'null') parts.push(`\n> ${leg.blocked_reason}`);
-  return parts.join('\n');
+function lead(legA, legB, as, bs, labels) {
+  if (legA && legB) {
+    return as === bs
+      ? `Same outcome on **${labels.AL}** and **${labels.BL}** — **${statusWord(as)}**.`
+      : `**${labels.AL}** — ${statusWord(as)} · **${labels.BL}** — ${statusWord(bs)}.`;
+  }
+  const only = legA ? labels.AL : labels.BL;
+  return `**${only}** — ${statusWord(legA ? as : bs)}.`;
 }
+
+// One leg's evidence: an optional heading, the Test results spoiler (checks + gloss + any blocked
+// reason), a collapsed Screenshot spoiler, and a recording link.
+function legEvidence(heading, leg, ev) {
+  const out = heading ? [`#### ${heading}`] : [];
+  const results = [checksBlock(leg), DATA.phrases.gloss[leg.status] || ''];
+  if (leg.blocked_reason && leg.blocked_reason !== 'null') results.push(`> ${leg.blocked_reason}`);
+  out.push(spoiler('Test results', results.filter(Boolean).join('\n\n')));
+  if (ev.png) out.push(spoiler('Screenshot', `![${heading || 'reported & trunk'}](${ev.png})`));
+  if (ev.webm) out.push(`▶ [Watch the recording](${ev.webm})`);
+  return out;
+}
+
+function statusWord(s) { return { reproduced: 'reproduced', not_reproduced: 'not reproduced', inconclusive: 'inconclusive', blocked: 'blocked' }[s] || 'not run'; }
+function spoiler(summary, body) { return `<details><summary>${summary}</summary>\n\n${body}\n\n</details>`; }
 
 function qval(v) { return /^\d+$/.test(v) ? v : `'${v}'`; }
 function clean(s) { return String(s).replace(/\s+/g, ' ').replace(/\*\//g, '* /').trim(); }

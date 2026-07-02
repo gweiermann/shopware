@@ -23,4 +23,4 @@ produced, so the deterministic checks could not reach a trusted verdict.
 </details>
 {{/EDITS}}
 
-<sub>🔁 <a href="{{RUN_URL}}">Reproduce run</a></sub>
+🔁 [Reproduce run]({{RUN_URL}})

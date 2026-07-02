@@ -412,6 +412,19 @@ safe-outputs:
           if: steps.bundle.outputs.has == 'true'
           run: ART=artifacts node .github/actions/reproduce/report/verdict.mjs
 
+        # Publish screenshots/recordings + write evidence.json BEFORE rendering, so comment.mjs can
+        # place them in the Result spoilers.
+        - name: Publish evidence
+          if: steps.bundle.outputs.has == 'true' && steps.verdict.outputs.has_results == 'true' && steps.verdict.outputs.verdict != 'blocked'
+          continue-on-error: true
+          env:
+            ART: artifacts
+            BRANCH: ${{ vars.REPRO_EVIDENCE_BRANCH || 'ci/repro-evidence' }}
+            REPO: ${{ github.repository }}
+            RUN_ID: ${{ github.run_id }}
+            TOKEN: ${{ github.token }}
+          run: bash .github/actions/reproduce/report/embed-evidence.sh
+
         - name: Render comment
           if: steps.bundle.outputs.has == 'true' && steps.verdict.outputs.has_results == 'true'
           env:
@@ -421,16 +434,6 @@ safe-outputs:
             FIX: ${{ steps.verdict.outputs.fix_candidate }}
             RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           run: node .github/actions/reproduce/report/comment.mjs
-
-        - name: Embed inline evidence
-          if: steps.bundle.outputs.has == 'true' && steps.verdict.outputs.has_results == 'true' && steps.verdict.outputs.verdict != 'blocked'
-          continue-on-error: true
-          env:
-            BRANCH: ${{ vars.REPRO_EVIDENCE_BRANCH || 'ci/repro-evidence' }}
-            REPO: ${{ github.repository }}
-            RUN_ID: ${{ github.run_id }}
-            TOKEN: ${{ github.token }}
-          run: bash .github/actions/reproduce/report/embed-evidence.sh
 
         - name: Post comment
           if: steps.bundle.outputs.has == 'true' && steps.verdict.outputs.has_results == 'true'
