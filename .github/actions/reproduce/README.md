@@ -50,6 +50,6 @@ A blocked leg → `blocked`; low confidence, a `blocked_reason`, or an inconclus
 
 ## Changing the workflow
 
-Edit `.github/workflows/reproduce-issue.md` (the gh-aw source), then run
-`bash .github/actions/reproduce/dev/compile.sh` to regenerate `reproduce-issue.lock.yml` (it also
+Edit `.github/workflows/reproduce.md` (the gh-aw source), then run
+`bash .github/actions/reproduce/dev/compile.sh` to regenerate `reproduce.lock.yml` (it also
 re-applies the two patches gh-aw source can't express). Commit both. Never hand-edit the lock file.

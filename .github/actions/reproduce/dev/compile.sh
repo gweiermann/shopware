@@ -10,8 +10,8 @@
 # Usage: bash .github/actions/reproduce/dev/compile.sh   (run from the repo root; needs `gh aw`)
 set -euo pipefail
 
-SRC=.github/workflows/reproduce-issue.md
-LOCK=.github/workflows/reproduce-issue.lock.yml
+SRC=.github/workflows/reproduce.md
+LOCK=.github/workflows/reproduce.lock.yml
 PORT=18080
 
 command -v gh >/dev/null || { echo "gh CLI is required"; exit 1; }

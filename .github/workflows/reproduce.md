@@ -1,16 +1,12 @@
 ---
 name: Reproduce Issue
 description: >
-  Issue-driven bug reproduction expressed as a single GitHub Agentic Workflow (gh-aw).
-  The agent's SOLE responsibility is discovering a reliable reproduction artifact on a
-  ready-made live instance. Version parsing, provisioning, DB snapshotting, verification,
-  the trunk re-run, the verdict and the issue comment are ALL deterministic scripts — the
-  agent never decides the outcome. Compile with `gh aw compile` (emits the .lock.yml).
+  Turn a Shopware bug report into ONE verified reproduction. The agent only authors a bundle
+  (reproduction-plan.json + optional fixtures.json + one test); deterministic steps then re-run that
+  exact bundle on the reported version AND on trunk and post the verdict — the agent decides no
+  outcome. Compile with `.github/actions/reproduce/dev/compile.sh` (emits the committed .lock.yml).
 
-# --- Triggers ----------------------------------------------------------------
-# /reproduce in an issue (body or comment), the one-shot ci:reproduce label, or a manual dispatch.
-# Only collaborators may trigger (`roles:` is an exact-match allowlist; dispatch already requires
-# write access).
+# /reproduce in an issue (body or comment), the ci:reproduce label, or manual dispatch. Collaborators only.
 on:
   slash_command:
     name: reproduce
@@ -21,73 +17,50 @@ on:
   workflow_dispatch:
     inputs:
       issue_number:
-        description: "Issue number to reproduce (required for manual dispatch)"
+        description: "Issue number to reproduce"
         required: false
         type: number
   roles: [admin, maintainer, write]
-# NOTE: there are intentionally NO executor / build / demodata inputs — the agent decides those on
-# the fly and records them in reproduction-plan.json (which the trunk leg then provisions from).
 
-# One run per issue; never cancel an in-flight reproduction.
 run-name: "Reproduce #${{ github.event.issue.number || inputs.issue_number }}"
 concurrency:
   group: reproduce-${{ github.event.issue.number || inputs.issue_number }}
   cancel-in-progress: false
 
-# Agent job stays READ-ONLY. The public verdict comment is posted only by the deterministic
-# trunk/report job after it sees authoritative post-agent artifacts.
+# The agent job is READ-ONLY. The public verdict comment is posted only by the deterministic
+# trunk/report job, from trusted post-agent artifacts.
 permissions:
   contents: read
-  issues: read     # prefetch.sh reads the issue body/comments + attached screenshots
+  issues: read
 
-# The agent reaches the provisioned Shopware proxy through host.docker.internal:18080.
-# gh-aw source frontmatter does not yet expose a custom host-port field or an artifact-gated
-# safe-output job schedule. Compile the lock file, then run the checked lock patch script.
 network:
-  allowed:
-    - defaults
-    - local
-    - playwright
+  allowed: [defaults, local, playwright]
 
 engine:
   id: claude
-  model: claude-sonnet-5
+  model: claude-sonnet-4-6
 
-# Temporary rollback: the sandboxed agent path passed deterministic preflight but failed to produce
-# a trusted reported-leg artifact in the real workflow. Keep the follow-up tracked in todo.md and
-# run the agent unsandboxed until the gh-aw sandbox artifact handoff is fixed.
+# The trusted post-step verifier does the authoritative run; the agent's own tools are feedback only.
+# Sandbox stays off until the gh-aw sandbox artifact handoff is confirmed on this workflow.
 strict: false
 sandbox:
   agent: false
 features:
-  dangerously-disable-sandbox-agent: "Temporary rollback after run 28107396157; see todo.md"
+  dangerously-disable-sandbox-agent: "Run the agent unsandboxed; the trusted post-step owns the result"
 
-# Per-run gh-aw AI Credits cap. This keeps the workflow optimized around cost/token efficiency
-# instead of trying to consume the whole turn budget.
-max-ai-credits: 400
-
-# Headroom for the agent step: authoring + ONE synchronous verify that may build the Admin/
-# Storefront (slow) and run the executor. Builds can take ~10 min, so give the step room.
+# Per-run AI-credit cap (~$20). The agent verifies its assumptions with cheap tools and stops; it
+# does not run the pipeline, so this is headroom rather than a target.
+max-ai-credits: 2000
 timeout-minutes: 40
 
-# --- Tools the AGENT may use (Phase 3–5: discover, decide, self-verify) ------
-# The agent authors its OWN files (declaring build_profile/demodata in the plan), uses normal
-# read/search commands for source discovery, uses reproctl only for repro-specific live feedback,
-# and should use Shopware MCP for live data introspection once available. The authoritative
-# reported-version verification and artifact publication happen in deterministic post-agent steps.
-# No github MCP (issue context is prefetched).
 tools:
-  # CRITICAL: gh-aw defaults the Bash tool to a 60s timeout, which would kill the long
-  # reproctl verify (builds + verify run for many minutes) — so the agent backgrounds it and
-  # the result is lost. Raise the per-call timeout to 30 min so verify runs SYNCHRONOUSLY to
-  # completion (drives BASH_DEFAULT_TIMEOUT_MS / BASH_MAX_TIMEOUT_MS).
-  timeout: 1800
-  edit:                 # author/rewrite reproduction-plan.json + fixtures.json + the spec/test
-  github: false         # context is prefetched to files; no GitHub MCP/API is needed in the agent
+  timeout: 1800          # a `repro try` may build the Admin/Storefront (slow); let it finish synchronously
+  edit:                  # author reproduction-plan.json + fixtures.json + the spec/test
+  github: false          # issue context is prefetched to files
   playwright:
-    mode: cli           # live browser exploration via playwright-cli, closer to interactive agents
+    mode: cli            # live browser exploration, like an interactive coding agent
   bash:
-    - "node /tmp/reproctl/reproctl.mjs:*"
+    - "repro:*"          # the reproduce CLI (validate | seed | check | try | giveup)
     - "playwright-cli:*"
     - "rg:*"
     - "find:*"
@@ -99,57 +72,47 @@ tools:
     - "grep:*"
     - "sort:*"
     - "wc:*"
-    - "pwd"
     - "jq:*"
+    - "pwd"
 
 mcp-servers:
   shopware:
     type: http
     url: "http://127.0.0.1:18765/mcp"
 
-# --- Phase 1 + 2: DETERMINISTIC pre-agent steps (in the agent job) -----------
-# checkout → prefetch issue/screenshots → parse version (regex) → provision the
-# reported version → snapshot the clean DB → assemble the agent's single context file → export
-# the live-shop coordinates → install Playwright. The agent starts with a ready-to-use instance.
+# --- Deterministic pre-agent setup: provision the reported version, expose it, snapshot the DB,
+#     write the run context. The agent starts with a ready-to-use live shop. ---
 steps:
   - name: Checkout
     uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
     with:
       persist-credentials: false
 
-  # Phase 1 — the ONLY pre-agent decision: prefetch the issue/screenshots, then extract the
-  # reported version by regex (first valid wins; none → trunk) and emit it as a step output. The
-  # agent authors reproduction-plan.json (executor/build_profile/demodata/version). NO agent here.
-  - name: Prefetch issue context
+  - name: Fetch issue context
     env:
       ISSUE: ${{ github.event.issue.number || inputs.issue_number }}
       GH_TOKEN: ${{ github.token }}
-    run: bash .github/actions/repro-agent/bin/prepare/prefetch.sh
+    run: bash .github/actions/reproduce/steps/fetch-issue.sh
 
-  - name: Parse reported version (Phase 1)
-    id: parse
+  - name: Resolve reported version
+    id: version
     env:
       ISSUE: ${{ github.event.issue.number || inputs.issue_number }}
-      GH_TOKEN: ${{ github.token }}   # resolves 3-part / wildcard / minor versions to the newest real tag
-    run: bash .github/actions/repro-agent/bin/prepare/parse-version.sh
+      GH_TOKEN: ${{ github.token }}
+    run: bash .github/actions/reproduce/steps/resolve-version.sh
 
-  # Phase 2 — Environment Preparation: provision the reported version (or trunk when none was
-  # found) with the Admin + Storefront ALREADY BUILT, so the agent never waits on a (slow) JS build
-  # mid-run — any executor works immediately. The agent still records which builds its repro needs
-  # in reproduction-plan.json's build_profile so the TRUNK leg builds only those. demodata stays off
-  # (it's cheap + conditional; reproctl verify generates it on demand). Then snapshot.
-  - name: Register legacy Shopware 6.6 conflicts package alias
-    if: steps.parse.outputs.legacy_conflicts_alias == 'true'
-    run: bash .github/actions/repro-agent/bin/prepare/provision-legacy-alias.sh
+  - name: Register legacy 6.6 conflicts alias
+    if: steps.version.outputs.legacy_conflicts_alias == 'true'
+    run: bash .github/actions/reproduce/steps/register-legacy-alias.sh
 
-  - name: Setup reported Shopware (Phase 2)
+  - name: Provision reported Shopware
     uses: shopware/setup-shopware@e12701e21d8a6003103426969ba544cdc91bf41c # v2.0.12
     with:
-      shopware-version: ${{ steps.parse.outputs.provision_version }}
+      shopware-version: ${{ steps.version.outputs.provision_version }}
       shopware-repository: shopware/shopware
       path: shop
       php-version: "8.4"
-      composer-root-version: ${{ steps.parse.outputs.composer_root_version }}
+      composer-root-version: ${{ steps.version.outputs.composer_root_version }}
       mysql-version: "builtin"
       install: "true"
       install-admin: "true"
@@ -158,33 +121,29 @@ steps:
       allow-insecure-versions: "true"
       env: prod
 
-  - name: Finalize reported provision (Phase 2)
+  - name: Finish provision
     id: provision
     env:
       SHOP_DIR: shop
       DEMODATA: "false"
-    run: bash .github/actions/repro-agent/bin/prepare/provision-finalize.sh
-
-  - name: Expose Shopware on sandbox host port
-    env:
-      TARGET_URL: ${{ steps.provision.outputs.app_url }}
-      SANDBOX_APP_PORT: "18080"
-    run: bash .github/actions/repro-agent/bin/prepare/expose-sandbox-port.sh
+    run: bash .github/actions/reproduce/steps/finish-provision.sh
 
   - name: Snapshot clean DB
-    run: bash .github/actions/repro-agent/bin/prepare/db-snapshot.sh
+    run: bash .github/actions/reproduce/steps/snapshot-db.sh
 
-  # Assemble the single context file the agent reads. The version is injected from the parse step.
-  - name: Assemble agent context
+  - name: Write run context
     env:
       ISSUE: ${{ github.event.issue.number || inputs.issue_number }}
-      VERSION: ${{ steps.parse.outputs.is_trunk == 'true' && 'trunk' || steps.parse.outputs.target_version }}
-    run: bash .github/actions/repro-agent/bin/prepare/build-context.sh
+      VERSION: ${{ steps.version.outputs.is_trunk == 'true' && 'trunk' || steps.version.outputs.target_version }}
+      APP_URL: ${{ steps.provision.outputs.app_url }}
+    run: bash .github/actions/reproduce/steps/compose-prompt.sh
 
-  # Export the live-shop credentials. APP_URL was pinned to the sandbox-visible proxy above.
+  # The agent runs unsandboxed, so it reaches the shop directly at its real URL — same origin as the
+  # Admin SPA, which avoids the cross-origin admin-login failure a Host-rewriting proxy caused.
   - name: Export shop coordinates
     run: |
       {
+        echo "APP_URL=${{ steps.provision.outputs.app_url }}"
         echo "SW_ACCESS_KEY=${{ steps.provision.outputs.access_key }}"
         echo "ADMIN_USER=admin"
         echo "ADMIN_PASS=shopware"
@@ -200,138 +159,102 @@ steps:
       npm i -D @playwright/test
       npx playwright install --with-deps chromium
 
-  - name: Install immutable reproctl
+  # Immutable copy of the CLI + a `repro` shim on PATH. The agent's feedback tools and the trusted
+  # post-step verifier both run from this copy; the agent can't edit it.
+  - name: Install reproduce CLI
     run: |
       set -euo pipefail
-      rm -rf /tmp/reproctl /tmp/repro-playwright
-      mkdir -p /tmp/reproctl
-      cp -R .github/actions/repro-agent/bin /tmp/reproctl/bin
-      cp .github/actions/repro-agent/bin/agent/reproctl.mjs /tmp/reproctl/reproctl.mjs
-      cp .github/actions/repro-agent/repro.playwright.config.ts /tmp/reproctl/repro.playwright.config.ts
-      cp .github/actions/repro-agent/repro-video.js /tmp/reproctl/repro-video.js
-      ln -s "$PWD/node_modules" /tmp/reproctl/node_modules
-      chmod -R a-w /tmp/reproctl
-      echo "REPROCTL_ROOT=/tmp/reproctl" >> "$GITHUB_ENV"
-      echo "REPRO_AGENT_ROOT=/tmp/reproctl" >> "$GITHUB_ENV"
-      echo "REPRO_AGENT_BIN=/tmp/reproctl/bin" >> "$GITHUB_ENV"
+      rm -rf /tmp/reproduce
+      cp -R .github/actions/reproduce /tmp/reproduce
+      ln -s "$PWD/node_modules" /tmp/reproduce/node_modules
+      chmod -R a-w /tmp/reproduce
+      mkdir -p /tmp/reproduce-bin
+      printf '#!/usr/bin/env bash\nexec node /tmp/reproduce/cli/repro.mjs "$@"\n' > /tmp/reproduce-bin/repro
+      chmod +x /tmp/reproduce-bin/repro
+      echo "/tmp/reproduce-bin" >> "$GITHUB_PATH"
 
   - name: Start Shopware MCP bridge
     env:
       SHOPWARE_MCP_AVAILABLE: ${{ steps.provision.outputs.mcp_available }}
-      SHOPWARE_MCP_URL: "http://127.0.0.1:18080/api/_mcp"
+      SHOPWARE_MCP_URL: "http://127.0.0.1:8000/api/_mcp"
       SHOPWARE_MCP_ACCESS_KEY: ${{ steps.provision.outputs.mcp_access_key }}
       SHOPWARE_MCP_SECRET_ACCESS_KEY: ${{ steps.provision.outputs.mcp_secret_access_key }}
       SHOPWARE_MCP_BRIDGE_PORT: "18765"
     run: |
       set -euo pipefail
-      nohup node /tmp/reproctl/bin/agent/shopware-mcp-bridge.mjs --http >/tmp/shopware-mcp-bridge.log 2>&1 &
-      echo "$!" > /tmp/shopware-mcp-bridge.pid
+      nohup node /tmp/reproduce/mcp-bridge.mjs --http >/tmp/shopware-mcp-bridge.log 2>&1 &
       for i in $(seq 1 20); do
-        if curl -s -o /dev/null -w '%{http_code}' --max-time 1 http://127.0.0.1:18765/mcp | grep -q '^405$'; then
-          echo "Shopware MCP bridge listening on 127.0.0.1:18765"
-          exit 0
-        fi
+        curl -s -o /dev/null -w '%{http_code}' --max-time 1 http://127.0.0.1:18765/mcp | grep -q '^405$' && { echo "MCP bridge up"; exit 0; }
         sleep 0.5
       done
       cat /tmp/shopware-mcp-bridge.log || true
-      echo "::error::Shopware MCP bridge did not start."
-      exit 1
+      echo "::error::Shopware MCP bridge did not start."; exit 1
 
-# gh-aw builds prompt.txt in the activation job and downloads it into /tmp/gh-aw later in the agent
-# job. Finalize the prompt here, after that artifact is restored and before MCP/engine setup, so the
-# activation artifact cannot overwrite the run-specific task/context.
 pre-agent-steps:
-  - name: Finalize explicit agent task prompt
-    env:
-      ISSUE: ${{ github.event.issue.number || inputs.issue_number }}
-      GH_AW_PROMPT: /tmp/gh-aw/aw-prompts/prompt.txt
-    run: bash .github/actions/repro-agent/bin/prepare/agent-task-prompt.sh
-
   - name: Record pre-agent workspace baseline
-    run: git status --porcelain > /tmp/repro-agent-pre-status.txt
+    run: git status --porcelain > /tmp/repro-pre-status.txt
 
-# --- Validate + publish only deterministic post-agent outputs ----------------
-# The agent can run reproctl verify for feedback, but that path does not publish result.json.
-# After the agent stops, trusted steps reject workspace tampering, validate the generated bundle as
-# hostile input, rerun the reported-version verification from the immutable tool copy, and only then
-# upload result.json for the trunk/verdict job.
+# --- Publish trusted post-agent outputs. The agent's `try` never writes result.json; the trusted
+#     verify re-runs the reported leg from the IMMUTABLE /tmp CLI copy — so even if the agent touched
+#     files in the workspace, the verdict is unaffected. Stray edits are recorded (not fatal) and
+#     surfaced in the comment for humans to judge. ---
 post-steps:
-  - name: Reject protected workflow/helper edits
-    id: protected_guard
+  - name: Audit workspace edits
     if: always()
     run: |
       set -euo pipefail
-      protected_status=$(git status --porcelain -- \
-        .github/actions/repro-agent/bin \
-        .github/actions/repro-agent/prompts \
-        .github/actions/repro-agent/README.md \
-        .github/actions/repro-agent/repro.playwright.config.ts \
-        .github/actions/repro-agent/repro-video.js \
-        .github/workflows/reproduce.md \
-        .github/workflows/reproduce.lock.yml)
-      if [ -n "$protected_status" ]; then
-        echo "::error::Agent modified protected workflow/helper files; refusing to publish reproduction artifacts."
-        printf '%s\n' "$protected_status"
-        exit 1
-      fi
-
-  - name: Reject non-bundle workspace edits
-    id: bundle_guard
-    if: always()
-    run: |
-      set -euo pipefail
-      git status --porcelain > /tmp/repro-agent-post-status.txt
-      new_status=$(comm -13 <(sort /tmp/repro-agent-pre-status.txt) <(sort /tmp/repro-agent-post-status.txt) || true)
-      blocked=""
+      git status --porcelain > /tmp/repro-post-status.txt
+      new=$(comm -13 <(sort /tmp/repro-pre-status.txt) <(sort /tmp/repro-post-status.txt) || true)
+      : > workspace-edits.txt
       while IFS= read -r line; do
         [ -n "$line" ] || continue
-        path=${line:3}
-        path=${path#\"}
-        path=${path%\"}
+        path=${line:3}; path=${path#\"}; path=${path%\"}
         case "$path" in
-          reproduction-plan.json|fixtures.json|repro.sh|repro.spec.ts|ReproTest.php|\
-          builder-result.json|result.json|seed-error.txt|phpunit-output.txt|admin-state.json|\
-          pw-*.txt|pw-*.json|.repro-*|.playwright-cli/*|test-results/*|playwright-report/*)
-            ;;
-          *)
-            blocked="${blocked}${line}"$'\n'
-            ;;
+          reproduction-plan.json|fixtures.json|repro.spec.ts|ReproTest.php|repro.sh|\
+          result.json|builder-result.json|seed-error.txt|phpunit-output.txt|giveup.txt|\
+          seeded-readiness.json|admin-state.json|context.md|issue-class.txt|agent-summary.md|workspace-edits.txt|\
+          pw-*.txt|pw-*.json|.repro-*|.playwright-cli/*|.playwright-cli|\
+          test-results/*|playwright-report/*|shop/*|node_modules/*|package.json|package-lock.json) ;;
+          *) printf '%s\n' "$path" >> workspace-edits.txt ;;
         esac
-      done <<< "$new_status"
-      if [ -n "$blocked" ]; then
-        echo "::error::Agent created or modified files outside the generated reproduction bundle/artifacts."
-        printf '%s\n' "$blocked"
-        exit 1
-      fi
+      done <<< "$new"
+      if [ -s workspace-edits.txt ]; then echo "::warning::agent changed files outside the bundle:"; cat workspace-edits.txt; else echo "no stray edits"; fi
+
+  - name: Extract agent summary
+    if: always()
+    run: node .github/actions/reproduce/report/agent-summary.mjs /tmp/gh-aw/agent-stdio.log > agent-summary.md || true
 
   - name: Authoritative reported-version verification
     id: reported_verify
-    if: always() && steps.protected_guard.outcome == 'success' && steps.bundle_guard.outcome == 'success' && hashFiles('reproduction-plan.json') != ''
+    if: always() && hashFiles('reproduction-plan.json') != ''
     continue-on-error: true
     env:
-      REPROCTL_ALLOW_AUTHORITATIVE: "1"
+      REPRO_ALLOW_VERIFY: "1"
+      TARGET: reported
+      APP_URL: ${{ steps.provision.outputs.app_url }}
     run: |
       set -euo pipefail
-      export APP_URL="${REPRO_HOST_APP_URL:?REPRO_HOST_APP_URL is not set}"
-      node /tmp/reproctl/reproctl.mjs validate
-      node /tmp/reproctl/reproctl.mjs verify-authoritative
+      node /tmp/reproduce/cli/repro.mjs validate
+      node /tmp/reproduce/cli/repro.mjs verify   # records video too when the plan sets record_video
 
   - name: Upload repro bundle
-    if: always() && steps.protected_guard.outcome == 'success' && steps.bundle_guard.outcome == 'success'
+    if: always()
     uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
     with:
       name: repro-plan
       path: |
         reproduction-plan.json
         fixtures.json
-        repro.sh
         repro.spec.ts
         ReproTest.php
+        giveup.txt
+        agent-summary.md
+        workspace-edits.txt
       if-no-files-found: ignore
       retention-days: 7
 
   - name: Upload reported leg
-    if: always() && steps.protected_guard.outcome == 'success' && steps.bundle_guard.outcome == 'success' && hashFiles('result.json') != ''
+    if: always() && hashFiles('result.json') != ''
     uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
     with:
       name: repro-reported
@@ -342,57 +265,29 @@ post-steps:
         repro.spec.ts
         ReproTest.php
         phpunit-output.txt
+        video.webm
         test-results/
         playwright-report/
       if-no-files-found: ignore
       retention-days: 7
 
-  # NOTE: the deterministic "could not build" comment is posted by the reproduce-on-trunk job
-  # (it handles the no-bundle case too) — not here. A post-step cannot emit a safe output: gh-aw
-  # ingests $GH_AW_SAFE_OUTPUTS BEFORE post-steps run, so anything appended here is never read.
-
-# --- Phase 6 + 7: DETERMINISTIC trunk re-run + verdict + report (clean runner) ---
-# Compiled as a safe-output job, then lock-patched to run after the agent whenever the agent job ran.
-# The trusted reported leg is NOT the agent's feedback run: post-agent steps rerun validation and
-# reported-version verification from the immutable tool copy, upload result.json only on success,
-# and this job refuses to continue when that authoritative artifact is missing. It runs on a FRESH
-# runner, provisions the next version FROM reproduction-plan.json
-# (executor/build_profile/demodata the agent recorded), runs the EXACT same authored bundle
-# (no regeneration, no agent), computes the verdict from the two leg statuses, renders the comment
-# from templates, and posts it.
-#
-# NOTE: gh-aw does not currently expose source-level hooks for the host-port allowlist or for
-# scheduling a custom safe-output job from post-agent artifacts. After compiling this file, run
-# bin/prepare/patch-aw-host-ports.sh and keep any generated conclusion patch for crash/noop/skipped
-# handoff/giveup cases.
+# --- Deterministic trunk re-run + verdict + comment on a FRESH runner. Compiled as a safe-output job
+#     and lock-patched (dev/compile.sh) to run whenever the agent job ran — it reads the artifacts and
+#     decides everything itself. ---
 safe-outputs:
-  # Threat detection requires the gh-aw sandbox. It stays disabled while sandbox.agent is rolled
-  # back; see todo.md for the tracked follow-up.
   threat-detection: false
   jobs:
     reproduce-on-trunk:
       description: >
-        INTERNAL — do NOT call this tool yourself. The compiled lock file is patched so this job
-        runs from authoritative post-agent artifacts, not from the agent's feedback safe output.
-        The deterministic post-agent steps rerun the reported leg before this job can use the
-        bundle, then this job runs trunk and posts the verdict. You decide nothing here.
+        INTERNAL — do not call this tool. The compiled lock is patched so this job runs from the
+        trusted post-agent artifacts, re-runs the bundle on trunk, and posts the verdict.
       runs-on: ubuntu-latest
       permissions:
-        contents: write   # embed-evidence pushes screenshots to the orphan evidence branch
+        contents: write   # embed-evidence pushes screenshots to the evidence branch
         issues: write      # post the verdict comment
       output: "Trunk reproduction complete; verdict comment posted."
       env:
         FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-      # Informational only — the job reads reproduction-plan.json itself and decides nothing from these.
-      inputs:
-        executor:
-          description: "The executor of the verified bundle (http | playwright | direct), or 'none' on give-up"
-          required: false
-          type: string
-        status:
-          description: "verify-reproduction outcome: reproduced | not_reproduced | giveup"
-          required: false
-          type: string
       steps:
         - name: Checkout
           uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -411,50 +306,43 @@ safe-outputs:
             name: repro-reported
             path: artifacts/repro-reported
 
-        # One source of truth: did the agent produce a runnable plan AND a classified reported leg?
-        # The authoritative post-agent reported verification writes result.json only on a
-        # classified outcome, so its presence
-        # distinguishes success from give-up/crash. Every reproduction step below is gated on this;
-        # otherwise we post the deterministic "could not reproduce" note.
+        # One source of truth: did the agent produce a runnable plan AND a trusted reported result?
         - name: Detect bundle
           id: bundle
           run: |
             has=$([ -f reproduction-plan.json ] && [ -f artifacts/repro-reported/result.json ] && echo true || echo false)
             echo "has=$has" >> "$GITHUB_OUTPUT"
-            echo "bundle+reported-result present: $has"
+            echo "bundle present: $has"
 
-        # ---- No bundle: post a deterministic fallback comment from this job. ----
-        - name: Render missing reproduction bundle comment (Phase 7)
+        # ---- No bundle → deterministic "incomplete" comment. ----
+        - name: Render incomplete comment
           if: steps.bundle.outputs.has != 'true'
           env:
-            AGENT_OUTPUT: ${{ runner.temp }}/gh-aw/safe-jobs/agent_output.json
-            AGENT_RESULT: ${{ needs.agent.result }}
-            REPRODUCE_ON_TRUNK_RESULT: missing_bundle
-            SAFE_OUTPUTS_RESULT: unknown
+            MODE: incomplete
+            REASON: ${{ needs.agent.result == 'success' && 'The agent did not produce a verified reproduction bundle.' || 'The agent run did not complete.' }}
             RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          run: node .github/actions/repro-agent/bin/report/status-comment.mjs > comment.md
-
-        - name: Post missing reproduction bundle comment (Phase 7)
+          run: node .github/actions/reproduce/report/comment.mjs
+        - name: Post incomplete comment
           if: steps.bundle.outputs.has != 'true'
           env:
             GH_TOKEN: ${{ github.token }}
             ISSUE: ${{ github.event.issue.number || inputs.issue_number }}
-          run: |
-            cat comment.md >> "$GITHUB_STEP_SUMMARY"
-            gh issue comment "$ISSUE" --repo "${{ github.repository }}" --body-file comment.md
+          run: gh issue comment "$ISSUE" --repo "${{ github.repository }}" --body-file comment.md
 
-        # ---- Bundle present: Phase 6 (trunk re-run) + Phase 7 (verdict + report). ----
-        - name: Derive trunk leg parameters
+        # ---- Bundle present → trunk re-run + verdict + comment. ----
+        - name: Derive trunk build flags
           id: plan
           if: steps.bundle.outputs.has == 'true'
-          env:
-            LEG_VERSION: trunk
-            BRANCH: trunk
-          run: REPRO_PLAN=reproduction-plan.json bash .github/actions/repro-agent/bin/report/leg-plan.sh
+          run: |
+            set -euo pipefail
+            jq -r '"executor=\(.executor // "")"' reproduction-plan.json >> "$GITHUB_OUTPUT"
+            jq -r '"admin_build=\(.build_profile.admin_build // false)"' reproduction-plan.json >> "$GITHUB_OUTPUT"
+            jq -r '"storefront_build=\(.build_profile.storefront_build // false)"' reproduction-plan.json >> "$GITHUB_OUTPUT"
+            jq -r '"demodata=\(.fixtures.demodata // false)"' reproduction-plan.json >> "$GITHUB_OUTPUT"
 
-        - name: Provision trunk (Phase 6)
-          if: steps.bundle.outputs.has == 'true'
+        - name: Provision trunk
           id: provision-setup
+          if: steps.bundle.outputs.has == 'true'
           continue-on-error: true
           uses: shopware/setup-shopware@e12701e21d8a6003103426969ba544cdc91bf41c # v2.0.12
           with:
@@ -471,7 +359,7 @@ safe-outputs:
             allow-insecure-versions: "true"
             env: prod
 
-        - name: Finalize trunk provision (Phase 6)
+        - name: Finish trunk provision
           id: provision
           if: steps.bundle.outputs.has == 'true'
           continue-on-error: true
@@ -479,57 +367,32 @@ safe-outputs:
             PREVIOUS_OUTCOME: ${{ steps.provision-setup.outcome }}
             SHOP_DIR: shop
             DEMODATA: ${{ steps.plan.outputs.demodata }}
-          run: bash .github/actions/repro-agent/bin/prepare/provision-finalize.sh
-
-        - name: Seed fixtures
-          id: seed
-          if: steps.bundle.outputs.has == 'true' && steps.provision.outcome == 'success'
-          continue-on-error: true
-          env:
-            APP_URL: ${{ steps.provision.outputs.app_url }}
-          run: PAYLOAD=fixtures.json bash .github/actions/repro-agent/bin/execute/seed.sh
+          run: bash .github/actions/reproduce/steps/finish-provision.sh
 
         - name: Setup Node + Playwright
-          if: steps.bundle.outputs.has == 'true' && steps.plan.outputs.executor == 'playwright' && steps.provision.outcome == 'success' && steps.seed.outcome == 'success'
+          if: steps.bundle.outputs.has == 'true' && steps.plan.outputs.executor == 'playwright' && steps.provision.outcome == 'success'
           uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
           with:
             node-version: 22
         - name: Install Playwright
-          if: steps.bundle.outputs.has == 'true' && steps.plan.outputs.executor == 'playwright' && steps.provision.outcome == 'success' && steps.seed.outcome == 'success'
+          if: steps.bundle.outputs.has == 'true' && steps.plan.outputs.executor == 'playwright' && steps.provision.outcome == 'success'
           run: |
             npm init -y >/dev/null
             npm i -D @playwright/test
             npx playwright install --with-deps chromium
 
-        - name: Mark trunk leg blocked (dead env)
-          if: steps.bundle.outputs.has == 'true' && (steps.provision.outcome == 'failure' || steps.seed.outcome == 'failure')
-          env:
-            TARGET: trunk
-            FAILED: ${{ steps.seed.outcome == 'failure' && 'seed' || 'provision' }}
-            REPRO_PLAN: reproduction-plan.json
-          run: bash .github/actions/repro-agent/bin/report/leg-blocked.sh
-
-        - name: Run executor on trunk (Phase 6)
-          if: steps.bundle.outputs.has == 'true' && steps.provision.outcome != 'failure' && steps.seed.outcome != 'failure'
-          env:
-            TARGET: trunk
-            EXECUTOR: ${{ steps.plan.outputs.executor }}
-            REPRO_PLAN: reproduction-plan.json
-            APP_URL: ${{ steps.provision.outputs.app_url }}
-            SW_ACCESS_KEY: ${{ steps.provision.outputs.access_key }}
-          run: bash .github/actions/repro-agent/bin/execute/run-leg.sh
-
-        - name: Generate narrated trunk video evidence
-          if: steps.bundle.outputs.has == 'true' && steps.plan.outputs.executor == 'playwright' && steps.provision.outcome != 'failure' && steps.seed.outcome != 'failure'
+        - name: Verify on trunk
+          id: trunk_verify
+          if: steps.bundle.outputs.has == 'true' && steps.provision.outcome == 'success'
           continue-on-error: true
           env:
+            REPRO_ALLOW_VERIFY: "1"
             TARGET: trunk
-            REPRO_PLAN: reproduction-plan.json
-            LEG_RESULT: result.json
             APP_URL: ${{ steps.provision.outputs.app_url }}
-          run: bash .github/actions/repro-agent/bin/execute/run-narrated-video.sh
+            SW_ACCESS_KEY: ${{ steps.provision.outputs.access_key }}
+          run: node .github/actions/reproduce/cli/repro.mjs verify   # records video too when the plan sets record_video
 
-        # Arrange the two legs + the plan the way verdict.sh / report.sh expect.
+        # Arrange the two legs + the plan the way verdict.mjs / comment.mjs expect.
         - name: Collect artifacts
           if: steps.bundle.outputs.has == 'true'
           run: |
@@ -537,40 +400,43 @@ safe-outputs:
             mkdir -p artifacts/repro-plan artifacts/repro-trunk
             cp reproduction-plan.json artifacts/repro-plan/ 2>/dev/null || true
             cp fixtures.json artifacts/repro-plan/ 2>/dev/null || true
-            cp result.json artifacts/repro-trunk/ 2>/dev/null || true
+            cp agent-summary.md workspace-edits.txt artifacts/repro-plan/ 2>/dev/null || true
+            # A dead trunk env (provision failed) leaves no result → synthesize a blocked leg.
+            if [ -f result.json ]; then cp result.json artifacts/repro-trunk/; else
+              node -e 'const p=require("./reproduction-plan.json");require("fs").writeFileSync("artifacts/repro-trunk/result.json",JSON.stringify({schema_version:"1",issue:p.issue,target:"trunk",version:"trunk",executor:p.executor,status:"blocked",assertion:{expect:null,actual:null,matched:null},duration_s:0,evidence:{script:"",script_lang:"sh",reporter_output:"trunk environment did not come up",http:[],artifacts:[],truncated:false},blocked_reason:"trunk provisioning failed (dead env)"}))'
+            fi
             cp -r test-results playwright-report artifacts/repro-trunk/ 2>/dev/null || true
-            cp -r narrated-result.json pw-report-narrated.json pw-stdout-narrated.txt pw-stderr-narrated.txt test-results-narrated playwright-report-narrated narrated-video artifacts/repro-trunk/ 2>/dev/null || true
+            cp video.webm artifacts/repro-trunk/ 2>/dev/null || true   # only present when record_video opted in
 
-        # Phase 7 — deterministic verdict (no agent) from the two leg statuses + the plan.
-        - name: Compute verdict (Phase 7)
+        - name: Compute verdict
           id: verdict
           if: steps.bundle.outputs.has == 'true'
-          run: MODE=reproduce ART=artifacts bash .github/actions/repro-agent/bin/report/verdict.sh
+          run: ART=artifacts node .github/actions/reproduce/report/verdict.mjs
 
-        # Phase 7 — render the comment from templates (no agent-generated prose).
-        - name: Render comment (Phase 7)
-          if: steps.bundle.outputs.has == 'true' && steps.verdict.outputs.has_results == 'true'
-          env:
-            MODE: reproduce
-            ISSUE: ${{ github.event.issue.number || inputs.issue_number }}
-            VERDICT: ${{ steps.verdict.outputs.verdict }}
-            FIX: ${{ steps.verdict.outputs.fix_candidate }}
-            UNSURE: ${{ steps.verdict.outputs.unsure_reason }}
-            RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-            OMIT_BUNDLE_DETAILS: ${{ (steps.verdict.outputs.verdict == 'needs_human_review' || steps.verdict.outputs.verdict == 'blocked') && 'true' || 'false' }}
-          run: bash .github/actions/repro-agent/bin/report/report.sh
-
-        - name: Embed inline evidence
+        # Publish screenshots/recordings + write evidence.json BEFORE rendering, so comment.mjs can
+        # place them in the Result spoilers.
+        - name: Publish evidence
           if: steps.bundle.outputs.has == 'true' && steps.verdict.outputs.has_results == 'true' && steps.verdict.outputs.verdict != 'blocked'
           continue-on-error: true
           env:
+            ART: artifacts
             BRANCH: ${{ vars.REPRO_EVIDENCE_BRANCH || 'ci/repro-evidence' }}
             REPO: ${{ github.repository }}
             RUN_ID: ${{ github.run_id }}
             TOKEN: ${{ github.token }}
-          run: bash .github/actions/repro-agent/bin/report/embed-evidence.sh
+          run: bash .github/actions/reproduce/report/embed-evidence.sh
 
-        - name: Post comment (Phase 7)
+        - name: Render comment
+          if: steps.bundle.outputs.has == 'true' && steps.verdict.outputs.has_results == 'true'
+          env:
+            ART: artifacts
+            VERDICT: ${{ steps.verdict.outputs.verdict }}
+            UNSURE: ${{ steps.verdict.outputs.unsure_reason }}
+            FIX: ${{ steps.verdict.outputs.fix_candidate }}
+            RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          run: node .github/actions/reproduce/report/comment.mjs
+
+        - name: Post comment
           if: steps.bundle.outputs.has == 'true' && steps.verdict.outputs.has_results == 'true'
           env:
             GH_TOKEN: ${{ github.token }}
@@ -580,18 +446,13 @@ safe-outputs:
 
 # Reproduce a Shopware bug — produce ONE verified reproduction, then stop
 
-A live shop on the **reported version** is up (Admin + Storefront already built). Your only job is to
-reproduce the reported bug on it and prove it. You do **not** parse the version, run the trunk
-comparison, decide the verdict, or write the issue comment — deterministic scripts own all of that.
+A live shop on the **reported version** is already running (Admin + Storefront built). Your job is to
+reproduce the reported bug on it and prove it — you do not parse the version, run the trunk
+comparison, decide the verdict, or write the comment; deterministic scripts own all of that.
 
-**Start by reading `build-context.md`** in the workspace root and following it — the compact brief
-for this run (classification, issue inputs, bounded Shopware source/test discovery, and the output
-contract). Author only your own files: `reproduction-plan.json`, `fixtures.json`, and one of
-`repro.spec.ts` / `ReproTest.php`.
-
-**Your terminal action is `node /tmp/reproctl/reproctl.mjs verify`.** When your candidate bundle
-classifies, it requests the deterministic pipeline and prints **STOP** — your job is then over. Run
-it in the **FOREGROUND and WAIT** (it can take minutes; never `&` / `run_in_background` / poll). The
-trusted reported leg is rerun after you stop, from an immutable copy of the verifier, before any
-artifact is published. If you genuinely cannot reproduce, run `node /tmp/reproctl/reproctl.mjs
-giveup`. Do not call the `reproduce-on-trunk` tool yourself; you decide nothing about the verdict.
+**Read `context.md` (workspace root) first, then follow the playbook in
+`.github/actions/reproduce/prompt/task.md`.** Author only your own files (`reproduction-plan.json`,
+optional `fixtures.json`, one test artifact), verify your assumptions with `repro seed` / `repro
+check` / `playwright-cli`, and stop when you're confident. After you stop, the deterministic pipeline
+re-runs your bundle on the reported version and on trunk. If you truly cannot reproduce it, run
+`repro giveup "<reason>"`.
