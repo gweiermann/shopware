@@ -109,9 +109,10 @@ function renderVerdict() {
     UNSURE: unsure,
     CALLOUT: fill(entry.callout, nhrVars),
     EDITS: readExtra('workspace-edits.txt'),
+    RESULT: resultSection({ legA, legB, as, bs, labels, explanation: agentExplanation(plan), evidence: readJson('evidence.json') }),
     SCENARIO: scenarioBlock(plan),
-    RESULT: resultSection({ legA, legB, as, bs, labels, agentSummary, explanation: agentExplanation(plan), evidence: readJson('evidence.json') }),
-    ARTIFACTS_HEADING: (script || hasFixtures) ? '### Artifacts' : '',
+    AGENT_SUMMARY: agentSummary,
+    DETAILS_HEADING: (scenarioBlock(plan) || agentSummary || script || hasFixtures) ? '### Reproduction details' : '',
     TESTCASE: script,
     TESTCASE_LANG: specLeg?.evidence?.script_lang || 'sh',
     TESTCASE_TOOL: p.testcase_tool[plan.executor] || specLeg?.evidence?.script_lang || 'sh',
@@ -134,48 +135,31 @@ function agentExplanation(plan) {
   return `${String(text).replace(/\s+/g, ' ').trim()}${confidence}`;
 }
 
-// The Result body: a one-line lead, the agent's recap, then the checks + screenshot behind spoilers
-// with a recording link — combined into one set when both legs share an outcome, split per leg when
-// they differ. Evidence URLs come from the manifest embed-evidence.sh published.
-function resultSection({ legA, legB, as, bs, labels, agentSummary, explanation, evidence }) {
-  const out = [lead(legA, legB, as, bs, labels)];
-  if (explanation) out.push(`> ${explanation}`);
-  if (agentSummary) out.push(spoiler("🕵️ Agent summary — the agent's own recap of the investigation", agentSummary));
-
+// One collapsible per leg — its status in the summary line, and everything for that leg inside it
+// (checks + gloss, screenshot, recording). Combined into a single "Both versions" spoiler when the
+// legs share an outcome, split otherwise. Evidence URLs come from the manifest embed-evidence.sh wrote.
+function resultSection({ legA, legB, as, bs, labels, explanation, evidence }) {
   const evFor = (name) => (evidence?.legs || []).find((l) => l.name === name) || {};
+  const out = [];
+  if (explanation) out.push(`> ${explanation}`);
   if (legA && legB && as === bs) {
-    out.push("Both runs produced the same evidence, so it's shown once:");
-    out.push(...legEvidence(null, legB || legA, evFor('trunk').png ? evFor('trunk') : evFor('reported')));
+    out.push(legSpoiler(`Both versions — ${statusBadge(as)}`, legB || legA, evFor('trunk').png ? evFor('trunk') : evFor('reported')));
   } else {
-    if (legA) out.push(...legEvidence(`${labels.AL} — ${statusWord(as)}`, legA, evFor('reported')));
-    if (legB) out.push(...legEvidence(`${labels.BL} — ${statusWord(bs)}`, legB, evFor('trunk')));
+    if (legA) out.push(legSpoiler(`**${labels.AL}** — ${statusBadge(as)}`, legA, evFor('reported')));
+    if (legB) out.push(legSpoiler(`**${labels.BL}** — ${statusBadge(bs)}`, legB, evFor('trunk')));
   }
   return out.join('\n\n');
 }
 
-function lead(legA, legB, as, bs, labels) {
-  if (legA && legB) {
-    return as === bs
-      ? `Same outcome on **${labels.AL}** and **${labels.BL}** — **${statusWord(as)}**.`
-      : `**${labels.AL}** — ${statusWord(as)} · **${labels.BL}** — ${statusWord(bs)}.`;
-  }
-  const only = legA ? labels.AL : labels.BL;
-  return `**${only}** — ${statusWord(legA ? as : bs)}.`;
+function legSpoiler(summary, leg, ev) {
+  const body = [checksBlock(leg), DATA.phrases.gloss[leg.status] || ''];
+  if (leg.blocked_reason && leg.blocked_reason !== 'null') body.push(`> ${leg.blocked_reason}`);
+  if (ev.png) body.push(`![screenshot](${ev.png})`);
+  if (ev.webm) body.push(`▶ [Watch the recording](${ev.webm})`);
+  return spoiler(summary, body.filter(Boolean).join('\n\n'));
 }
 
-// One leg's evidence: an optional heading, the Test results spoiler (checks + gloss + any blocked
-// reason), a collapsed Screenshot spoiler, and a recording link.
-function legEvidence(heading, leg, ev) {
-  const out = heading ? [`#### ${heading}`] : [];
-  const results = [checksBlock(leg), DATA.phrases.gloss[leg.status] || ''];
-  if (leg.blocked_reason && leg.blocked_reason !== 'null') results.push(`> ${leg.blocked_reason}`);
-  out.push(spoiler('Test results', results.filter(Boolean).join('\n\n')));
-  if (ev.png) out.push(spoiler('Screenshot', `![${heading || 'reported & trunk'}](${ev.png})`));
-  if (ev.webm) out.push(`▶ [Watch the recording](${ev.webm})`);
-  return out;
-}
-
-function statusWord(s) { return { reproduced: 'reproduced', not_reproduced: 'not reproduced', inconclusive: 'inconclusive', blocked: 'blocked' }[s] || 'not run'; }
+function statusBadge(s) { return DATA.phrases.status[s] || DATA.phrases.status.null; }
 function spoiler(summary, body) { return `<details><summary>${summary}</summary>\n\n${body}\n\n</details>`; }
 
 function qval(v) { return /^\d+$/.test(v) ? v : `'${v}'`; }

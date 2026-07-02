@@ -32,16 +32,25 @@
 
 </details>
 {{/EDITS}}
-{{#SCENARIO}}
-### Scenario
-
-{{SCENARIO}}
-{{/SCENARIO}}
 ### Result
 
 {{RESULT}}
 
-{{ARTIFACTS_HEADING}}
+{{DETAILS_HEADING}}
+{{#SCENARIO}}
+<details><summary>Scenario — what the reproduction exercises</summary>
+
+{{SCENARIO}}
+
+</details>
+{{/SCENARIO}}
+{{#AGENT_SUMMARY}}
+<details><summary>🕵️ Agent summary — the agent's own recap of the investigation</summary>
+
+{{AGENT_SUMMARY}}
+
+</details>
+{{/AGENT_SUMMARY}}
 {{#TESTCASE}}
 <details><summary>🧪 Reproduction test ({{TESTCASE_TOOL}})</summary>
 
