@@ -43,6 +43,13 @@
 
 </details>
 {{/SCENARIO}}
+{{#AGENT_SUMMARY}}
+<details><summary>🕵️ Agent summary — the agent's own recap of the investigation</summary>
+
+{{AGENT_SUMMARY}}
+
+</details>
+{{/AGENT_SUMMARY}}
 {{#TESTCASE}}
 <details><summary>🧪 Reproduction test ({{TESTCASE_TOOL}})</summary>
 
@@ -61,12 +68,5 @@
 
 </details>
 {{/FIXTURES}}
-{{#AGENT_SUMMARY}}
-<details><summary>🕵️ Agent summary — the agent's own recap of the investigation</summary>
-
-{{AGENT_SUMMARY}}
-
-</details>
-{{/AGENT_SUMMARY}}
 
 🔁 [Reproduce run]({{RUN_URL}})

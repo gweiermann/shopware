@@ -140,11 +140,12 @@ function resultSection({ legA, legB, as, bs, labels, explanation, evidence }) {
   const evFor = (name) => (evidence?.legs || []).find((l) => l.name === name) || {};
   const out = [];
   if (explanation) out.push(`> ${explanation}`);
+  // Bold the leg label with <strong>, not markdown — GitHub doesn't render **…** inside <summary>.
   if (legA && legB && as === bs) {
-    out.push(legSpoiler(`Both versions — ${statusBadge(as)}`, legB || legA, evFor('trunk').png ? evFor('trunk') : evFor('reported')));
+    out.push(legSpoiler(`<strong>Both versions</strong> — ${statusBadge(as)}`, legB || legA, evFor('trunk').png ? evFor('trunk') : evFor('reported')));
   } else {
-    if (legA) out.push(legSpoiler(`**${labels.AL}** — ${statusBadge(as)}`, legA, evFor('reported')));
-    if (legB) out.push(legSpoiler(`**${labels.BL}** — ${statusBadge(bs)}`, legB, evFor('trunk')));
+    if (legA) out.push(legSpoiler(`<strong>${labels.AL}</strong> — ${statusBadge(as)}`, legA, evFor('reported')));
+    if (legB) out.push(legSpoiler(`<strong>${labels.BL}</strong> — ${statusBadge(bs)}`, legB, evFor('trunk')));
   }
   return out.join('\n\n');
 }
