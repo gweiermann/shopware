@@ -37,7 +37,7 @@
 
 {{DETAILS_HEADING}}
 {{#SCENARIO}}
-<details><summary>Scenario — what the reproduction exercises</summary>
+<details><summary>📋 Scenario — what the reproduction exercises</summary>
 
 {{SCENARIO}}
 
