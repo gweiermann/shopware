@@ -26,6 +26,22 @@ export function run({ plan, target }) {
   });
 }
 
+// PHPUnit prints a failure/error as: a `N) Class::method` header, then the assertion message and
+// `Failed asserting that …`, then the source location — the useful part is everything AFTER the
+// header. Capture the first block up to the next block or the summary, drop the boilerplate header,
+// and shorten the absolute source path to `File.php:line`, so the comment shows WHY it failed.
+function failureBlock(output, max = 1200) {
+  const start = output.search(/^\d+\) /m);
+  if (start === -1) return '';
+  const rest = output.slice(start);
+  const end = rest.slice(3).search(/^(\d+\) |FAILURES!|ERRORS!|WARNINGS!|OK\b|Tests: )/m);
+  let block = (end === -1 ? rest : rest.slice(0, end + 3)).trim();
+  block = block.replace(/^\d+\) .*(\n|$)/, '');                        // drop "1) ReproTest::testHealthy"
+  block = block.replace(/^\s*\/\S*\/([^/\s]+\.php:\d+)\s*$/m, '$1');   // /abs/path/ReproTest.php:186 → ReproTest.php:186
+  block = block.trim();
+  return block.length > max ? `${block.slice(0, max)}\n…` : block;
+}
+
 function runPhpunit(specPath, shop, plan, target) {
   if (process.env.PHPUNIT_REPORT) return fs.readFileSync(process.env.PHPUNIT_REPORT, 'utf8');
   if (!fs.existsSync(specPath)) return null;
@@ -38,9 +54,9 @@ function runPhpunit(specPath, shop, plan, target) {
 }
 
 function classify(output, plan) {
-  const firstError = (output.match(/^\d+\).+(\n.+){0,4}/m) || [''])[0].replace(/\s+/g, ' ').slice(0, 700);
+  const firstError = failureBlock(output).replace(/\s+/g, ' ').slice(0, 700);
   if (/^OK[ (]/m.test(output)) return { status: 'not_reproduced', matched: true, reporter: 'PHPUnit OK (healthy)', reason: null };
-  if (/FAILURES!/.test(output)) return { status: 'reproduced', matched: false, reporter: (output.match(/^\d+\).+/m) || ['assertion failed (symptom present)'])[0].slice(0, 300), reason: null };
+  if (/FAILURES!/.test(output)) return { status: 'reproduced', matched: false, reporter: failureBlock(output) || 'assertion failed (symptom present)', reason: null };
   if (/ERRORS!|No tests executed|Fatal error|PHP Fatal|Uncaught/.test(output)) {
     const pattern = plan.assertion?.symptom_pattern;
     if (pattern && new RegExp(pattern).test(output)) {
