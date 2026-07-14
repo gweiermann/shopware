@@ -1,0 +1,1 @@
+{"errors":[{"status":"404","code":"PRODUCT__LISTING_PAGE_OUT_OF_RANGE","title":"Not Found","detail":"Requested listing page 99 is out of range (last page: 1).","meta":{"parameters":{"requestedPage":99,"lastPage":1}}}]}
