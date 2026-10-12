@@ -29,7 +29,7 @@
     "unit:components": "vitest run --config vitest.config.mts",
     "unit:components:watch": "vitest --config vitest.config.mts",
     "unit:components:coverage": "vitest run --coverage --config vitest.config.mts",
-    "postinstall": "patch-package && node build/link-component-node-modules.js",
+    "postinstall": "node build/link-component-node-modules.js",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build"
   },

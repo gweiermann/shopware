@@ -28,6 +28,6 @@
     "vite.components.config.mts",
     "vitest.config.mts",
     "__mocks__/*.ts",
-    "../../views/components/**/*"
+    "../../src/Storefront/Resources/views/components/**/*"
   ]
 }

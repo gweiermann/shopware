@@ -28,7 +28,7 @@ const optionDefinitions = [
         type: String,
     },
     {
-        description: 'Shopware root. Default ../../../../../',
+        description: 'Shopware root. Default ../../',
         name: 'shopware-root',
         alias: 'r',
         type: String,
@@ -107,7 +107,7 @@ const sections = [
         process.exit(1);
     }
 
-    let customPluginsPath = path.resolve('../../../../../custom/plugins');
+    let customPluginsPath = path.resolve('../../custom/plugins');
     if (options['shopware-root']) {
         let optionsRoot = options['shopware-root'];
 

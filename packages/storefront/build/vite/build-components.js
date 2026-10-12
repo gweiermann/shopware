@@ -34,7 +34,7 @@ const { normalizeComponentEntryName, warnForDuplicateEntryNames } = require('./c
 const scriptDir = __dirname;
 const projectRoot = process.env.PROJECT_ROOT
     ? path.resolve(process.env.PROJECT_ROOT)
-    : path.resolve(scriptDir, '../../../../../../..');
+    : path.resolve(scriptDir, '../../../..');
 const pluginsJsonPath = path.join(projectRoot, 'var', 'plugins.json');
 const COMPONENTS_PATH = 'Resources/views/components';
 

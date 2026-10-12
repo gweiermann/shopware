@@ -23,7 +23,7 @@ import VirtualShopwareModulesPlugin from './build/vite-plugins/virtual-shopware-
 console.log(colors.yellow('# Compiling Administration with Vite configuration'));
 
 process.env = { ...process.env, ...loadEnv('', process.cwd()) };
-process.env.PROJECT_ROOT = process.env.PROJECT_ROOT || path.join(__dirname, '/../../../../../');
+process.env.PROJECT_ROOT = process.env.PROJECT_ROOT || path.join(__dirname, '/../../');
 
 process.env.SERVICE_REGISTRY_URL = process.env.SERVICE_REGISTRY_URL ?? 'https://registry.services.shopware.io';
 
@@ -230,7 +230,7 @@ export default defineConfig(({ command }) => {
             // The outdir is set to the <project_root>/public/bundles/administration so that
             // the entrypoints.json of the symfony plugin can be read in the index.html.twig template
             outDir: isProd
-                ? path.resolve(__dirname, '../../public/administration')
+                ? path.resolve(__dirname, '../../src/Administration/Resources/public/administration')
                 : path.resolve(process.env.PROJECT_ROOT as string, 'public/bundles/administration/administration'),
             emptyOutDir: true,
 

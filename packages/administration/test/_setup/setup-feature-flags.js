@@ -12,7 +12,7 @@ import normalizeFeatureFlag from '../_helper_/normalizeFeatureFlag';
 
 const featureConfigPath = resolve(
     process.env.ADMIN_PATH,
-    '../../../../Core/Framework/Resources/config/packages/feature.yaml',
+    '../../src/Core/Framework/Resources/config/packages/feature.yaml',
 );
 
 const featureConfig = parse(readFileSync(featureConfigPath, 'utf8'));

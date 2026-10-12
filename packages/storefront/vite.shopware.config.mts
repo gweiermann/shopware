@@ -9,7 +9,7 @@ import { defineConfig } from 'vite';
  */
 export default defineConfig({
     build: {
-        outDir: '../../public/storefront/shopware',
+        outDir: '../../src/Storefront/Resources/public/storefront/shopware',
         emptyOutDir: true,
         lib: {
             entry: './src/shopware.ts',

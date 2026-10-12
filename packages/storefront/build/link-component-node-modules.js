@@ -29,7 +29,7 @@ const path = require('node:path');
 const scriptDir = __dirname;
 // scriptDir = Resources/app/storefront/build
 const storefrontAppDir = path.resolve(scriptDir, '..');
-const componentsDir = path.resolve(storefrontAppDir, '../../views/components');
+const componentsDir = path.resolve(storefrontAppDir, '../../src/Storefront/Resources/views/components');
 const linkPath = path.join(componentsDir, 'node_modules');
 const linkTarget = path.relative(componentsDir, path.join(storefrontAppDir, 'node_modules'));
 

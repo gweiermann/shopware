@@ -18,7 +18,7 @@ import {
 const resourcesRoot = path.resolve(import.meta.dirname, '../..'); // Resources/
 const projectRoot = process.env.PROJECT_ROOT
     ? path.resolve(process.env.PROJECT_ROOT)
-    : path.resolve(import.meta.dirname, '../../../../../');
+    : path.resolve(import.meta.dirname, '../../');
 
 /**
  * SCSS load paths made available to every component stylesheet.
@@ -82,7 +82,7 @@ export default defineConfig(async ({ command }): Promise<UserConfig> => {
             },
         },
         build: {
-            outDir: '../../public/storefront/components',
+            outDir: '../../src/Storefront/Resources/public/storefront/components',
             emptyOutDir: true,
             manifest: true,
             sourcemap: process.env.NODE_ENV !== 'production',

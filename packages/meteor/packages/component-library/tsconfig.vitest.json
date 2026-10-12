@@ -12,6 +12,10 @@
   ],
   "compilerOptions": {
     "composite": true,
-    "types": ["node", "jsdom", "vitest/globals"]
+    "types": ["node", "jsdom", "vitest/globals"],
+    "paths": {
+      "@/*": ["./src/*"],
+      "vitest": ["./node_modules/vitest"]
+    }
   }
 }

@@ -23,11 +23,13 @@
     "stylelint": "^16.10.0"
   },
   "devDependencies": {
+    "@shopware-ag/meteor-prettier-config": "workspace:*",
+    "postcss": "8.5.6",
     "prettier": "^3.5.2",
+    "stylelint-define-config": "16.24.0",
     "stylelint-test-rule-node": "^0.3.0",
     "tshy": "^3.0.2",
-    "tsx": "^4.7.0",
-    "@shopware-ag/meteor-prettier-config": "workspace:*"
+    "tsx": "^4.7.0"
   },
   "type": "module",
   "tshy": {

@@ -8,7 +8,7 @@ import { normalizeComponentEntryName, warnForDuplicateEntryNames } from './compo
  */
 const projectRoot = process.env.PROJECT_ROOT
     ? path.resolve(process.env.PROJECT_ROOT)
-    : path.resolve(import.meta.dirname, '../../../../../../../');
+    : path.resolve(import.meta.dirname, '../../../../');
 
 const COMPONENTS_PATH = 'Resources/views/components';
 

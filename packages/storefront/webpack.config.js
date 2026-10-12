@@ -24,7 +24,7 @@ const isDebugMode = process.env.DEBUG === 'true';
 
 const projectRootPath = process.env.PROJECT_ROOT
     ? path.resolve(process.env.PROJECT_ROOT)
-    : path.resolve('../../../../..');
+    : path.resolve('../..');
 
 let themeFiles;
 let features = {};
@@ -306,7 +306,7 @@ const coreConfig = {
                         patterns: [
                             {
                                 from: path.resolve(__dirname, 'static'),
-                                to: path.resolve(__dirname, '../../../Resources/public/assets'),
+                                to: path.resolve(__dirname, '../../src/Storefront/Resources/public/assets'),
                                 globOptions: {
                                     ignore: ['.*'],
                                 },

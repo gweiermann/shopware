@@ -10,7 +10,7 @@ if (noArgumentProvided) {
 }
 
 function fromPlatformRootDirectory(...paths: string[]) {
-    return path.resolve(__dirname, '../../../../../../../../', ...paths);
+    return path.resolve(__dirname, '../../../../../', ...paths);
 }
 
 const targetDirectory = process.argv[2];

@@ -18,7 +18,7 @@ const assetPort = Number(process.env.STOREFRONT_ASSETS_PORT) || 9999;
 
 const projectRootPath = process.env.PROJECT_ROOT
     ? path.resolve(process.env.PROJECT_ROOT)
-    : path.resolve('../../../../..');
+    : path.resolve('../..');
 const themeFilesConfigPath = path.resolve(projectRootPath, 'var/theme-files.json');
 const themeFiles = require(themeFilesConfigPath);
 const domainUrl = new URL(themeFiles.domainUrl);

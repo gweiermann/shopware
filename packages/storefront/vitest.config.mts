@@ -13,7 +13,7 @@ const configDir = import.meta.dirname;
 const resourcesRoot = path.resolve(configDir, '../..');
 const projectRoot = process.env.PROJECT_ROOT
     ? path.resolve(process.env.PROJECT_ROOT)
-    : path.resolve(configDir, '../../../../../');
+    : path.resolve(configDir, '../../');
 
 type BundleEntry = {
     basePath?: string;
@@ -31,7 +31,7 @@ function resolveComponentRoots(): string[] {
 
     if (!fs.existsSync(pluginsJson)) {
         // Fallback: core only (relative path from config file directory).
-        return ['../../views/components'];
+        return ['../../src/Storefront/Resources/views/components'];
     }
 
     const plugins = JSON.parse(fs.readFileSync(pluginsJson, 'utf-8')) as Record<string, BundleEntry>;

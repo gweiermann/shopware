@@ -57,7 +57,7 @@ if (isCi) {
 const config: Config = {
     roots: [
         '<rootDir>',
-        '<rootDir>/../../../../Storefront/Resources/app/administration',
+        '<rootDir>/../../src/Storefront/Resources/app/administration',
     ],
     cacheDirectory: process.env.JEST_CACHE_DIR,
     globals: {
@@ -105,10 +105,10 @@ const config: Config = {
         '!src/**/*.spec.js',
         '!src/**/*.spec/**',
         '!**/*.d.ts',
-        '<rootDir>/../../../../Storefront/Resources/app/administration/src/**/*.js',
-        '<rootDir>/../../../../Storefront/Resources/app/administration/src/**/*.ts',
-        '!<rootDir>/../../../../Storefront/Resources/app/administration/src/**/*.spec.js',
-        '!<rootDir>/../../../../Storefront/Resources/app/administration/src/**/*.spec/**',
+        '<rootDir>/../../src/Storefront/Resources/app/administration/src/**/*.js',
+        '<rootDir>/../../src/Storefront/Resources/app/administration/src/**/*.ts',
+        '!<rootDir>/../../src/Storefront/Resources/app/administration/src/**/*.spec.js',
+        '!<rootDir>/../../src/Storefront/Resources/app/administration/src/**/*.spec/**',
 
         // Exception in the build dir for vite plugins
         'build/vite-plugins/**/*.ts',
@@ -197,7 +197,7 @@ const config: Config = {
         '^@vue/test-utils$': '<rootDir>/node_modules/@vue/test-utils',
         '^lodash-es$': 'lodash',
         '^lodash-es/(.*)$': 'lodash/$1',
-        '^vue$': 'vue/dist/vue.cjs.js',
+        '^vue$': '<rootDir>/node_modules/vue/dist/vue.cjs.js',
     },
 
     reporters: isCi
@@ -229,10 +229,10 @@ const config: Config = {
         '<rootDir>/src/**/*.spec.ts',
         '<rootDir>/src/**/*.spec/*.spec.js',
         '<rootDir>/src/**/*.spec/*.spec.ts',
-        '<rootDir>/../../../../Storefront/Resources/app/administration/src/**/*.spec.js',
-        '<rootDir>/../../../../Storefront/Resources/app/administration/src/**/*.spec.ts',
-        '<rootDir>/../../../../Storefront/Resources/app/administration/src/**/*.spec/*.spec.js',
-        '<rootDir>/../../../../Storefront/Resources/app/administration/src/**/*.spec/*.spec.ts',
+        '<rootDir>/../../src/Storefront/Resources/app/administration/src/**/*.spec.js',
+        '<rootDir>/../../src/Storefront/Resources/app/administration/src/**/*.spec.ts',
+        '<rootDir>/../../src/Storefront/Resources/app/administration/src/**/*.spec/*.spec.js',
+        '<rootDir>/../../src/Storefront/Resources/app/administration/src/**/*.spec/*.spec.ts',
         '<rootDir>/eslint-rules/**/*.spec.js',
         '<rootDir>/build/vite-plugins/**/*.spec.ts',
         '<rootDir>/build/vite-plugins/**/*.spec.js',

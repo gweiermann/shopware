@@ -1,7 +1,7 @@
-diff --git a/node_modules/tiny-slider/dist/tiny-slider.js b/node_modules/tiny-slider/dist/tiny-slider.js
+diff --git a/dist/tiny-slider.js b/dist/tiny-slider.js
 index 1b5d912..b193c1e 100644
---- a/node_modules/tiny-slider/dist/tiny-slider.js
-+++ b/node_modules/tiny-slider/dist/tiny-slider.js
+--- a/dist/tiny-slider.js
++++ b/dist/tiny-slider.js
 @@ -563,7 +563,8 @@ var tns = function (options) {
      freezable: true,
      onInit: false,

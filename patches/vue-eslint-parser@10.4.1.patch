@@ -1,7 +1,7 @@
-diff --git a/node_modules/vue-eslint-parser/dist/index.cjs b/node_modules/vue-eslint-parser/dist/index.cjs
+diff --git a/dist/index.cjs b/dist/index.cjs
 index 8801806..f974192 100644
---- a/node_modules/vue-eslint-parser/dist/index.cjs
-+++ b/node_modules/vue-eslint-parser/dist/index.cjs
+--- a/dist/index.cjs
++++ b/dist/index.cjs
 @@ -705,7 +705,7 @@ function isBasicParserObject(value) {
  //#region src/common/parser-options.ts
  function isSFCFile(parserOptions) {

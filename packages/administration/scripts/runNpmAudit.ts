@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { runNpmAudit } from '../../../../../../.github/bin/js/run-npm-audit.ts';
+import { runNpmAudit } from '../../../.github/bin/js/run-npm-audit.ts';
 
 /**
  * Run from the project directory: node ./scripts/runNpmAudit.ts

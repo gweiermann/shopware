@@ -214,3 +214,6 @@ danger.phar
 # inside the directory as a marker.
 .github/aw/logs/*
 !.github/aw/logs/README.md
+
+# Turborepo local cache
+/.turbo/

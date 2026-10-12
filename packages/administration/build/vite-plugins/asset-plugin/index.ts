@@ -23,7 +23,7 @@ export default function viteAssetPlugin(isProd: boolean, adminDir: string, exten
             // Hook into the build process after it's done
             closeBundle() {
                 const staticDir = path.resolve(adminDir, 'static');
-                const outDir = path.resolve(adminDir, '../../public/administration/static');
+                const outDir = path.resolve(adminDir, '../../src/Administration/Resources/public/administration/static');
 
                 // Ensure the static directory exists
                 if (fs.existsSync(staticDir)) {
@@ -64,7 +64,7 @@ export default function viteAssetPlugin(isProd: boolean, adminDir: string, exten
                 // Read from Resources/ (not public/administration/), since a parallel
                 // production build empties public/administration and would delete the file.
                 if (originalUrl.endsWith('sw-plugin-dev.json')) {
-                    const pluginDevContent = fs.readFileSync(path.resolve(adminDir, '../../sw-plugin-dev.json'), 'utf8');
+                    const pluginDevContent = fs.readFileSync(path.resolve(adminDir, '../../src/Administration/Resources/sw-plugin-dev.json'), 'utf8');
 
                     res.writeHead(200, {
                         'Content-Type': 'application/json',
