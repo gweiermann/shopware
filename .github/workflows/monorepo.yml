@@ -1,0 +1,47 @@
+name: Workspace packages
+
+on:
+  pull_request:
+  merge_group:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  meteor:
+    name: "Meteor (build, types, unit)"
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup JS workspace
+        uses: ./.github/actions/setup-js-workspace
+
+      - name: Build, type-check and unit-test the Meteor packages
+        run: pnpm turbo run build lint:types test:unit --filter='./packages/meteor/packages/*'
+
+  acceptance-test-suite:
+    name: "acceptance-test-suite (build, types)"
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup JS workspace
+        uses: ./.github/actions/setup-js-workspace
+
+      - name: Type-check
+        working-directory: packages/acceptance-test-suite
+        run: pnpm run typecheck
+
+      - name: Lint
+        working-directory: packages/acceptance-test-suite
+        run: pnpm run lint
+
