@@ -500,23 +500,23 @@ importers:
         specifier: 28.14.0
         version: 28.14.0(@typescript-eslint/eslint-plugin@8.56.1(@typescript-eslint/parser@8.56.1(eslint@9.39.3(jiti@2.7.0))(typescript@5.7.3))(eslint@9.39.3(jiti@2.7.0))(typescript@5.7.3))(eslint@9.39.3(jiti@2.7.0))(jest@30.2.0(@types/node@20.17.14)(esbuild-register@3.5.0(esbuild@0.28.0))(ts-node@10.9.2(@swc/core@1.10.7(@swc/helpers@0.5.17))(@types/node@20.17.14)(typescript@5.7.3)))(typescript@5.7.3)
       eslint-plugin-plugin-rules:
-        specifier: file:eslint-rules/plugin-rules
-        version: plugin-rules@file:packages/administration/eslint-rules/plugin-rules
+        specifier: link:eslint-rules/plugin-rules
+        version: link:eslint-rules/plugin-rules
       eslint-plugin-promise:
         specifier: 6.6.0
         version: 6.6.0(eslint@9.39.3(jiti@2.7.0))
       eslint-plugin-sw-core-rules:
-        specifier: file:eslint-rules/core-rules
-        version: sw-core-rules@file:packages/administration/eslint-rules/core-rules
+        specifier: link:eslint-rules/core-rules
+        version: link:eslint-rules/core-rules
       eslint-plugin-sw-deprecation-rules:
-        specifier: file:eslint-rules/deprecation-rules
-        version: sw-deprecation-rules@file:packages/administration/eslint-rules/deprecation-rules
+        specifier: link:eslint-rules/deprecation-rules
+        version: link:eslint-rules/deprecation-rules
       eslint-plugin-sw-test-rules:
-        specifier: file:eslint-rules/test-rules
-        version: sw-test-rules@file:packages/administration/eslint-rules/test-rules
+        specifier: link:eslint-rules/test-rules
+        version: link:eslint-rules/test-rules
       eslint-plugin-twig-vue:
-        specifier: file:twigVuePlugin
-        version: file:packages/administration/twigVuePlugin
+        specifier: link:twigVuePlugin
+        version: link:twigVuePlugin
       eslint-plugin-vue:
         specifier: 10.10.0
         version: 10.10.0(patch_hash=e3bcc9b0b5fea13be96ec2f9f99dcaf3a97ae10e4d9545ba6e9b03fb8db51862)(@typescript-eslint/parser@8.56.1(eslint@9.39.3(jiti@2.7.0))(typescript@5.7.3))(eslint@9.39.3(jiti@2.7.0))(vue-eslint-parser@10.4.1(patch_hash=00a6c290cc332d5462e3a23f5dbb84cce451e4f52be98ea223327dd726cc193a)(eslint@9.39.3(jiti@2.7.0)))
@@ -10010,10 +10010,6 @@ packages:
       eslint: '>=8'
       storybook: ^10.4.0
 
-  eslint-plugin-twig-vue@file:packages/administration/twigVuePlugin:
-    resolution: {directory: packages/administration/twigVuePlugin, type: directory}
-    engines: {node: ^20.x || ^22.x || ^24.x || ^25.x}
-
   eslint-plugin-vitest@0.5.4:
     resolution: {integrity: sha512-um+odCkccAHU53WdKAw39MY61+1x990uXjSPguUCq3VcEHdqJrOb8OTMrbYlY6f9jAKx7x98kLVlIe3RJeJqoQ==}
     engines: {node: ^18.0.0 || >= 20.0.0}
@@ -13888,9 +13884,6 @@ packages:
     engines: {node: '>=20'}
     hasBin: true
 
-  plugin-rules@file:packages/administration/eslint-rules/plugin-rules:
-    resolution: {directory: packages/administration/eslint-rules/plugin-rules, type: directory}
-
   pluralize@8.0.0:
     resolution: {integrity: sha512-Nc3IT5yHzflTfbjgqWcCPpo7DaKy4FnpB0l/zCAW0Tc7jxAiuqSxHasntB3D7887LSrA93kDJ9IXovxJYxyLCA==}
     engines: {node: '>=4'}
@@ -15747,15 +15740,6 @@ packages:
     resolution: {integrity: sha512-XDpWUOPC6FEibaLzjfe0ucaV0YrOjYotGJO1WpF0Zd+n6ZGEQUsSugaoLq9QkEZtAfQIxT42UChcssDVPP3+/w==}
     engines: {node: '>=16'}
     hasBin: true
-
-  sw-core-rules@file:packages/administration/eslint-rules/core-rules:
-    resolution: {directory: packages/administration/eslint-rules/core-rules, type: directory}
-
-  sw-deprecation-rules@file:packages/administration/eslint-rules/deprecation-rules:
-    resolution: {directory: packages/administration/eslint-rules/deprecation-rules, type: directory}
-
-  sw-test-rules@file:packages/administration/eslint-rules/test-rules:
-    resolution: {directory: packages/administration/eslint-rules/test-rules, type: directory}
 
   swc-loader@0.2.6:
     resolution: {integrity: sha512-9Zi9UP2YmDpgmQVbyOPJClY0dwf58JDyDMQ7uRc4krmc72twNI2fvlBWHLqVekBpPc7h5NJkGVT1zNDxFrqhvg==}
@@ -27599,8 +27583,6 @@ snapshots:
       - supports-color
       - typescript
 
-  eslint-plugin-twig-vue@file:packages/administration/twigVuePlugin: {}
-
   eslint-plugin-vitest@0.5.4(eslint@9.21.0(jiti@2.7.0))(typescript@5.7.3)(vitest@3.0.5):
     dependencies:
       '@typescript-eslint/utils': 7.18.0(eslint@9.21.0(jiti@2.7.0))(typescript@5.7.3)
@@ -33184,8 +33166,6 @@ snapshots:
     optionalDependencies:
       fsevents: 2.3.2
 
-  plugin-rules@file:packages/administration/eslint-rules/plugin-rules: {}
-
   pluralize@8.0.0: {}
 
   pngjs@3.4.0: {}
@@ -35486,12 +35466,6 @@ snapshots:
       csso: 5.0.5
       picocolors: 1.1.1
       sax: 1.6.0
-
-  sw-core-rules@file:packages/administration/eslint-rules/core-rules: {}
-
-  sw-deprecation-rules@file:packages/administration/eslint-rules/deprecation-rules: {}
-
-  sw-test-rules@file:packages/administration/eslint-rules/test-rules: {}
 
   swc-loader@0.2.6(@swc/core@1.10.14(@swc/helpers@0.5.17))(webpack@5.104.1):
     dependencies:

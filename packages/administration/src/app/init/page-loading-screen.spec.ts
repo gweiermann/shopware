@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const script = fs.readFileSync(
-    path.resolve(__dirname, '../../../../../shared/page-loading-screen/page-loading-screen.js'),
+    path.resolve(__dirname, '../../../../../src/Administration/Resources/shared/page-loading-screen/page-loading-screen.js'),
     'utf-8',
 );
 
