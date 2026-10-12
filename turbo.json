@@ -1,0 +1,59 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", "es/**", "umd/**", ".docusaurus/**", "build/**"],
+      "env": ["API_KEY"]
+    },
+    "meteor-docs#build": {
+      "dependsOn": ["^build"],
+      "outputs": [".output/**", ".nuxt/**"]
+    },
+    "@shopware-ag/meteor-component-library#build:storybook": {
+      "dependsOn": ["^build"],
+      "outputs": ["storybook-static/**"],
+      "env": ["SHOW_INTERACTIONS"]
+    },
+    "dev": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "persistent": true
+    },
+    "lint:all": {
+      "outputs": []
+    },
+    "lint:types": {
+      "outputs": []
+    },
+    "lint:eslint": {
+      "outputs": []
+    },
+    "lint:css": {
+      "outputs": []
+    },
+    "format:check": {},
+    "format": {},
+    "test:unit": {
+      "env": [
+        "FIGMA_TOKEN",
+        "ADMIN_TOKENS_FILE_KEY",
+        "PRIMITIVE_TOKENS_FILE_KEY",
+        "CI"
+      ],
+      "outputs": []
+    },
+    "meteor-docs#test:unit": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "test:e2e": {
+      "outputs": [],
+      "dependsOn": ["^build"]
+    },
+    "@shopware-ag/meteor-component-library#test:storybook": {
+      "outputs": [],
+      "dependsOn": ["^build"]
+    }
+  }
+}

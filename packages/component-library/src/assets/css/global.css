@@ -1,0 +1,19 @@
+body {
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  font-feature-settings:
+    "ss01" on,
+    "cv10" on,
+    "cv11" on;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-size: var(--font-size-xs);
+  line-height: 1.5;
+  /* @deprecated hardcoded background — to be revisited in the next major */
+  background: #f9fafb;
+  color: var(--color-text-primary-default);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+}
