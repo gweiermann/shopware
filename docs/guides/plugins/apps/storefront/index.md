@@ -1,0 +1,62 @@
+---
+nav:
+  title: Storefront
+  position: 40
+
+---
+
+# Storefront
+
+You can modify the whole appearance of the Storefront within your app. This includes [customizing templates](../../apps/storefront/customize-templates.md), [adding custom JavaScript](../../plugins/storefront/javascript/add-custom-javascript.md), and [custom styling](../../plugins/storefront/styling/add-custom-styling.md).
+
+As the Shopware server will build the Storefront, you don't have to set up any external servers for this. All you have to do is include your modifications \(in form of `.html.twig`, `.js` or `.scss` files\) inside the `Resources` folder of your app. The base folder structure of your app may look like this:
+
+```text
+└── DemoApp
+    ├── Resources
+    │   ├── app
+    │   │   └── storefront
+    │   │       └── src
+    │   │           ├── scss
+    │   │           │   └── base.scss
+    │   │           └── main.js
+    │   ├── views
+    │   │   └── storefront
+    │   │       └── ...
+    │   └── public
+    │       └── ... // public assets go here
+    └── manifest.xml
+```
+
+## Custom assets in apps
+
+::: info
+Note that this feature was introduced in Shopware 6.4.8.0, and is not supported in previous versions.
+:::
+
+You may want to include custom assets inside your app, like custom fonts, etc.
+Therefore, place the assets you need in the `/Resources/public` folder. All files inside this folder are available over the [asset-system](../../plugins/storefront/styling/add-custom-assets.md#adding-custom-assets-to-your-plugin).
+
+## Custom template priority
+
+::: info
+Note that this feature was introduced in Shopware 6.4.12.0, and is not supported in previous versions.
+:::
+
+You may want your templates loaded before or after other extensions. To do so, you can define a `template-load-priority` inside your `manifest.xml`. The default value to this is 0, with positive numbers your template will be loaded earlier, and with negative numbers later.
+
+::: code-group
+
+```xml [manifest.xml]
+<?xml version="1.0" encoding="UTF-8"?>
+<manifest xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"  xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/shopware/shopware/trunk/src/Core/Framework/App/Manifest/Schema/manifest-3.0.xsd">
+    <meta>
+        ....
+    </meta>
+    <storefront>
+        <template-load-priority>100</template-load-priority>
+    </storefront>
+</manifest>
+```
+
+:::

@@ -1,0 +1,174 @@
+---
+nav:
+  title: Data Loading
+  position: 20
+
+---
+
+# Load Additional Data for the Storefront with App Scripts
+
+## Overview
+
+If your app needs additional data in your [customized Storefront templates](../../plugins/storefront/templates/customize-templates.md), you can load that data with app scripts and make it available to your templates.
+
+::: info
+App scripts were introduced in Shopware 6.4.8.0 and are not supported in previous versions.
+:::
+
+## How data loading works
+
+The app script data-loading feature builds on the general [composite data-loading concept](../../../../concepts/framework/architecture/storefront-concept.md#composite-data-handling) of the Storefront.
+
+For each rendered page, a hook is triggered that gives you access to the current `page` object. The `page` object provides access to all available data, lets you add data, and is passed directly to the templates.
+
+For a list of all available script hooks that can be used to load additional data, see the [script hook reference](../../../../resources/references/app-reference/script-reference/script-hooks-reference.md#data-loading).
+
+::: info
+All hooks triggered during page rendering are also shown in the [Symfony toolbar](../app-scripts/index.md#developingdebugging-scripts). This can be useful when searching for the right hook for your script.
+:::
+
+For example, if you want to enrich a Storefront detail page with additional data, you can set that data in a custom app script and attach it to the `page` object:
+
+```twig
+// Resources/scripts/product-page-loaded/my-example-script.twig
+{% set page = hook.page %}
+{# @var page \Shopware\Storefront\Page\Product\ProductPage #}
+
+{# the page object gives you access to all the data, e.g., the current product #}
+{% do page.product ... %}
+
+{% set myAdditionalData = {
+    'example': 'just an example'
+} %}
+
+{# it also lets you add data that you can later use in your Storefront templates #}
+{% do page.addArrayExtension('swagMyAdditionalData', myAdditionalData) %}
+```
+
+In your Storefront templates, you can read the data again from the `page` object:
+
+```twig
+// Resources/views/storefront/page/product-detail/index.html.twig
+{% sw_extends '@Storefront/storefront/page/product-detail/index.html.twig' %}
+
+{% block page_product_detail %}
+    <h1>{{ page.getExtension('swagMyAdditionalData').example }}</h1>
+    
+    {{ parent() }}
+{% endblock %}
+```
+
+## Loading data
+
+To load data stored inside Shopware, you can use the `read` features of the [Data Abstraction Layer](../../../../concepts/framework/data-abstraction-layer.md).
+Therefore, in every hook that may be used to load additional data, the `repository` service is available.
+
+The `repository` service provides methods to load exactly the data you need:
+
+* `search()` to load complete entities
+* `ids()` to load only the IDs of entities if you don't need all the additional information of the entities
+* `aggregate()` to aggregate data if you don't need any data of individual entities, but are only interested in aggregated data
+
+All those methods can be used in the same way. First, you pass the entity name on which the search should be performed. Next, you pass the criteria that should be used.
+
+```twig
+{% set mediaEntities = services.repository.search('media', criteria) %}
+```
+
+### Search criteria
+
+The search criteria define how the search is performed and what data is included.
+The criteria object used in the app scripts behaves and looks the same as the [JSON criteria used by the API](../../../development/integrations-api/search-criteria.md).
+
+Please refer to that documentation for an overview of the features available within a criteria object.
+
+The criteria object can be assembled inside scripts as follows:
+
+```twig
+{% set criteria = {
+    'ids': [ 'id1', 'id2' ],
+    'associations': {
+        'manufacturer': {},
+        'cover': {},
+    },
+    'filter': [
+        { 'type': 'equals', 'field': 'active', 'value': true },
+    ]
+} %}
+
+{% set matchedProducts = services.repository.search('product', criteria) %}
+```
+
+### `repository` and `store` services
+
+Besides the `repository` service, a separate `store` service is available that provides the same basic functionality and interface.
+
+The `store` service is available for all "public" entities (e.g., `product` and `category`) and returns a Storefront-optimized representation of those entities.
+This means that, for example, SEO-related data is resolved for `products` and `categories`, loaded over the `store` service, but not over the `repository` service.
+Additionally, product prices are only calculated using the `store` service.
+
+::: info
+The `store` service only loads "public" entities. This means that the entities include only those that are active and visible in the current sales channel.
+:::
+
+One major difference is that when using the `repository` service, your app needs `read` permissions for every entity it reads, whereas you don't need additional permissions to use the `store` service (since it only searches for "public" data).
+
+Refer to the [App registration & backend setup guide](../lifecycle/app-registration-setup.md#permissions) for more information on how permissions work for apps.
+
+The `repository` service exposes the same data as the CRUD operations of the [Admin API](../../../development/integrations-api/index.md#admin-api), whereas the `store` service gives access to the same data as the [Store API](../../../development/integrations-api/index.md#store-api).
+
+For a full description of the `repository` and `store` services, take a look at the [services reference](../../../../resources/references/app-reference/script-reference/data-loading-script-services-reference.md).
+
+## Adding data to the page object
+
+There are two ways to add data to the page object: either with the `addExtension()` or the `addArrayExtension()` methods.
+Both methods expect the name under which the extension should be added as the first parameter. Under that name, you can later access the extension in your Storefront template with the `page.getExtension('extensionName')` call.
+
+::: warning
+Note that extension names must be unique. Therefore, always use your vendor prefix as the extension name's prefix.
+:::
+
+The second argument for both methods is the data you want to add as an extension. With `addExtension`, that data must be a `Struct`, meaning you can only add PHP objects (e.g., collections or entities returned by the `repository` service) directly as extensions.
+If you want to add scalar values or add more than one struct in your extension, you can wrap your data in a JSON-like twig object and use the `addArrayExtension` method.
+
+In your **scripts** that would look something like this:
+
+```twig
+{% set products = services.repository.search('product', criteria) %}
+
+{# via addExtension #}
+{% do page.addExtension('swagCollection', products) %}
+{% do page.addExtension('swagEntity', products.first) %}
+
+{# via addArrayExtension #}
+{% set arrayExtension = {
+    'collection': products,
+    'entity': products.first,
+    'scalar': 'a scalar value',
+} %}
+{% do page.addArrayExtension('swagArrayExtension', arrayExtension) %}
+```
+
+You can access the extensions again in your **Storefront templates** like this:
+
+```twig
+{# via addExtension #}
+{% for product in page.getExtension('swagCollection') %}
+    ...
+{% endfor %}
+
+{% set product = page.getExtension('swagEntity') %}
+
+{# via addArrayExtension #}
+{% for product in page.getExtension('swagArrayExtension').collection %}
+    ...
+{% endfor %}
+
+{% set product = page.getExtension('swagArrayExtension').entity %}
+
+<h1>{{ page.getExtension('swagArrayExtension').scalar }}</h1>
+```
+
+::: info
+Note that you can add extensions not only to the page object but to every struct. Therefore you can also add an extension, e.g., to every product inside the page.
+:::

@@ -1,0 +1,225 @@
+---
+nav:
+  title: Cache
+  position: 10
+
+---
+
+# Cache
+
+There are several caches in Shopware that can be used to optimize performance. This page gives a brief overview and shows how to configure them.
+
+## Overview
+
+The HTTP Cache is a *must-have* for every production system. With an enabled cache, the performance of the shop can be greatly increased.
+
+### How to configure the HTTP cache
+
+Basic HTTP cache configuration takes place in the `.env.local` file.
+
+| Name                          | Description                    |
+| :---------------------------- | :----------------------------- |
+| `SHOPWARE_HTTP_CACHE_ENABLED` | Enables the HTTP cache         |
+| `SHOPWARE_HTTP_DEFAULT_TTL`   | Defines the default cache time |
+
+`SHOPWARE_HTTP_DEFAULT_TTL` is deprecated and will be removed in Shopware v6.8.0.0. Use [HTTP Caching Policies](#http-caching-policies) instead to define default cache times.
+
+To provide more detailed control over the HTTP cache behavior, use the [HTTP Caching Policies](#http-caching-policies) feature.
+
+The storage used for HTTP Cache is always the [App Cache](#app-cache), see below how to configure it. If you want to move this out of the application cache, you should use an external reverse proxy cache like [Varnish](https://varnish-cache.org/) or [Fastly](https://www.fastly.com/). For more [see here](../infrastructure/reverse-http-cache.md).
+
+### HTTP Caching Policies
+
+> **Note:** This feature is experimental and subject to change. It will be the default behavior in Shopware v6.8.0.0.
+> To use it now, enable the `CACHE_REWORK` feature flag.
+
+Caching policies allow you to define HTTP cache behavior per area (storefront, store_api) and per route via configuration. Shopware comes with reasonable defaults, but you can customize them.
+
+#### Configuration
+
+##### Defining a policy
+
+By default, Shopware ships with `storefront.cacheable`, `store_api.cacheable` and `no_cache_private` policies.
+You can define your own policies:
+
+```yaml
+# config/packages/shopware.yaml
+shopware:
+  http_cache:
+    policies:
+      custom_policy:
+        headers:
+          cache_control:
+            public: true
+            max_age: 600  # browser ttl
+            s_maxage: 3600  # reverse proxy ttl
+```
+
+Supported `cache_control` directives: `public`, `private`, `no_cache`, `no_store`, `no_transform`, `must_revalidate`, `proxy_revalidate`, `immutable`, `max_age`, `s_maxage`, `stale_while_revalidate`, `stale_if_error`. For more information on these directives, see the [MDN docs](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control).
+
+You can redefine existing policies. Note that policy definitions are not merged; redefining an existing policy overrides it completely.
+
+Currently, you can only configure the `cache_control` header.
+
+##### Setting default policies
+
+You can change default `cacheable` and `uncacheable` policies per area (`storefront`, `store_api`):
+
+```yaml
+shopware:
+  http_cache:
+    default_policies:
+      store_api: # the area name
+        cacheable: custom_policy # policy to use for cacheable responses
+```
+
+##### Fine-tuning per route or app hook
+
+You can override default policies per route:
+
+```yaml
+shopware:
+  http_cache:
+    route_policies:
+      store-api.product.search: custom_policy
+```
+
+App developers can override TTLs from the default policies via script configuration. See [custom endpoints](../../plugins/apps/app-scripts/custom-endpoints.md#set-the-max-age-of-the-cache-item) for details.
+You can override this by configuring hook-specific policies using the `route#hook` pattern:
+
+```yaml
+shopware:
+  http_cache:
+    route_policies:
+      frontend.script_endpoint#storefront-acme-feature: storefront.my_custom_policy # storefront-acme-feature is the normalized hook name
+```
+
+##### Policy precedence
+
+Shopware resolves policies in the following order (highest to lowest priority):
+
+1. `route_policies[route#hook]` - most specific, for script endpoints with hooks (e.g., `frontend.script_endpoint#acme-app-hook`).
+2. `route_policies[route]` - route-level override.
+3. `default_policies[area].{cacheable|uncacheable}` - area defaults; TTLs (`max-age`, `s-maxage`) can be overridden by values from the request attribute or script configuration.
+
+## How to change the cache storage
+
+The standard Shopware HTTP cache can be exchanged or reconfigured in several ways. The standard cache comes with an `adapter.filesystem`. This is a file-based cache that stores the cache in the `var/cache` directory. This allows Shopware to work out of the box on a single server without any additional configuration. However, this may not be the best solution for a production system, especially if you are using a load balancer or multiple servers. In this case, you should use a shared cache like [Redis](https://redis.io/).
+
+This is a Symfony cache pool configuration and therefore supports all adapters from the [Symfony FrameworkBundle](https://symfony.com/doc/current/cache.html#configuring-cache-with-frameworkbundle).
+
+### Using Redis
+
+Redis is a very fast in-memory key-value store. It is a good choice for caching data that is frequently accessed and does not need to be persisted. Redis can be used as a cache adapter in Shopware. As the cached information is ephemeral and can be recreated, it is not necessary to configure Redis to store the data on disk. For maximum performance, you can configure Redis to use no persistence. Refer to the [Redis docs](https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/) for details.
+As key eviction policy, you should use `volatile-lru`. This policy only automatically deletes expired data, as the application explicitly manages the TTL for each cache item. For a detailed overview of Redis key eviction policies, see the [Redis docs](https://redis.io/docs/latest/develop/reference/eviction/).
+
+For `cache.adapter.redis_tag_aware` minimum Shopware 6.5.8.3 is required. Otherwise use `cache.adapter.redis`.
+
+```yaml
+# config/packages/cache.yaml
+framework:
+  cache:
+    app: cache.adapter.redis_tag_aware
+    system: cache.adapter.redis_tag_aware
+    default_redis_provider: redis://localhost
+```
+
+Make sure that you have installed the PHP Redis extension before applying this configuration.
+
+The Redis URL can have various formats. The following are all valid:
+
+```text
+# With explicit port
+redis://localhost:6379
+
+# With authentication
+redis://auth@localhost:6379
+
+# With database
+redis://localhost:6379/1
+
+# With options
+redis://localhost:6379?timeout=1
+
+# With unix socket
+
+redis:///var/run/redis.sock
+
+# With unix socket and authentication
+redis://auth@/var/run/redis.sock
+```
+
+For more information or other adapters checkout [Symfony FrameworkBundle](https://symfony.com/doc/current/cache.html#configuring-cache-with-frameworkbundle) documentation.
+
+### Cache tags and keys without a TTL
+
+This section explains a common surprise when running Shopware's cache on Redis: the cache instance runs out of memory even though eviction is configured correctly. The short version is that some cache keys never expire, and if too many of them pile up, Redis has nothing left to clean up. Read on for what that means and how to fix it.
+
+#### Background: TTL and eviction
+
+A few Redis basics first, so the rest makes sense:
+
+* **TTL (Time To Live)** is an expiry timer on a key. A cache item written with a TTL of one hour is automatically deleted an hour later. A key with **no TTL** is *persistent* — Redis keeps it until something explicitly deletes it.
+* **`maxmemory`** is the memory limit you give Redis. When Redis reaches it, it does not just start rejecting `writes` — first it tries to free space using its **eviction policy**.
+* The recommended policy for the cache is **`volatile-lru`**. The `volatile` part is the catch: it will only evict keys that **have a TTL**. Keys without a TTL are off-limits — Redis will never evict them, no matter how full it gets.
+
+So a cache Redis sitting at its `maxmemory` limit is completely normal and healthy. It fills up over time, and `volatile-lru` keeps evicting least recently used keys that have a TTL set to make room for new ones. **Full is fine** — as long as enough of that memory is held by keys *with* a TTL, so Redis always has something it is allowed to evict.
+
+#### The problem: cache tags never expire
+
+Shopware needs to invalidate related cache entries together — for example, when a product changes, every cached page that shows that product must be dropped. This is done with **cache tags**, and it requires the `redis_tag_aware` adapter (configured above).
+
+To make tags work, Symfony keeps a **tag index** in Redis. For each tag (say, `product-123`) it stores a Redis *set* listing every cache key that carries that tag. These index keys contain the `\x01tags\x01` marker in their name.
+
+Here is the catch: **these tag-index keys have no TTL.** Only the cached items themselves expire. Walk through what happens to a single cached page:
+
+1. Shopware caches a product page with a one-hour TTL, and adds its key to the `product-123` tag set so it can be invalidated later.
+2. An hour passes. The cached page **expires and is removed** — but its entry in the `product-123` tag set is **not** removed. The set now points at a key that no longer exists. That leftover entry is called an **orphaned tag**.
+3. Repeat this millions of times a day on a busy shop, and the tag sets keep growing with orphaned entries — and because they have no TTL, `volatile-lru` can never evict them.
+
+While the tag sets are a small share of total memory, everything is fine: there are plenty of expiring cache items for Redis to evict. The trouble starts when the persistent, no-TTL tag data grows large enough that Redis no longer has *enough* evictable keys to reclaim. At that point Redis cannot free space for new `writes` and starts returning **out-of-memory (OOM) errors** — even though `volatile-lru` is set correctly.
+
+::: warning
+The problem is **not** that the cache Redis is full — that is expected and healthy. The problem is having **too many keys without a TTL**, which leaves Redis nothing it is allowed to evict. If your cache instance throws OOM errors, do not just raise `maxmemory` — first check how much memory is held by keys *without* a TTL.
+:::
+
+#### How to tell if this is your problem
+
+Signs that point at orphaned tags rather than a genuinely undersized cache:
+
+* Redis reports OOM errors (`OOM command not allowed when used memory > 'maxmemory'`) while the eviction policy is `volatile-lru`.
+* Raising `maxmemory` only postpones the problem — it fills up again.
+* A large share of the used memory is in keys with **no TTL** (in a healthy cache, almost everything should have a TTL).
+
+You can get a rough read directly from `redis-cli`:
+
+```bash
+# How many keys have no expiry set at all?
+redis-cli INFO keyspace
+# e.g. "db0:keys=1000000,expires=200000,avg_ttl=0"
+# -> 800000 keys (1,000,000 - 200,000) have NO TTL. That is a red flag.
+```
+
+`keys` is the total number of keys and `expires` is how many of them have a TTL; the difference is the number of persistent keys. If that difference is large, orphaned tag sets are the likely cause.
+
+#### The fix: prune orphaned tags regularly
+
+Symfony does not clean up these tag sets on its own, so you have to remove the orphaned entries yourself, on a schedule. Either of these tools does the job (both iterate with the non-blocking `SCAN` command and are safe to run against production):
+
+* **[FroshTools](https://github.com/FriendsOfShopware/FroshTools)** — a Shopware plugin that adds the `frosh:redis-tag:cleanup` console command. It scans the tag sets and removes members pointing at keys that no longer exist.
+* **[shopware-redis-cli-helper](https://github.com/shyim/shopware-redis-cli-helper)** — a standalone command-line tool that does the same job faster. Its `insights` command has a **Persistent** view showing exactly how much memory is held by no-TTL keys (handy to confirm the diagnosis first), and its `cleanup` command prunes the orphaned tags.
+
+Using the standalone helper, for example:
+
+```bash
+# 1. Confirm the diagnosis: see how much memory is held by keys without a TTL
+shopware-redis-cli-helper --url redis://127.0.0.1:6379/0 insights
+
+# 2. Preview what a cleanup would remove (dry run — changes nothing)
+shopware-redis-cli-helper --url redis://127.0.0.1:6379/0 cleanup
+
+# 3. Apply the cleanup for real
+shopware-redis-cli-helper --url redis://127.0.0.1:6379/0 cleanup --apply
+```
+
+The important part is **step 3 on a schedule** — run the cleanup as a recurring cron job (for example, nightly) rather than once. Orphaned tags accumulate continuously, so a one-off cleanup fixes today's symptom, but the instance will fill up again. A regular prune keeps the no-TTL share small and permanently avoids the OOM errors.

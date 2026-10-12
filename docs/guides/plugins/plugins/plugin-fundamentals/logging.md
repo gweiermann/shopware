@@ -1,0 +1,100 @@
+---
+nav:
+  title: Logging
+  position: 10
+
+---
+
+# Logging
+
+As a plugin developer, you may want to log certain actions or errors to a log file to aid in debugging or to keep a record of performed actions.
+
+## Prerequisites
+
+This guide is built upon the [Plugin Base Guide](../plugin-base-guide.md).
+
+## Configuring Monolog
+
+First, you must make sure that your plugin loads package configuration from the `/Resources/config/packages` folder:
+
+::: code-group
+
+```php [[plugin root]/src/SwagBasicExample.php]
+<?php declare(strict_types=1);
+
+namespace Swag\BasicExample;
+
+use Shopware\Core\Framework\Plugin;
+use Symfony\Component\Config\FileLocator;
+use Symfony\Component\Config\Loader\DelegatingLoader;
+use Symfony\Component\Config\Loader\LoaderResolver;
+use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\Loader\DirectoryLoader;
+use Symfony\Component\DependencyInjection\Loader\GlobFileLoader;
+use Symfony\Component\DependencyInjection\Loader\YamlFileLoader;
+
+class SwagBasicExample extends Plugin
+{
+    public function build(ContainerBuilder $container): void
+    {
+        parent::build($container);
+
+        $locator = new FileLocator('Resources/config');
+
+        $resolver = new LoaderResolver([
+            new YamlFileLoader($container, $locator),
+            new GlobFileLoader($container, $locator),
+            new DirectoryLoader($container, $locator),
+        ]);
+
+        $configLoader = new DelegatingLoader($resolver);
+
+        $confDir = \rtrim($this->getPath(), '/') . '/Resources/config';
+
+        $configLoader->load($confDir . '/{packages}/*.yaml', 'glob');
+    }
+}
+```
+
+:::
+
+This is a Symfony Bundle requirement. The same can also be achieved using Bundle Extensions. Please refer to the [Symfony Documentation](https://symfony.com/doc/current/bundles/extension.html).
+
+Use Monolog configuration to create a channel for your log messages. The channel name should be unique and identify your plugin:
+
+::: code-group
+
+```yaml [[plugin root]/src/Resources/config/packages/monolog.yaml]
+
+monolog:
+  channels: ['my_plugin_channel']
+```
+
+:::
+
+Monolog automatically registers a logger service that you can inject into your services, which is scoped to your channel. You can access the logger with the service ID: `monolog.logger.my_plugin_channel`.
+
+With your newly created channel, you can create a handler, directing your new channel to it.
+
+::: code-group
+
+```yaml [[plugin root]/src/Resources/config/packages/monolog.yaml]
+monolog:
+  channels: ['my_plugin_channel']
+
+  handlers:
+    myPluginLogHandler:
+        type: rotating_file
+        path: "%kernel.logs_dir%/my_plugin_%kernel.environment%.log"
+        level: error
+        channels: [ "my_plugin_channel"]
+```
+
+:::
+
+Following this approach allows project owners to redirect your channel to a different handler to better suit their needs.
+
+## Next steps
+
+* [Adding a scheduled task](add-scheduled-task.md)
+* [Adding custom CLI commands](add-custom-commands.md)

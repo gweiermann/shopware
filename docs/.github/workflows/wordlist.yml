@@ -1,0 +1,23 @@
+name: Sort Wordlist
+
+on:
+  pull_request:
+    paths:
+      - '.wordlist.txt'
+
+jobs:
+  sort-wordlist:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Check .wordlist.txt is sorted
+        run: |
+          LC_ALL=C sort .wordlist.txt -o .wordlist.sorted.txt
+          if ! diff -q .wordlist.txt .wordlist.sorted.txt > /dev/null 2>&1; then
+            echo "::error::.wordlist.txt is not sorted. Please run 'LC_ALL=C sort .wordlist.txt -o .wordlist.txt' and commit the result."
+            diff .wordlist.txt .wordlist.sorted.txt || true
+            exit 1
+          fi

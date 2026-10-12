@@ -1,0 +1,331 @@
+---
+nav:
+  title: Native Vue
+  position: 15
+---
+
+# Moving Towards Native Vue
+
+:::info
+This article describes the direction of the migration. For the current plan and the versions it targets, see the [Single File Components roadmap](../../plugins/plugins/administration/single-file-components/roadmap.md).
+:::
+
+:::warning
+The Composition API extension system and the native block system (`sw-block`) described in this article are **experimental**.
+Their APIs can still change; see the [roadmap](../../plugins/plugins/administration/single-file-components/roadmap.md) for the current plan on when they become stable.
+:::
+
+## Introduction
+
+We are planning a significant shift in our development approach, moving towards a more native Vue.js implementation.
+This document outlines the reasons for this change and provides an overview of the migration path. It serves as a general guideline for our development direction.
+
+For how to try it today, see the [Single File Components guide](../../plugins/plugins/administration/single-file-components/index.md), which documents the experimental extension system in practice.
+
+## Current status
+
+To better understand the changes described in this article, let's recap the current status.
+The Shopware 6 Administration is built on Vue.js, with several custom systems on top to enable extensions.
+
+### Custom component registration
+
+```javascript
+Shopware.Component.register('sw-component', {
+    template,
+
+    //...
+});
+```
+
+### Custom templates with Twig.js
+
+```html
+{% block sw-component %}
+    <sw-card></sw-card>
+{% endblock %}
+```
+
+## Why Go Native?
+
+Our transition to a more native Vue.js approach is driven by several key factors:
+
+1. **Improved Developer Experience**
+    - Devtool enhancements
+    - Easier maintenance
+
+2. **Future-Proofing**
+    - Aligning with Vue 3 and potential future versions
+    - Preparing for upcoming industry standards
+
+3. **Performance Optimization**
+    - Leveraging native Vue.js capabilities for better performance
+
+## Major Changes
+
+### 1. Moving from Options API to Composition API
+
+#### Why Make This Change?
+
+We aim to better align with Vue's ecosystem to minimize the number of specifications new Developers need to learn.
+The Composition API has become the new standard for Vue documentation and projects across GitHub.
+Renowned libraries like `vue-i18n` are dropping support of the Options API, as seen in their [migration guide](https://vue-i18n.intlify.dev/guide/migration/vue3#summary), and we expect similar transitions from other tools in the ecosystem.
+This also aligns with Vue's best practices, as highlighted in the official [Composition API FAQ](https://vuejs.org/guide/extras/composition-api-faq.html#why-composition-api).
+
+#### What Will Change?
+
+We will gradually transform our components from Options API to Composition API. Together with native blocks, this lays the foundation for using Single File Components (SFCs).
+The transformation will happen gradually to give all of us enough time to adapt. Breaking changes, like removing the Options API, will only happen in a future major version. The [roadmap](../../plugins/plugins/administration/single-file-components/roadmap.md) tracks the current plan for this transition.
+
+#### Migration Path
+
+The following table shows the current status of both systems and the direction they are heading in:
+
+| System                           | Status today | Long-term direction                                                                  |
+| -------------------------------- | ------------ | ------------------------------------------------------------------------------------ |
+| Options API                      | Standard     | Will be deprecated and removed once the migration to the Composition API is complete |
+| Composition API extension system | Experimental | Will become the standard for core components and extensions                          |
+
+### 2. TwigJS to Native Blocks
+
+#### Why Make This Change?
+
+Vue has no native support for blocks like in Twig.js. Vue has slots, but slots don't work like blocks.
+Recently, we accomplished the unthinkable and found a way to implement blocks with native Vue components.
+This will allow us to finally use SFC and keep the extendability of Twig.js.
+Lowering the learning curve, as the Twig.js syntax is especially unfamiliar to Vue developers.
+Standard tooling like VSCode, ESLint, and Prettier will work out of the box.
+
+#### What Will Change?
+
+We will gradually transform all component templates from external `*.html.twig` files with Twig.js into `.vue` files using the native block implementation.
+
+#### Migration Path
+
+The following table shows the current status of both systems and the direction they are heading in:
+
+| System                     | Status today | Long-term direction                                                            |
+| -------------------------- | ------------ | ------------------------------------------------------------------------------ |
+| Twig.js blocks             | Standard     | Will be deprecated and removed once the migration to native blocks is complete |
+| Native blocks (`sw-block`) | Experimental | Will become the standard for core components and extensions                    |
+
+### 3. Vuex to Pinia
+
+#### Why Make This Change?
+
+Vuex has been the default State management for Vue 2. For Vue 3, Pinia took its place.
+
+#### What Will Change?
+
+We will move all core Vuex states to Pinia stores. The public API will change from `Shopware.State` to `Shopware.Store`.
+
+#### Upgrade Path
+
+| Shopware Version | Vuex                            | Pinia                        |
+| :--------------: | ------------------------------- | ---------------------------- |
+|       6.7        | Still supported for extensions* | Standard for Core components |
+|       6.8        | Removed completely              | Standard                     |
+
+*Extensions still can register Vuex states; Accessing core stores is done via Pinia
+
+## Example: Component Evolution
+
+Now let's take a look at how core and extension components will evolve.
+
+### Today: The stable extension system
+
+First, we start with the current status: components are registered with the Options API and use Twig.js templates.
+
+#### Core component
+
+In the core, we register a component via `Shopware.Component.register`.
+
+```javascript
+Shopware.Component.register('sw-text-field', {
+   template: `
+ {% block sw-text-field %}
+ <input type=text v-model="value" @change="onChange">
+ {% endblock %}
+ `,
+
+   data() {
+       return {
+           value: null,
+ }
+ },
+
+   methods: {
+       onChange() {
+           this.$emit('update:value', this.value);
+ }
+ },
+});
+```
+
+#### Extension override
+
+The extension overrides the component via `Shopware.Component.override`.
+
+```javascript
+Shopware.Component.override('sw-text-field', {
+   template: `
+ {% block sw-text-field %}
+ {% parent %}
+
+ {{ helpText }}
+ {% endblock %}
+ `,
+
+   props: {
+       helpText: {
+           type: String,
+           required: false,
+ }
+ }
+})
+```
+
+#### Extension new component
+
+The extension adds an additional component via `Shopware.Component.register`.
+
+```javascript
+Shopware.Component.register('your-crazy-ai-field', {
+   template: `
+ {% block your-crazy-ai-field %}
+ {# ... #}
+ {% endblock %}
+ `,
+
+   // Options API implementation
+})
+```
+
+### Experimental: The native extension system
+
+:::warning
+The APIs shown in this example are experimental and can still change.
+:::
+
+Once components are migrated, the core will use single-file components with the Composition API. You can already try out this system today as an experimental feature.
+
+#### Core component
+
+The core component is added via a single-file component `*.vue` file.
+
+```vue
+<!-- sw-text-field.vue -->
+<template>
+    <!-- Notice the native block component instead of Twig blocks -->
+    <sw-block name="sw_text_field_input">
+        <input v-model="value" type="text" @change="onChange">
+    </sw-block>
+</template>
+
+<script setup>
+// Notice the Composition API imports
+import { ref } from 'vue';
+
+const emit = defineEmits(['update:value']);
+
+const value = ref(null);
+const onChange = () => {
+    emit('update:value', value.value);
+};
+
+const privateExample = ref('This is a private property');
+
+// Notice the compile-time macro: only these bindings can be replaced by an override
+swDefinePublic({ value, onChange });
+</script>
+```
+
+#### Extension override
+
+For overrides, we created a new convention. They must match the `*.override.vue` pattern.
+`*.override.vue` files will be loaded automatically in your main entry file.
+
+```vue
+<!-- sw-text-field.override.vue -->
+<template>
+    <!-- Notice the native block components -->
+    <sw-block extends="sw_text_field_input">
+        <sw-block-parent />
+
+        {{ helpText }}
+    </sw-block>
+</template>
+
+<script setup>
+const helpText = 'Press enter to save';
+
+// Mandatory in every override. List bindings here to replace those of the core component
+swDefineOverride({});
+</script>
+```
+
+#### Extension new component
+
+```javascript
+
+// For this, you would also have the option to use a `*.vue` file, but you don't have to
+Shopware.Component.register('your-crazy-ai-field', {
+   template: `
+ {% block your-crazy-ai-field %}
+ {# ... #}
+ {% endblock %}
+ `,
+
+   // Options API implementation
+})
+```
+
+### Long-term direction
+
+Once the migration is complete and the new systems have left the experimental state, registering components via `Shopware.Component.register` with the Options API or Twig.js templates will no longer be possible. This will only happen in a future major version.
+
+## FAQ
+
+**Will existing extensions built with the Options API continue to work?**
+
+Yes. This includes overrides of components that have been migrated to Single File Components: a compatibility layer keeps them working and logs a deprecation warning. Migrate them to the new system before that layer is removed in a future major version. See the [Roadmap](../../plugins/plugins/administration/single-file-components/roadmap.md#alongside-twig) for more details.
+
+**How can I prepare my development team for the transition to Composition API?**
+
+I would recommend building a simple Vue application using the Composition API. You can do so by following [official guides](https://vuejs.org/guide/extras/composition-api-faq.html).
+
+**What advantages does the native block implementation offer over the current Twig.js system?**
+
+It works with native Vue.js components; therefore, it is compatible with default tooling.
+
+**Can I mix Composition API and Options API components during the transition period?**
+
+Yes, as long as you stick to the limitations from the migration paths above.
+
+**How will the migration from Twig.js templates to .vue files affect my existing component overrides?**
+
+They keep working for now, with a deprecation warning. Move them to the native block system before Twig.js support is removed in a future major version.
+
+**What tools or resources will be available to help migrate existing components?**
+
+A codemod that converts existing components into Single File Components is under development. It will not cover every case, so expect to finish some migrations manually. See the [Roadmap](../../plugins/plugins/administration/single-file-components/roadmap.md#the-migration-codemod) for its current status.
+
+**Will there be any performance impact during the transition period when both systems are supported?**
+
+During our tests, we didn't experience any performance issues.
+
+**Do Single File Components work with TypeScript?**
+
+Yes, including type checking and editor support for your plugin. See [Turn on editor support](../../plugins/plugins/administration/single-file-components/tutorial/set-up-your-environment.md#turn-on-editor-support) in the tutorial.
+
+**What happens to existing extensions using Twig.js templates once the migration is complete?**
+
+They will stop working once Twig.js support is removed. This will only happen in a future major version.
+
+**Can I already use the native blocks and Composition API in my extensions today?**
+
+Yes! Both systems are available as experimental features. You can add new components as Single File Components and use them to extend core components, including those that have not been migrated yet. Keep in mind that experimental APIs can still change. The [Single File Components guide](../../plugins/plugins/administration/single-file-components/index.md) shows how to start.
+
+**Which extensions are affected by these changes?**
+
+- Apps aren't affected at all
+- Plugins need to respect the discussed changes
