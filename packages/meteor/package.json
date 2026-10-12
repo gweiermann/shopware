@@ -1,0 +1,25 @@
+{
+  "name": "meteor",
+  "version": "0.0.0",
+  "author": "shopware AG",
+  "private": true,
+  "description": "The monorepo that contains all Meteor related projects",
+  "keywords": [],
+  "license": "MIT",
+  "scripts": {
+    "validate:changesets": "node scripts/validate-changesets.js",
+    "validate:docs-redirects": "node scripts/validate-docs-redirects.js",
+    "predev": "pnpm --filter=meteor-docs sync:changelog",
+    "dev": "turbo run dev --filter=meteor-docs --filter=@shopware-ag/meteor-component-library"
+  },
+  "devDependencies": {
+    "@changesets/cli": "2.29.8",
+    "@changesets/changelog-github": "0.5.2",
+    "turbo": "^2.5.4"
+  },
+  "packageManager": "pnpm@10.12.3",
+  "volta": {
+    "node": "22.13.0",
+    "pnpm": "10.12.3"
+  }
+}

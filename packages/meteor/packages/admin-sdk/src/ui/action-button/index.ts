@@ -1,0 +1,47 @@
+import { createSender } from '../../channel';
+
+export const add = createSender('actionButtonAdd');
+
+/**
+ * Add an ActionButton.
+ */
+export type actionButtonAdd = {
+    responseType: void,
+
+    /**
+     * Unique identifier for the action.
+     */
+    name: string,
+
+    /**
+     * Defines which entity you're working on.
+     */
+    entity: 'product' | 'order' | 'category' | 'promotion' | 'customer' | 'media',
+
+    /**
+     * Where the button should be added to.
+     * "detail" for the detail page
+     * "list" for the entity listing
+     */
+    view: 'detail' | 'list' | 'item',
+
+    /**
+     * Label of your action button.
+     */
+    label: string,
+
+    /**
+     * Meteor icon of your action button.
+     */
+    meteorIcon?: string,
+
+    /**
+     * Media file types you want the action button to be displayed for.
+     */
+    fileTypes?: string[],
+
+    /**
+     * Callback function which will be called once the action button is clicked.
+     */
+    callback: (entity: string, entityIdList: string[]) => void,
+}

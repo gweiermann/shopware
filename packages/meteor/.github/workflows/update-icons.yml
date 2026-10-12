@@ -1,0 +1,44 @@
+name: Update icons
+
+# Manual trigger
+on: workflow_dispatch
+
+env:
+  FIGMA_TOKEN: ${{ secrets.FIGMA_TOKEN }}
+  FIGMA_FILE: ${{ secrets.ICON_KIT__FIGMA_FILE }}
+
+jobs:
+  update:
+    name: Update icons
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm i --frozen-lockfile --prefer-offline
+
+      - name: Update icons
+        run: pnpm --filter @shopware-ag/meteor-icon-kit run start
+
+      - name: Generate changeset
+        run: pnpm --filter @shopware-ag/meteor-icon-kit run changeset
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v8
+        with:
+          commit-message: Update icons
+          committer: Dennis Mader <${{ secrets.ICON_KIT__COMMITTER }}>
+          author: Dennis Mader <${{ secrets.ICON_KIT__COMMITTER }}>
+          branch: update-icons
+          delete-branch: true
+          branch-suffix: timestamp
+          title: Update icons
+          assignees: Weltraumakustik
