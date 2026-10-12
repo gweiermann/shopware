@@ -1,0 +1,24 @@
+{
+    "buttons": {
+        "createRule": "Create rule",
+        "add": "Add",
+        "addAssignment": "Add assignment",
+        "save": "Save",
+        "cancel": "Cancel"
+    },
+    "fields": {
+        "name": "Name",
+        "priority": "Priority",
+        "description": "Description"
+    },
+    "errors": {
+        "unknownRuleType": "Unknown rule type \"{ruleType}\". Valid rule types: \"{validTypes}\"."
+    },
+    "testData": {
+        "ruleDescription": "Rule description"
+    },
+    "text": {
+        "ruleNotInUse": "This rule is not in use",
+        "filter": "Filter"
+    }
+}

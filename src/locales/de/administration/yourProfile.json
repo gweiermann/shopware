@@ -1,0 +1,39 @@
+{
+    "general": {
+        "title": "Ihr Profil",
+        "firstName": "Vorname",
+        "lastName": "Nachname",
+        "email": "E-Mail",
+        "username": "Benutzername",
+        "currentPassword": "Aktuelles Passwort",
+        "newPassword": "Neues Passwort",
+        "newPasswordConfirm": "Neues Passwort bestätigen",
+        "language": "Sprache",
+        "timeZone": "Zeitzone",
+        "save": "Speichern",
+        "saveSuccess": "Profil wurde erfolgreich aktualisiert."
+    },
+    "tabs": {
+        "searchPreferences": "Suchen",
+        "privacyPreferences": "Datenschutzeinstellungen"
+    },
+    "fields": {
+        "firstName": "Vorname",
+        "lastName": "Nachname",
+        "username": "Benutzername",
+        "email": "E-Mail"
+    },
+    "buttons": {
+        "deselectAll": "Alle abwählen"
+    },
+    "links": {
+        "privacy": "Datenschutzerklärung"
+    },
+    "checkboxes": {
+        "usageDataCheckbox": "Nutzungsdaten teilen"
+    },
+    "headlines": {
+        "usageDataHeadline": "Nutzungsdaten",
+        "cardTitle": "Hilfen Sie uns, Shopware zu verbessern"
+    }
+}

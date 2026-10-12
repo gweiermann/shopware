@@ -1,0 +1,39 @@
+{
+    "common": {
+        "back": "Back",
+        "paymentMethod": "Payment method",
+        "cashOnDelivery": "Cash on delivery",
+        "paidInAdvance": "Paid in advance",
+        "invoice": "Invoice",
+        "shippingMethod": "Shipping method",
+        "standard": "Standard",
+        "express": "Express",
+        "grandTotal": "Grand total",
+        "plusVat": "plus",
+        "vatSuffix": "% VAT"
+    },
+    "cart": {
+        "shoppingCart": "Shopping cart",
+        "goToCheckout": "Go to checkout",
+        "displayShoppingCart": "Display shopping cart",
+        "continueShopping": "Continue shopping",
+        "promoCode": "Promo code",
+        "emptyCart": "Your shopping cart is empty.",
+        "quantity": "Quantity",
+        "stockReached": "only available 1 times"
+    },
+    "confirm": {
+        "completeOrder": "Complete order",
+        "submitOrder": "Submit order",
+        "termsAndConditions": "I have read and accepted the general terms and conditions.",
+        "immediateAccessToDigitalProduct": "I want immediate access to the digital content and I acknowledge that thereby I waive my right to cancel.",
+        "autoConfirmTermsText": "By placing your order you accept our Terms and Conditions and cancellation policy.",
+        "termsAndConditionsWithLegalGuaranteeRights": "I have read and accepted the general terms and conditions and acknowledged my legal guarantee rights."
+    },
+    "finish": {
+        "thankYouForOrder": "Thank you for your order"
+    },
+    "orderEdit": {
+        "cancelOrder": "Cancel order"
+    }
+}
