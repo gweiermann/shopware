@@ -1,0 +1,13 @@
+{
+    "listing": {
+        "addDocument": "Dokument hinzufügen"
+    },
+    "types": {
+        "invoice": "invoice"
+    },
+    "detail": {
+        "displayDocumentInMyAccount": "Dokument in \"Mein Konto\" Bereich anzeigen",
+        "displayDocumentInMyAccountSwitch": "Dokument in \"Mein Konto\" Bereich",
+        "save": "Speichern"
+    }
+}
