@@ -1,0 +1,144 @@
+---
+nav:
+  title: Listening to Events
+  position: 50
+
+---
+
+# Listening to Events
+
+## Overview
+
+A way to listen to events in Symfony projects is via an [event subscriber,](https://symfony.com/doc/current/event_dispatcher.html#creating-an-event-subscriber) which is a class that defines one or more methods that listen to one or various events. This guide explains how to create event subscriber in your Shopware extension.
+
+Use an event subscriber when your plugin needs to react to an event that Shopware
+already dispatches, for example, after an entity was loaded or written. Subscribers
+are intended for observation and enrichment; they are not a replacement for
+decorating a service when you need to change the existing control flow. If you only
+need to listen to one event, an event listener can be simpler. See the
+[plugin fundamentals](../plugin-fundamentals/index.md) for a feature-selection
+overview.
+
+## Prerequisites
+
+In order to build your own subscriber for your plugin, of course, you first need a plugin as a base.
+To create your own plugin, you can refer to the [Plugin Base Guide](../../plugin-base-guide.md).
+
+::: info
+For Academy learning content on Shopware events, subscribers, and dependency injection, refer to our free course **[Events and DI](https://hub.shopware.com/learn/course/events-and-di)** from **Shopware Backend Development Intermediate** learning path.
+:::
+
+## Creating your own subscriber
+
+### Plugin base class
+
+Registering a custom subscriber requires loading a `services.php` file with your plugin.
+This is done by either placing a file with name `services.php` into a directory called `src/Resources/config/`.
+
+Basically, that's it already if you're familiar with [Symfony subscribers](https://symfony.com/doc/current/event_dispatcher.html#creating-an-event-subscriber).
+Don't worry, we got you covered here as well.
+
+### Creating your new subscriber class
+
+To start creating a subscriber, we need to create a class first implementing EventSubscriberInterface.
+As mentioned above, such a subscriber for Shopware 6 looks exactly the same as in Symfony itself.
+
+Therefore, this is what your subscriber could then look like:
+
+```php
+// <plugin root>/src/Subscriber/MySubscriber.php
+<?php declare(strict_types=1);
+
+namespace Swag\BasicExample\Subscriber;
+
+use Shopware\Core\Content\Product\ProductEvents;
+use Shopware\Core\Framework\DataAbstractionLayer\Event\EntityLoadedEvent;
+use Symfony\Component\EventDispatcher\EventSubscriberInterface;
+
+class MySubscriber implements EventSubscriberInterface
+{
+    public static function getSubscribedEvents(): array
+    {
+        // Return the events to listen to as array like this:  <event to listen to> => <method to execute>
+        return [
+            ProductEvents::PRODUCT_LOADED_EVENT => 'onProductsLoaded'
+        ];
+    }
+
+    public function onProductsLoaded(EntityLoadedEvent $event)
+    {
+        // Do something
+        // E.g. work with the loaded entities: $event->getEntities()
+    }
+}
+```
+
+In this example, the subscriber would be located in the `<plugin root>/src/Subscriber` directory.
+
+The subscriber is now listening for the `product.loaded` event to trigger.
+
+Some entities, like orders or products, are versioned.
+This means that some events are dispatched multiple times for different versions, but they belong to the same entity.
+Therefore, you can check the version of the context to make sure you're only reacting to the live version.
+
+```php
+// <plugin root>/src/Subscriber/MySubscriber.php
+<?php declare(strict_types=1);
+
+namespace Swag\BasicExample\Subscriber;
+
+use Shopware\Core\Content\Product\ProductEvents;
+use Shopware\Core\Defaults;
+use Shopware\Core\Framework\DataAbstractionLayer\Event\EntityWrittenEvent;
+use Symfony\Component\EventDispatcher\EventSubscriberInterface;
+
+class MySubscriber implements EventSubscriberInterface
+{
+    public static function getSubscribedEvents(): array
+    {
+        return [
+            ProductEvents::PRODUCT_WRITTEN_EVENT => 'onProductWritten'
+        ];
+    }
+
+    public function onProductWritten(EntityWrittenEvent $event)
+    {
+        if ($event->getContext()->getVersionId() !== Defaults::LIVE_VERSION) {
+            return;
+        }
+        // Do something
+    }
+}
+```
+
+Unfortunately, your subscriber is not even loaded yet - this will be done in the previously registered `services.php` file.
+
+::: warning
+Creating the subscriber class alone is not enough. It must be registered in the
+dependency injection container and tagged with `kernel.event_subscriber`. If the
+class is missing from `services.php`, Shopware will not call it and there may be no
+obvious error indicating that the event was not handled.
+:::
+
+### Registering your subscriber via services.php
+
+Registering your subscriber to Shopware 6 is also as simple as it is in Symfony.
+You're simply registering your \(subscriber\) service by mentioning it in the `services.php`.
+The only difference to a normal service is that you need to add the `kernel.event_subscriber` tag to your subscriber for it to be recognized as such.
+
+```php
+// <plugin root>/src/Resources/config/services.php
+<?php declare(strict_types=1);
+
+use Swag\BasicExample\Subscriber\MySubscriber;
+use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
+
+return static function (ContainerConfigurator $configurator): void {
+    $services = $configurator->services();
+
+    $services->set(MySubscriber::class)
+        ->tag('kernel.event_subscriber');
+};
+```
+
+That's it, your subscriber service is now automatically loaded at runtime, and it should start listening to the mentioned events to be dispatched.

@@ -1,0 +1,29 @@
+name: markdown-rumdl-check
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+jobs:
+  lint-docs:
+    name: Documentation Markdown Linter
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v6
+
+    - uses: denoland/setup-deno@v2.0.3
+      with:
+        deno-version: "~1.32"
+
+    - name: Check broken PageRef links
+      run: deno run --allow-read .github/scripts/broken-pageref.js
+
+    - name: Lint all files
+      uses: rvben/rumdl@v0
+      with:
+        version: "0.2.67"
+        config: '.rumdl.toml'
+        report-type: annotations
+      continue-on-error: false

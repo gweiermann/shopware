@@ -1,0 +1,222 @@
+---
+nav:
+  title: Applications
+  position: 40
+---
+
+# Applications
+
+Shopware PaaS Native supports multiple applications within a project, such as environments for production, staging, or temporary feature testing.
+
+Each application has its own compute resources, infrastructure, and deployment configuration, so you can tailor each environment to its specific needs.
+
+For instance, you might allocate smaller, hibernating compute instances for staging while reserving larger, always-on resources for production.
+
+The number of projects and applications available to an organization depends on the booked plan.
+
+## Default resource profile and scaling
+
+Applications are provisioned with a default resource profile for the main Shopware workloads:
+
+| Component    | Default replicas | CPU request | Memory request | Memory limit |
+| ------------ | ---------------- | ----------- | -------------- | ------------ |
+| `storefront` | `2`              | `50m`       | `256Mi`        | `2Gi`        |
+| `admin`      | `1`              | `25m`       | `128Mi`        | `2Gi`        |
+| `worker`     | `1`              | `50m`       | `256Mi`        | `1Gi`        |
+
+Horizontal scaling is the primary scaling mechanism in Shopware PaaS Native.
+
+Resource limits above the default profile depend on the booked plan, with some flexibility for scaling within that scope.
+
+## Creating an Application
+
+Create a new application to a project:
+
+```sh
+sw-paas application create
+```
+
+:::warning
+Application names must be unique within a project and can only be used once. After an application is deleted, its name remains reserved and cannot be reused for another application in the same project.
+:::
+
+By default, the application is created from the `application.yaml` at the root of the project repository. If the file lives in a sub-directory, for example because several applications share one repository, pass its path:
+
+```sh
+sw-paas application create --application-yaml-path apps/shopware/application.yaml
+```
+
+The path is stored on the application, so later updates reuse it. See [Deploy from a monorepo](../guides/monorepo.md) for the details.
+
+## Build your application
+
+To trigger a new build for the application via CLI, use the following command:
+
+```sh
+sw-paas application build create
+```
+
+This command initiates the build process, packaging your application and preparing it for deployment. While the build is running, you can monitor its progress and view real-time output by following the logs:
+
+```sh
+sw-paas application build logs
+```
+
+Builds run as regular Docker builds. External network requests are allowed during the build when your project requires them, for example to reach configured Composer repositories or other external package sources.
+
+If your build needs credentials or other sensitive values, provide them through [Vault secrets](./secrets.md) using `buildenv` or by using `BUILD`-scoped environment variables where appropriate.
+
+## Update your application
+
+To update your application, you need to run the following command and provide the commit SHA:
+
+```sh
+sw-paas application update
+```
+
+This command initiates the build process, waits until it's done, and runs the deployment for you.
+
+## Deployment behavior
+
+Deployments use Kubernetes rolling updates and are zero downtime **when no database migrations are involved**.
+
+During deployment, database migrations run first. After that, the remaining deployment flow is handled by the [deployment helper](../../../../guides/hosting/installation-updates/deployments/deployment-helper#execution-flow).
+
+When a deployment includes migrations, zero downtime cannot be guaranteed: schema changes can temporarily break compatibility with the code still serving traffic, which may cause errors or instability during the rollout.
+
+Breaking database changes are expected only during major Shopware upgrades. When upgrading across major versions, make sure your deployment remains backward compatible throughout the rollout, and plan the upgrade for a low-traffic window.
+
+Pre-deployment and post-deployment hooks are supported through the [deployment helper configuration](../../../../guides/hosting/installation-updates/deployments/deployment-helper#configuration).
+
+Automated deployments from CI/CD are supported. The CLI can run in non-interactive mode and supports machine-to-machine authentication with tokens.
+
+You can inspect runtime logs with:
+
+```sh
+sw-paas application logs
+```
+
+Deployment setup and migration logs are available with:
+
+```sh
+sw-paas application deploy logs
+```
+
+Both commands print a Grafana Explore URL at the end so you can continue investigating the same logs in Grafana. For more log filtering options, see [Logs](../monitoring/logs.md).
+
+## Deploy a specific build of your application
+
+To create a deployment with a specific build, use the following command:
+
+```sh
+sw-paas application deploy create
+```
+
+It will let you choose which build you want to deploy.
+This is very handy, since you can choose any successful build to deploy: the latest one to bring your change live, or a previous one to fix an issue that arose.
+
+## Deployments management
+
+To list all past deployments:
+
+```sh
+sw-paas application deploy list
+```
+
+To get details about a given deployment:
+
+```sh
+sw-paas application deploy get
+```
+
+To back up and restore application assets and database data, see [Snapshots](./snapshots.md).
+
+## Plugin Management
+
+Plugin management is done [via Composer](../../../../guides/hosting/installation-updates/extension-management.md#installing-extensions-with-composer) because the platform runs in a high-availability and clustered environment.
+
+In such setups, local changes aren't feasible, as all instances must remain identical and stateless. This ensures consistency across all deployments.
+
+### Using Privately Hosted Packages
+
+To pull privately hosted Composer packages, you need to provide authentication credentials. Create a `COMPOSER_AUTH` secret using the CLI:
+
+```sh
+sw-paas vault create
+```
+
+Follow the prompts to enter your Composer authentication JSON as a `buildenv`. This secret will be used during builds to access private repositories.
+
+## Executing Commands
+
+Shopware PaaS Native provides two primary ways to run commands in your application environments via CLI: `exec` and `command`.
+
+### `exec` Command
+
+The `exec` command allows you to execute commands in a remote terminal session for your applications. This is useful for running commands directly on your application's environment, such as debugging, maintenance, or running one-off commands interactively.
+
+```sh
+sw-paas exec --new
+```
+
+This opens an interactive shell session inside your application's container.
+
+#### Note
+
+Please check the [known issues](../known-issues.md) regarding network considerations when running this command.
+
+### `command` Command
+
+The `command` command lets you create and manage commands that are executed in dedicated containers. This is particularly useful for CI/CD environments, asynchronous command execution, automated processes, or situations where you don't need to wait for command completion.
+
+Unlike `exec`, which provides an interactive shell, `command` runs your specified command in a new, isolated container and does not require you to wait for its completion.
+
+The default execution directory is `/var/www/html` and the container has a time-to-live (TTL) of 1 hour, so your command must complete within that timeframe.
+
+```sh
+sw-paas command create
+```
+
+For a complete list of available commands, refer to the [Shopware console commands documentation](https://docs.shopware.com/en/shopware-6-en/tutorials-and-faq/shopware-cli).
+
+## Domain Management
+
+### Shopware Domain
+
+When you deploy an application for the first time, it automatically receives a complimentary `shopware.shop` domain. This allows you to access and test your application right away, even before setting up a custom domain.
+
+The assigned domain is generated based on your application's name and unique identifier.
+
+### Custom Domain
+
+You can configure custom domains for your applications using the `sw-paas` CLI domain command. This allows you to attach multiple domains to a single application and route traffic through the Fastly CDN for optimal performance.
+
+#### Creating Custom Domains
+
+To create a custom domain for your application:
+
+```sh
+sw-paas domain create
+```
+
+Follow the prompts to specify your domain name and application. You can attach multiple domains to a single application.
+
+#### DNS Configuration
+
+DNS records must be configured and fully propagated **before** you create the domain, because the platform validates them in real time.
+
+The required records differ between subdomains and apex domains — a `CNAME` is only valid for a subdomain, while an apex domain needs `A` and `AAAA` records plus a `TXT` ownership challenge. See [Custom Domains](../cdn/index.md#custom-domains) for the exact record values and for commands to verify propagation.
+
+#### Application Deployment
+
+Following domain creation, you must redeploy your application. You can do it by using:
+
+```sh
+sw-paas application deploy create
+```
+
+#### Shopware Configuration
+
+Subsequently, you can configure the domain within Shopware and associate it with a storefront. Status update functionality is currently under development and should be considered a beta feature.
+
+For more detailed information about CDN configuration and best practices, refer to the [CDN documentation](../cdn/index.md).

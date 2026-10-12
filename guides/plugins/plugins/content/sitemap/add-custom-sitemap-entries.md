@@ -1,0 +1,235 @@
+---
+nav:
+  title: Add Custom Sitemap Entries
+  position: 10
+
+---
+
+# Add Custom Sitemap Entries
+
+## Overview
+
+Shopware includes built-in sitemap generation for products, categories, and other core URLs. This guide explains how to
+extend it by adding your own custom URLs to the sitemap.
+
+## Ways to add custom URLs to the sitemap
+
+There are two approaches to adding custom URLs to the sitemap, depending on your use case. For static URLs that rarely
+change, use the configuration method. For dynamic URLs based on custom entities or database content, implement a custom
+URL provider.
+
+### By using the configuration
+
+To add a custom URL to the sitemap, use the configuration setting `shopware.sitemap.custom_urls`
+
+```yaml
+shopware:
+    sitemap:
+        custom_urls:
+            -   url: 'custom-url'
+                salesChannelId: '98432def39fc4624b33213a56b8c944d'
+                changeFreq: 'weekly'
+                priority: 0.5
+                lastMod: '2024-09-19 12:19:00'
+            -   url: 'custom-url-2'
+                salesChannelId: '98432def39fc4624b33213a56b8c944d'
+                changeFreq: 'weekly'
+                priority: 0.5
+                lastMod: '2024-09-18 12:18:00'
+```
+
+The `salesChannelId` is the ID of the sales channel you want to add the URL to.
+
+### By adding a URL provider
+
+This part of the guide is mainly built upon the guide about [Adding a custom SEO URL](../seo/add-custom-seo-url.md#dynamic-seo-urls-for-custom-content),
+so you might want to have a look at that.
+The said guide comes with a custom entity, a controller with a technical route to display each entity, and a custom SEO URL.
+All of this will be needed for this guide, as we're going to add the custom entity SEO URLs to the sitemap here.
+
+So let's get started.
+Adding custom URLs to the sitemap is done by adding a so-called "URL provider" to the system.
+
+This is done by adding a new class, which is extending from `Shopware\Core\Content\Sitemap\Provider\AbstractUrlProvider`.
+It then has to be registered to the [service container](../../services/dependency-injection.md) using the tag
+`shopware.sitemap_url_provider`.
+
+It has to provide three methods:
+
+- `getDecorated`: Just throw an exception of type `DecorationPatternException` here. This is done for the sake of extending
+a class via decoration. Learn more about this [here](../../services/adjusting-service.md).
+- `getName`: A technical name for your custom URLs
+- `getUrls`: The main method to take care of. It has to return an instance of `Shopware\Core\Content\Sitemap\Struct\UrlResult`,
+containing an array of all URLs to be added.
+
+Let's have a look at the example class:
+
+<Tabs>
+<Tab title="CustomUrlProvider.php">
+
+```php
+// <plugin root>/src/Core/Content/Sitemap/Provider/CustomUrlProvider.php
+<?php declare(strict_types=1);
+
+namespace Swag\BasicExample\Core\Content\Sitemap\Provider;
+
+use Doctrine\DBAL\Connection;
+use Shopware\Core\Content\Sitemap\Provider\AbstractUrlProvider;
+use Shopware\Core\Content\Sitemap\Struct\Url;
+use Shopware\Core\Content\Sitemap\Struct\UrlResult;
+use Shopware\Core\Framework\DataAbstractionLayer\Doctrine\FetchModeHelper;
+use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
+use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
+use Shopware\Core\Framework\Plugin\Exception\DecorationPatternException;
+use Shopware\Core\System\SalesChannel\SalesChannelContext;
+use Swag\BasicExample\Core\Content\Example\ExampleEntity;
+use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
+use Symfony\Component\Routing\RouterInterface;
+
+class CustomUrlProvider extends AbstractUrlProvider
+{
+    public const CHANGE_FREQ = 'daily';
+    public const PRIORITY = 1.0;
+
+    private EntityRepository $exampleRepository;
+
+    private Connection $connection;
+
+    private RouterInterface $router;
+
+    public function __construct(
+        EntityRepository $exampleRepository,
+        Connection $connection,
+        RouterInterface $router
+    ) {
+        $this->exampleRepository = $exampleRepository;
+        $this->connection = $connection;
+        $this->router = $router;
+    }
+
+    public function getDecorated(): AbstractUrlProvider
+    {
+        throw new DecorationPatternException(self::class);
+    }
+
+    public function getName(): string
+    {
+        return 'custom';
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getUrls(SalesChannelContext $context, int $limit, ?int $offset = null): UrlResult
+    {
+        $criteria = new Criteria();
+        $criteria->setLimit($limit);
+        $criteria->setOffset($offset);
+
+        $exampleEntities = $this->exampleRepository->search($criteria, $context->getContext());
+
+        if ($exampleEntities->count() === 0) {
+            return new UrlResult([], null);
+        }
+
+        $seoUrls = $this->getSeoUrls($exampleEntities->getIds(), 'frontend.example.example', $context, $this->connection);
+        $seoUrls = FetchModeHelper::groupUnique($seoUrls);
+
+        $urls = [];
+
+        /** @var ExampleEntity $exampleEntity */
+        foreach ($exampleEntities as $exampleEntity) {
+            $exampleUrl = new Url();
+            $exampleUrl->setLastmod($exampleEntity->getUpdatedAt() ?? new \DateTime());
+            $exampleUrl->setChangefreq(self::CHANGE_FREQ);
+            $exampleUrl->setPriority(self::PRIORITY);
+            $exampleUrl->setResource(ExampleEntity::class);
+            $exampleUrl->setIdentifier($exampleEntity->getId());
+
+            if (isset($seoUrls[$exampleEntity->getId()])) {
+                $exampleUrl->setLoc($seoUrls[$exampleEntity->getId()]['seo_path_info']);
+            } else {
+                $exampleUrl->setLoc(
+                    $this->router->generate(
+                        'frontend.example.example',
+                        ['exampleId' => $exampleEntity->getId()],
+                        UrlGeneratorInterface::ABSOLUTE_PATH
+                    )
+                );
+            }
+
+            $urls[] = $exampleUrl;
+        }
+
+        return new UrlResult($urls, null);
+    }
+}
+```
+
+</Tab>
+
+<Tab title="services.php">
+
+```php
+// <plugin root>/src/Resources/config/services.php
+<?php declare(strict_types=1);
+
+use Doctrine\DBAL\Connection;
+use Swag\BasicExample\Core\Content\Sitemap\Provider\CustomUrlProvider;
+use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
+
+use function Symfony\Component\DependencyInjection\Loader\Configurator\service;
+
+return static function (ContainerConfigurator $configurator): void {
+    $services = $configurator->services();
+
+    $services->set(CustomUrlProvider::class)
+        ->args([
+            service('swag_example.repository'),
+            service(Connection::class),
+            service('router'),
+        ])
+        ->tag('shopware.sitemap_url_provider');
+};
+```
+
+</Tab>
+</Tabs>
+
+Let's go through this step by step.
+Start by creating a new class `CustomUrlProvider`, which is extending from the `AbstractUrlProvider`.
+Following are the constants `CHANGE_FREQ` and `priority` - you don't have to add those values as constants of course.
+They're going to be used later in the generation of the sitemap URLs.
+
+Passed into the constructor are the repository for our [custom entity](../../framework/data-handling/add-custom-complex-data.md),
+the DBAL connection used for actually fetching SEO URLs from the database, and the Symfony router to generate SEO URLs
+that have not yet been written to the database.
+
+Now let's get to the main method `getUrls`.
+We start off by fetching all custom entities, using the provided `$limit` and `$offset` values.
+Make sure to always use those values, as the sitemap supports "paging" and therefore you do not want to simply fetch all
+of your entities.
+If there aren't any entities to be fetched, there is nothing more to be done here.
+
+Afterward we fetch all already existing SEO URLs for our custom entities. Once again, have a look at our guide about
+[adding a custom SEO URL](../seo/add-custom-seo-url.md) if you don't know how to add custom
+SEO URLs in the first place.
+
+We're then iterating over all of our fetched entities, and we create an instance of `Shopware\Core\Content\Sitemap\Struct\Url`
+for each iteration.
+This struct requests each of the typical sitemap information:
+
+- `lastMod`: The last time this entry was modified. Use the `updatedAt` value here, if available
+- `changeFreq`: How often will the entry most likely change?
+  Possible values are `always`, `hourly`, `daily`, `weekly`, `monthly`, `yearly` and `never`
+- `priority`: Has to have a value between 0 and 1. URLs with higher priority are considered to be "more important" by
+  common search engines.
+- `resource`: Just a name for your entry, in this example we're just using the entity class name
+- `identifier`: The ID of the entry, if available
+
+The most important entry is set afterward, which is the `location`: The actual SEO URL to be indexed.
+We're setting this value by checking if the SEO URL for the given entity was already generated, and if not, we're
+generating it on the fly.
+
+All of those instances are then stored in an array, which in return is passed to the `UrlResult`.
+This completes the implementation. Your custom URLs will now be included in the generated sitemap.
