@@ -1,0 +1,23 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", "es/**", "umd/**", ".docusaurus/**", "build/**"],
+      "env": ["API_KEY"]
+    },
+    "administration#build": {
+      "dependsOn": ["^build"],
+      "outputs": ["../../src/Administration/Resources/public/administration/**"]
+    },
+    "storefront#production": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", "../../src/Storefront/Resources/app/storefront/dist/**"]
+    },
+    "lint": { "dependsOn": ["^build"], "outputs": [] },
+    "lint:types": { "dependsOn": ["^build"], "outputs": [] },
+    "unit": { "dependsOn": ["^build"], "outputs": [] },
+    "test:unit": { "env": ["FIGMA_TOKEN", "ADMIN_TOKENS_FILE_KEY", "PRIMITIVE_TOKENS_FILE_KEY", "CI"], "outputs": [] },
+    "dev": { "dependsOn": ["^build"], "cache": false, "persistent": true }
+  }
+}

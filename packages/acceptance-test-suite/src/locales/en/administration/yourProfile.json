@@ -1,0 +1,25 @@
+{
+    "tabs": {
+        "searchPreferences": "Search preferences",
+        "privacyPreferences": "Privacy preferences"
+    },
+    "fields": {
+        "firstName": "First name",
+        "lastName": "Last name",
+        "username": "Username",
+        "email": "Email"
+    },
+    "buttons": {
+        "deselectAll": "Deselect all"
+    },
+    "links": {
+        "privacy": "Privacy Policy"
+    },
+    "checkboxes": {
+        "usageDataCheckbox": "Share Usage Data"
+    },
+    "headlines": {
+        "usageDataHeadline": "Usage data",
+        "cardTitle": "Help us to improve Shopware"
+    }
+}

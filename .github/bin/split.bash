@@ -46,6 +46,36 @@ split_repo() {
   fi
 
   git clone -b "${default_branch}" "${tmp_target_repo_dir}" "${split_repo_dir}"
+
+  materialize_app "${package}"
+}
+
+# The Administration and Storefront apps live in packages/ and are symlinked into
+# their bundles. A split repository has no packages/, so the link is replaced by
+# the app's tracked files.
+#
+# [1]: A subpackage. e.g.: "Administration"
+materialize_app() {
+  local package_lower; package_lower=$(lowercase "${1}")
+  local package; package="$(uppercase_first "${package_lower}")"
+  local split_app_dir; split_app_dir="${PLATFORM_DIR}/repos/${package_lower}/Resources/app/${package_lower}"
+
+  if [ ! -L "${PLATFORM_DIR}/src/${package}/Resources/app/${package_lower}" ]; then
+    return 0
+  fi
+
+  rm "${split_app_dir}"
+  mkdir -p "${split_app_dir}"
+  git -C "${PLATFORM_DIR}" archive --format=tar "HEAD:packages/${package_lower}" | tar -x -C "${split_app_dir}"
+}
+
+# Fails when the app of a split repository is not a real directory.
+#
+# [1]: A subpackage. e.g.: "administration"
+check_app_sources() {
+  local app_dir; app_dir="${PLATFORM_DIR}/repos/${1}/Resources/app/${1}"
+
+  [[ ! -L "${app_dir}" && -f "${app_dir}/package.json" ]]
 }
 
 # Copies existing assets for a subpackage of platform into the respective split
@@ -96,10 +126,12 @@ check_assets() {
   local package; package=$(lowercase "${1:-""}")
 
   if [[ ${package} == "" || ${package} == "storefront" ]]; then
+    check_app_sources storefront
     check_storefront_assets
   fi
 
   if [[ ${package} == "" || ${package} == "administration" ]]; then
+    check_app_sources administration
     check_admin_assets
   fi
 }

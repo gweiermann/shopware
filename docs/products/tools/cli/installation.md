@@ -1,0 +1,213 @@
+---
+nav:
+  title: Other Installation Options
+  position: 20
+
+---
+
+# Other Installation Options
+
+If you haven’t already, see the [Shopware CLI overview](index.md) for a quick start and the most common installation methods: Homebrew, APT, and Docker.
+
+This page covers additional options for other package managers, CI/CD environments, or building from source.
+
+## Package-manager installs
+
+Shopware CLI is available through several community and distribution channels.
+
+<details>
+
+<summary><strong>Fedora, CentOS, openSUSE, RHEL (YUM/DNF)</strong></summary>
+
+```bash
+curl -1sLf \
+  'https://dl.cloudsmith.io/public/friendsofshopware/stable/setup.rpm.sh' \
+  | sudo -E bash
+sudo dnf install shopware-cli
+```
+
+</details>
+
+<details>
+<summary><strong>Arch Linux (AUR)</strong></summary>
+
+```bash
+yay -S shopware-cli-bin
+```
+
+</details>
+
+<details>
+<summary><strong>Nix / NUR packages</strong></summary>
+
+```bash
+nix profile install nixpkgs#shopware-cli
+# or latest from FriendsOfShopware
+nix profile install github:FriendsOfShopware/nur-packages#shopware-cli
+```
+
+</details>
+
+<details>
+<summary><strong>Devenv (Nix-based)</strong></summary>
+
+Update `devenv.yaml` with:
+
+```yaml
+inputs:
+  nixpkgs:
+    url: github:NixOS/nixpkgs/nixpkgs-unstable
+  froshpkgs:
+    url: github:FriendsOfShopware/nur-packages
+    inputs:
+      nixpkgs:
+        follows: "nixpkgs"
+```
+
+Then reference the input in `devenv.nix`:
+
+```nix
+{ pkgs, inputs, ... }: {
+  packages = [
+    inputs.froshpkgs.packages.${pkgs.system}.shopware-cli
+  ];
+}
+```
+
+</details>
+
+## Manual installation from releases
+
+Download the appropriate .deb, .rpm, or .apk file from the [GitHub Releases page](https://github.com/shopware/shopware-cli/releases) and install it manually:
+
+```bash
+sudo dpkg -i shopware-cli_<version>_linux_amd64.deb   # Debian/Ubuntu
+sudo rpm -i shopware-cli_<version>_linux_arm64.rpm    # Fedora/RHEL
+sudo apk add shopware-cli-<version>.apk               # Alpine
+```
+
+Alternatively, download the binary and move it into your `$PATH`:
+
+```bash
+curl -L -o shopware-cli https://github.com/shopware/shopware-cli/releases/latest/download/shopware-cli-linux-amd64
+chmod +x shopware-cli
+sudo mv shopware-cli /usr/local/bin/
+```
+
+## CI/CD and development environments
+
+These options let you use the CLI automatically in hosted environments. The [Shopware CLI overview](index.md) lists Docker and GitHub Actions, which are popular.
+
+<details> <summary><strong>GitHub Codespaces</strong></summary>
+
+```json
+{
+    "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+    "features": {
+        "ghcr.io/shyim/devcontainers-features/shopware-cli:latest": {}
+    }
+}
+```
+
+</details>
+
+<details> <summary><strong>GitLab CI</strong></summary>
+
+```yaml
+build:
+  stage: build
+  image:
+    name: ghcr.io/shopware/shopware-cli:latest
+    entrypoint: [ "/bin/sh", "-c" ]
+  script:
+    - shopware-cli --version
+```
+
+</details>
+
+<details> <summary><strong>ddev integration</strong></summary>
+
+Add a file `.ddev/web-build/Dockerfile.shopware-cli`
+
+```Dockerfile
+# .ddev/web-build/Dockerfile.shopware-cli
+COPY --from=ghcr.io/shopware/shopware-cli:bin /shopware-cli /usr/local/bin/shopware-cli
+```
+
+</details>
+
+### Docker image
+
+To copy the binary in your Docker image, add the following line:
+
+```Dockerfile
+# Dockerfile
+COPY --from=ghcr.io/shopware/shopware-cli:bin /shopware-cli /usr/local/bin/shopware-cli
+```
+
+## Add binary manually
+
+Download the pre-compiled binaries from the [releases](https://github.com/shopware/shopware-cli/releases) page and copy them to the desired location.
+
+## Running with Docker
+
+You can also use it within a Docker container. To do that, you will need to execute something more or less like the examples below.
+
+Registries:
+
+- [ghcr.io/shopware/shopware-cli](https://github.com/shopware/shopware-cli/pkgs/container/shopware-cli)
+
+Example usage: Build assets of an extension
+
+```bash
+docker run \
+    --rm \
+    -v $(pwd):$(pwd) \
+    -w $(pwd) \
+    -u $(id -u) \
+    ghcr.io/shopware/shopware-cli \
+    extension build FroshPlatformAdminer
+```
+
+## Update notifications
+
+Shopware CLI checks in the background for newer releases and prints a short notification to stderr when an update is available. To silence this for a single command, pass `--no-update-hint`:
+
+```bash
+shopware-cli --no-update-hint <command>
+```
+
+To disable it for the current shell session (or persistently, by adding it to your shell profile), set:
+
+```bash
+export SHOPWARE_CLI_NO_UPDATE_NOTIFICATION=true
+```
+
+## Environment variables
+
+### Authentication and configuration
+
+| Variable                              | Purpose                                                                                                                                                   |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SHOPWARE_PACKAGES_TOKEN`             | Composer token for `packages.shopware.com`, used when the CLI resolves dependencies (for example during `project ci`)                                     |
+| `SHOPWARE_PACKAGIST_TOKEN`            | Token used by `project autofix composer-plugins` when it runs headless. Note this is a **different variable** from `SHOPWARE_PACKAGES_TOKEN`              |
+| `COMPOSER_AUTH`                       | Credentials for other private Composer repositories. See the [Composer docs](https://getcomposer.org/doc/articles/authentication-for-private-packages.md) |
+| `SHOPWARE_CLI_TOOLS_DIR`              | Point the validation and refactoring tools at a directory you provisioned yourself. When set, the CLI uses it as-is and skips its own tool setup          |
+| `SHOPWARE_CLI_NO_UPDATE_NOTIFICATION` | Set to `true` to disable update notifications                                                                                                             |
+
+Both tokens come from your Shopware Account under **Shops > Licenses > "..." on any extension > Install via Composer**.
+
+## Building from source
+
+If you prefer to compile the CLI yourself (requires Go 1.27.0+ and Git):
+
+```bash
+git clone https://github.com/shopware/shopware-cli
+cd shopware-cli
+
+go mod tidy
+
+go build -o shopware-cli .
+
+./shopware-cli --version
+```

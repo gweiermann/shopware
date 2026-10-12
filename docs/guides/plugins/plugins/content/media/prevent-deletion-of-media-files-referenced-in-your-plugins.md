@@ -1,0 +1,147 @@
+---
+nav:
+  title: Prevent Deletion of Media Files Referenced in Plugins
+  position: 10
+
+---
+
+# Prevent Deletion of Media Files Referenced in Plugins
+
+::: info
+Preventing media entities from being deleted has been possible since Shopware 6.5.1.0.
+:::
+
+## Overview
+
+The Shopware CLI provides a `media:delete-unused` command that deletes all media entities and corresponding files that are not used in your application.
+
+"Not used" means that it is not referenced by any other entity. This works well in the simple case that all your entity definitions store references to Media entities with correct foreign keys.
+
+However, this does not cover all the possible cases, even for many internal Shopware features. For example, the CMS entities store their configuration as JSON blobs with references to Media IDs stored in a nested data structure.
+
+To address cases where Media references cannot be resolved without knowledge of the specific entity and its features, an extension point is provided via an event.
+
+If you are developing an extension that references Media entities, and you cannot use foreign keys, this guide explains how to prevent Shopware from deleting the Media entities your extension references.
+
+## Prerequisites
+
+As most of our plugin guides, this guide was also built upon our [Plugin base guide](../../plugin-base-guide).
+Furthermore, you'll have to know about adding classes to the [Dependency injection](../../services/dependency-injection.md) container and about using a subscriber to [Listen to events](../../framework/event/listening-to-events.md).
+
+## The deletion process
+
+The `\Shopware\Core\Content\Media\UnusedMediaPurger` service first searches for Media entities that are not referenced by any other entities in the system via foreign keys. Then it dispatches an event containing the Media IDs it believes are unused.
+
+The event is an instance of `\Shopware\Core\Content\Media\Event\UnusedMediaSearchEvent`. A subscriber can then cross-reference the Media IDs scheduled to be deleted and mark any of them as *used*.
+
+The remaining Media IDs will then be deleted by the `\Shopware\Core\Content\Media\UnusedMediaPurger` service.
+
+Please note that this process is completed in small batches to maintain stability, so the event may be dispatched multiple times when an installation has many unused Media entities.
+
+Before running the command in production, consider using `media:delete-unused --dry-run` to inspect candidates first.
+If you need a machine-readable export, you can use `media:delete-unused --report` instead.
+
+## Adding a subscriber
+
+In this section, we're going to register a subscriber for the `\Shopware\Core\Content\Media\Event\UnusedMediaSearchEvent` event.
+
+Have a look at the following code example:
+
+```php
+// <plugin root>/src/Subscriber/UnusedMediaSubscriber.php
+<?php declare(strict_types=1);
+
+namespace Swag\BasicExample\Subscriber;
+
+use Shopware\Core\Content\Media\Event\UnusedMediaSearchEvent;
+use Symfony\Component\EventDispatcher\EventSubscriberInterface;
+
+class UnusedMediaSubscriber implements EventSubscriberInterface
+{
+    public static function getSubscribedEvents(): array
+    {
+        return [
+            UnusedMediaSearchEvent::class => 'removeUsedMedia',
+        ];
+    }
+
+    public function removeUsedMedia(UnusedMediaSearchEvent $event): void
+    {
+        $idsToBeDeleted = $event->getUnusedIds();
+    
+        $doNotDeleteTheseIds = $this->getUsedMediaIds($idsToBeDeleted);
+    
+        $event->markAsUsed($doNotDeleteTheseIds);
+    }
+    
+    private function getUsedMediaIds(array $idsToBeDeleted): array
+    {
+        // do something to get the IDs that are used
+        return [];
+    }
+}
+```
+
+You can use the method `getUnusedIds` of the `$event` variable to get the current array of Media IDs scheduled for removal.
+
+You can use these IDs to query the storage your plugin uses to store references to Media entities and check whether they are currently in use.
+
+If your plugin uses any of the IDs, you can use the method `markAsUsed` of the `$event` variable to prevent the Media entities from being deleted. `markAsUsed` accepts an array of string IDs.
+
+If your storage is a relational database such as MySQL, you should, when possible, use direct database queries to check for references. This saves memory and CPU cycles by avoiding the loading of unnecessary data.
+
+Imagine an extension that provides an image slider feature. An implementation of `getUsedMediaIds` might look something like the following:
+
+```php
+// <plugin root>/src/Subscriber/UnusedMediaSubscriber.php
+private function getUsedMediaIds(array $idsToBeDeleted): array
+{
+    $sql = <<<SQL
+    SELECT JSON_EXTRACT(slider_config, "$.images") as mediaIds FROM my_slider_table
+    WHERE JSON_OVERLAPS(
+ JSON_EXTRACT(slider_config, "$.images"),
+        JSON_ARRAY(?)
+ );
+ SQL;
+
+    $usedMediaIds = $this->connection->fetchFirstColumn(
+        $sql,
+        [$idsToBeDeleted],
+        [ArrayParameterType::STRING]
+    );
+
+    return array_merge(
+        ...array_map(fn (string $ids) => json_decode($ids, true, \JSON_THROW_ON_ERROR), $usedMediaIds)
+    );
+}
+```
+
+In the above example, `$this->connection` is an instance of `\Doctrine\DBAL\Connection` which can be injected into your subscriber.
+We use MySQL JSON functions to query the `my_slider_table` table.
+We check whether there are any references to the Media IDs from the event in the `slider_config` column, which is a JSON blob. The `JSON_EXTRACT` function looks into the `images` key of the data. We use the WHERE condition in combination with the `JSON_OVERLAPS` function to query only rows that reference the Media IDs we are interested in.
+
+Finally, we return all the IDs of Media used in the slider config so they are not deleted.
+
+Make sure to register your event subscriber to the [Dependency injection container](../../services/dependency-injection.md)
+by using the tag `kernel.event_subscriber`.
+
+<Tabs>
+<Tab title="services.php">
+
+```php
+// <plugin root>/src/Resources/config/services.php
+<?php declare(strict_types=1);
+
+use Swag\BasicExample\Subscriber\UnusedMediaSubscriber;
+use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
+
+return static function (ContainerConfigurator $configurator): void {
+    $services = $configurator->services();
+
+    $services->set(UnusedMediaSubscriber::class)
+        ->tag('kernel.event_subscriber');
+};
+```
+
+</Tab>
+</Tabs>

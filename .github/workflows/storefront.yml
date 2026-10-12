@@ -39,21 +39,23 @@ jobs:
           npm-version: 11.8.0
           shopware-version: ${{ github.ref }}
           shopware-repository: ${{ github.repository }}
-          install-storefront: true
+
+      - name: Setup JS workspace
+        uses: ./.github/actions/setup-js-workspace
 
       - name: Cache ESLint and Stylelint
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
-            src/Storefront/Resources/app/storefront/node_modules/.eslintcache
-            src/Storefront/Resources/app/storefront/node_modules/.stylelintcache
+            packages/storefront/node_modules/.eslintcache
+            packages/storefront/node_modules/.stylelintcache
           key: storefront-lint-${{ runner.os }}-6.6
 
       - name: Check Code
-        working-directory: src/Storefront/Resources/app/storefront
+        working-directory: packages/storefront
         run: |
-          npm run lint:js
-          npm run lint:scss
+          pnpm run lint:js
+          pnpm run lint:scss
 
       - name: Lint snippets
         run: composer storefront:lint:snippets
@@ -75,14 +77,16 @@ jobs:
           mysql-version: skip
           shopware-version: ${{ github.ref }}
           shopware-repository: ${{ github.repository }}
-          install-admin: true
+
+      - name: Setup JS workspace
+        uses: ./.github/actions/setup-js-workspace
 
       - name: Cache ESLint
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             src/Storefront/Resources/app/administration/.eslintcache
-          key: storefront-admin-modules-lint-${{ runner.os }}-${{ hashFiles('src/Administration/Resources/app/administration/package-lock.json', 'src/Administration/Resources/app/administration/eslint.config.ts') }}
+          key: storefront-admin-modules-lint-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'packages/administration/eslint.config.ts') }}
 
       - name: Lint
         run: composer eslint:storefront:admin-modules
@@ -147,18 +151,20 @@ jobs:
           npm-version: 11.8.0
           shopware-version: ${{ github.ref }}
           shopware-repository: ${{ github.repository }}
-          install-storefront: true
+
+      - name: Setup JS workspace
+        uses: ./.github/actions/setup-js-workspace
 
       - name: Run Jest Storefront
-        working-directory: src/Storefront/Resources/app/storefront
-        run: npm run unit -- --silent
+        working-directory: packages/storefront
+        run: pnpm run unit --silent
 
       - name: Upload coverage
         uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
-          files: src/Storefront/Resources/app/storefront/build/artifacts/jest/cobertura-coverage.xml
+          files: packages/storefront/build/artifacts/jest/cobertura-coverage.xml
           flags: jest-storefront
           disable_search: true
           disable_file_fixes: true
@@ -186,20 +192,22 @@ jobs:
           npm-version: 11.8.0
           shopware-version: ${{ github.ref }}
           shopware-repository: ${{ github.repository }}
-          install-storefront: true
+
+      - name: Setup JS workspace
+        uses: ./.github/actions/setup-js-workspace
 
       - name: Run Vitest Storefront components with coverage
-        working-directory: src/Storefront/Resources/app/storefront
+        working-directory: packages/storefront
         run: |
-          npm run build:components
-          npm run unit:components:coverage -- --coverage.reporter=cobertura --coverage.reportsDirectory=build/artifacts/vitest
+          pnpm run build:components
+          pnpm run unit:components:coverage --coverage.reporter=cobertura --coverage.reportsDirectory=build/artifacts/vitest
 
       - name: Upload coverage
         uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
-          files: src/Storefront/Resources/app/storefront/build/artifacts/vitest/cobertura-coverage.xml
+          files: packages/storefront/build/artifacts/vitest/cobertura-coverage.xml
           flags: vitest-storefront-components
           disable_search: true
           disable_file_fixes: true
@@ -215,28 +223,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: lts/*
-      - name: Install npm
-        run: npm install -g npm@11.8.0
-      - name: Cache npm packages
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          # ~/.npm is npm's tarball cache; `npm ci` wipes node_modules but reuses this
-          # offline (see prefer-offline below), which keeps retries off the network.
-          path: |
-            src/Storefront/Resources/app/storefront/node_modules
-            ~/.npm
-          key: ${{ runner.os }}-storefront-${{ hashFiles('src/Storefront/Resources/app/storefront/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-storefront-
-      - name: install packages
-        uses: shopware/github-actions/npm-ci-retry@main
-        with:
-          working-directory: src/Storefront/Resources/app/storefront
+      - name: Setup JS workspace
+        uses: ./.github/actions/setup-js-workspace
       - name: Check license
-        working-directory: src/Storefront/Resources/app/storefront
+        working-directory: packages/storefront
         run: |
           npx license-checker-rseidelsohn \
             --onlyAllow "$(tr \\n \; < ${{ github.workspace }}/.allowed-licenses)" \

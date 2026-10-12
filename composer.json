@@ -456,9 +456,8 @@
             "@php bin/console system:install --drop-database --basic-setup --force --no-assign-theme"
         ],
         "init:js": [
-            "@npm:admin clean-install --no-audit --prefer-offline",
-            "@npm:storefront clean-install --no-audit --prefer-offline",
-            "@npm:acceptance clean-install --no-audit --prefer-offline",
+            "LEFTHOOK=0 pnpm install --frozen-lockfile",
+            "pnpm turbo run build --filter='administration^...'",
             "export PROJECT_ROOT=\"$PWD\"; \"$PROJECT_ROOT\"/bin/install-extension-npm"
         ],
         "init:testdb": [

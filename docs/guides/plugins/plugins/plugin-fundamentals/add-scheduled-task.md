@@ -1,0 +1,173 @@
+---
+nav:
+  title: Add Scheduled Task
+  position: 100
+
+---
+
+# Add Scheduled Task
+
+Quite often one might want to run any type of code on a regular basis, e.g. to clean up very old entries every once in a while, automatically. Usually known as "Cronjobs", Shopware 6 supports a `ScheduledTask` for this.
+
+## Prerequisites
+
+This guide builds on the [Plugin Base Guide](../plugin-base-guide.md). Familiarity with `services.php` is helpful — see [Dependency Injection](../services/dependency-injection.md) and [Creating a service](../services/add-custom-service.md).
+
+::: info
+Refer to this video on **[Adding scheduled tasks](https://www.youtube.com/watch?v=88S9P3x6wYE)**. Also, available on our free online training ["Shopware 6 Backend Development"](https://hub.shopware.com/learn/path/shopware-backend-development-intermediate).
+:::
+
+## Registering a scheduled task in the DI container
+
+A `ScheduledTask` and its respective `ScheduledTaskHandler` are registered in a plugin's `services.php`. For it to be found by Shopware 6 automatically, you need to place the `services.php` file in a `Resources/config/` directory, relative to the location of your plugin's base class. The path could look like this: `<plugin root>/src/Resources/config/services.php`.
+
+Here's an example `services.php` containing a new `ScheduledTask` as well as a new `ScheduledTaskHandler`:
+
+::: info
+A scheduled task has two related runtime roles. The task definition describes when work is due, while the handler processes the message that Shopware dispatches. Generators create both sides and their service wiring together; seeing the generated PHP class in the filesystem does not mean the whole feature has been connected.
+:::
+
+```php
+// <plugin root>/src/Resources/config/services.php
+<?php declare(strict_types=1);
+
+use Swag\BasicExample\Service\ScheduledTask\ExampleTask;
+use Swag\BasicExample\Service\ScheduledTask\ExampleTaskHandler;
+use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
+
+use function Symfony\Component\DependencyInjection\Loader\Configurator\service;
+
+return static function (ContainerConfigurator $configurator): void {
+    $services = $configurator->services();
+
+    $services->set(ExampleTask::class)
+        ->tag('shopware.scheduled.task');
+
+    $services->set(ExampleTaskHandler::class)
+        ->args([
+            service('scheduled_task.repository'),
+            service('logger'),
+        ])
+        ->tag('messenger.message_handler');
+};
+```
+
+Note the tags required for both the task and its respective handler, `shopware.scheduled.task` and `messenger.message_handler`. Your custom task will now be saved into the database once your plugin is activated.
+
+## ScheduledTask and its handler
+
+The `services.php` file references both the task and its handler from `Service/ScheduledTask`. This directory name is a convention — you can use a different path as long as the namespace matches.
+
+The distinction between the two classes is important when working with generated output: the task is registered with `shopware.scheduled.task`, while the handler is the Messenger consumer for that task. Registration of the task explains why it can be persisted and scheduled; the handler is what ultimately executes `run()`.
+
+Here's an example `ScheduledTask`:
+
+```php
+// <plugin root>/src/Service/ScheduledTask/ExampleTask.php
+<?php declare(strict_types=1);
+
+namespace Swag\BasicExample\Service\ScheduledTask;
+
+use Shopware\Core\Framework\MessageQueue\ScheduledTask\ScheduledTask;
+
+class ExampleTask extends ScheduledTask
+{
+    public static function getTaskName(): string
+    {
+        return 'swag.example_task';
+    }
+
+    public static function getDefaultInterval(): int
+    {
+        return 300; // 5 minutes
+    }
+}
+```
+
+Your `ExampleTask` class has to extend from the `Shopware\Core\Framework\MessageQueue\ScheduledTask\ScheduledTask` class, which will force you to implement two methods:
+
+* `getTaskName`: The technical name of your task. Make sure to add a vendor prefix to your custom task to prevent collisions with other plugins' scheduled tasks. In this example this is `swag`.
+* `getDefaultInterval`: The interval in seconds at which your scheduled task should be executed.
+
+The respective task handler:
+
+```php
+// <plugin root>/src/Service/ScheduledTask/ExampleTaskHandler.php
+<?php declare(strict_types=1);
+
+namespace Swag\BasicExample\Service\ScheduledTask;
+
+use Shopware\Core\Framework\MessageQueue\ScheduledTask\ScheduledTaskHandler;
+use Symfony\Component\Messenger\Attribute\AsMessageHandler;
+
+#[AsMessageHandler(handles: ExampleTask::class)]
+class ExampleTaskHandler extends ScheduledTaskHandler
+{
+    public function run(): void
+    {
+        // ...
+    }
+}
+```
+
+The task handler, `ExampleTaskHandler` as defined previously in your `services.php`, will be annotated with `AsMessageHandler` handling the `ExampleTask` class. In addition, the `ScheduledTaskHandler` has to extend from the class `Shopware\Core\Framework\MessageQueue\ScheduledTask\ScheduledTaskHandler`. This also comes with one method that you need to implement first:
+
+* `run`: This method is executed when the scheduled task runs. Implement your task logic here.
+
+Every five minutes, Shopware will dispatch the task to the message bus and the handler's `run()` method will be executed.
+
+## Dynamic rescheduling
+
+::: info
+Available since Shopware version 6.7.13.0
+:::
+
+By default, a scheduled task is rescheduled to run again after its configured `runInterval` (initially taken from `getDefaultInterval()`), i.e. `nextExecutionTime + runInterval` (capped to `now` if it would lie in the past). If you want to control *when* the task runs next based on your own domain data — for example, scheduling the next run to the timestamp of the next pending record instead of a fixed interval — let your handler implement the `Shopware\Core\Framework\MessageQueue\ScheduledTask\DynamicallyScheduledTaskHandler` interface.
+
+Shopware asks the handler for the next execution time and persists it for you, so the handler only answers the "when", not the "how":
+
+```php
+// <plugin root>/src/Service/ScheduledTask/ExampleTaskHandler.php
+<?php declare(strict_types=1);
+
+namespace Swag\BasicExample\Service\ScheduledTask;
+
+use Shopware\Core\Framework\MessageQueue\ScheduledTask\DynamicallyScheduledTaskHandler;
+use Shopware\Core\Framework\MessageQueue\ScheduledTask\ScheduledTask;
+use Shopware\Core\Framework\MessageQueue\ScheduledTask\ScheduledTaskEntity;
+use Shopware\Core\Framework\MessageQueue\ScheduledTask\ScheduledTaskHandler;
+use Symfony\Component\Messenger\Attribute\AsMessageHandler;
+
+#[AsMessageHandler(handles: ExampleTask::class)]
+class ExampleTaskHandler extends ScheduledTaskHandler implements DynamicallyScheduledTaskHandler
+{
+    public function run(): void
+    {
+        // ...
+    }
+
+    public function getNextExecutionTime(ScheduledTask $task, ScheduledTaskEntity $taskEntity): ?\DateTimeInterface
+    {
+        // return the time the task should next run at,
+        // or null to fall back to the default `now + runInterval` schedule
+        return $this->resolveNextPendingTimestamp();
+    }
+}
+```
+
+`getNextExecutionTime()` is called after `run()` finishes. Returning `null` falls back to the default interval-based schedule. If the returned time lies in the past, Shopware runs the task again as soon as possible.
+
+## Executing the scheduled task
+
+Usually scheduled tasks are registered when installing or updating your plugin. If you don't want to reinstall your plugin in order to register your scheduled task, you can also use the following command to achieve this:
+`bin/console scheduled-task:register`
+
+In order to properly test your scheduled task, you first have to run the command `bin/console scheduled-task:run`. This will start the `ScheduledTaskRunner`, which takes care of your scheduled tasks and their respective timings. It will dispatch a message to the message bus once your scheduled task's interval is due.
+
+Now you still need to run the command `bin/console messenger:consume` to actually execute the dispatched messages. Make sure, that the `status` of your scheduled task is set to `scheduled` in the `scheduled_task` table, otherwise it won't be executed. This is not necessary, when you're using the admin worker.
+
+<!--@include: ../../../../snippets/guide/debugging_scheduled_tasks.md-->
+
+## Next steps
+
+[Adding a custom command](add-custom-commands.md)

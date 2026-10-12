@@ -46,30 +46,40 @@ jobs:
       - name: Setup Shopware
         uses: shopware/setup-shopware@main
         with:
-          install-admin: true
           shopware-version: ${{ github.ref }}
           shopware-repository: ${{ github.repository }}
+
+      - name: Setup JS workspace
+        uses: ./.github/actions/setup-js-workspace
+        with:
+          build-dependencies-of: administration
+
+      - name: Generate entity schema types
+        run: composer run admin:generate-entity-schema-types
+
+      - name: Generate unit test setup artifacts
+        run: pnpm --dir packages/administration run unit-setup
 
       - name: Cache ESLint and Stylelint
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
-            src/Administration/Resources/app/administration/node_modules/.eslintcache
-            src/Administration/Resources/app/administration/node_modules/.stylelintcache
-          key: admin-lint-${{ runner.os }}-${{ hashFiles('src/Administration/Resources/app/administration/package-lock.json', 'src/Administration/Resources/app/administration/eslint.config.ts', 'src/Administration/Resources/app/administration/.stylelintrc') }}
+            packages/administration/node_modules/.eslintcache
+            packages/administration/node_modules/.stylelintcache
+          key: admin-lint-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'packages/administration/eslint.config.ts', 'packages/administration/.stylelintrc') }}
 
       - name: Lint
-        working-directory: src/Administration/Resources/app/administration
-        run: npm run lint
+        working-directory: packages/administration
+        run: pnpm run lint
       - name: Lint types
-        working-directory: src/Administration/Resources/app/administration
-        run: npm run lint:types
+        working-directory: packages/administration
+        run: pnpm run lint:types
       - name: Lint scss
-        working-directory: src/Administration/Resources/app/administration
-        run: npm run lint:scss
+        working-directory: packages/administration
+        run: pnpm run lint:scss
       - name: Format
-        working-directory: src/Administration/Resources/app/administration
-        run: npm run format
+        working-directory: packages/administration
+        run: pnpm run format
 
   admin:
     needs:
@@ -91,21 +101,16 @@ jobs:
       - name: Generate entity schema mock
         run: composer run framework:schema:dump
 
-      - name: Setup Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - name: Setup JS workspace
+        uses: ./.github/actions/setup-js-workspace
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: src/Administration/Resources/app/administration/package-lock.json
-
-      - name: Install admin dependencies
-        run: npm --prefix src/Administration/Resources/app/administration ci
+          build-dependencies-of: administration
 
       - name: Generate unit test setup artifacts
-        run: npm --prefix src/Administration/Resources/app/administration run unit-setup
+        run: pnpm --dir packages/administration run unit-setup
 
       - name: Run Jest Admin unit
-        run: npm --prefix src/Administration/Resources/app/administration run unit -- --silent
+        run: pnpm --dir packages/administration run unit --silent
 
       - name: Upload coverage
         uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
@@ -138,21 +143,16 @@ jobs:
       - name: Generate entity schema mock
         run: composer run framework:schema:dump
 
-      - name: Setup Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - name: Setup JS workspace
+        uses: ./.github/actions/setup-js-workspace
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: src/Administration/Resources/app/administration/package-lock.json
-
-      - name: Install admin dependencies
-        run: npm --prefix src/Administration/Resources/app/administration ci
+          build-dependencies-of: administration
 
       - name: Generate unit test setup artifacts
-        run: npm --prefix src/Administration/Resources/app/administration run unit-setup
+        run: pnpm --dir packages/administration run unit-setup
 
       - name: Run extension tooling e2e suite
-        run: npm --prefix src/Administration/Resources/app/administration run unit:extension-tooling-e2e
+        run: pnpm --dir packages/administration run unit:extension-tooling-e2e
 
   license-check:
     needs:
@@ -166,15 +166,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-      - name: install packages
-        uses: shopware/github-actions/npm-ci-retry@main
-        with:
-          working-directory: src/Storefront/Resources/app/storefront
+      - name: Setup JS workspace
+        uses: ./.github/actions/setup-js-workspace
       - name: Check license
-        working-directory: src/Administration/Resources/app/administration
+        working-directory: packages/administration
         run: |
           npx license-checker-rseidelsohn \
             --onlyAllow "$(tr \\n \; < ${{ github.workspace }}/.allowed-licenses)" \

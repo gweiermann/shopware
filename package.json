@@ -1,0 +1,21 @@
+{
+  "name": "shopware-monorepo",
+  "private": true,
+  "description": "Workspace root for all JavaScript packages of Shopware: Administration, Storefront, Meteor, acceptance-test-suite and docs",
+  "scripts": {
+    "build": "turbo run build",
+    "build:admin": "turbo run build --filter=administration...",
+    "build:storefront": "turbo run production --filter=storefront",
+    "lint": "turbo run lint",
+    "unit": "turbo run unit"
+  },
+  "devDependencies": {
+    "@changesets/cli": "2.29.8",
+    "@changesets/changelog-github": "0.5.2",
+    "turbo": "2.5.4"
+  },
+  "packageManager": "pnpm@10.12.3",
+  "engines": {
+    "node": ">=22"
+  }
+}

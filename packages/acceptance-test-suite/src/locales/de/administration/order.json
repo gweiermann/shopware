@@ -1,0 +1,28 @@
+{
+    "detail": {
+        "items": "Positionen",
+        "sendDocument": "Dokument senden",
+        "openActionsMenu": "Aktionsmenü öffnen"
+    },
+    "contextMenu": {
+        "sendDocument": "Dokument senden",
+        "openDocument": "Dokument öffnen",
+        "markAsSent": "Als gesendet markieren"
+    },
+    "tabs": {
+        "general": "Allgemein",
+        "details": "Details",
+        "documents": "Dokumente"
+    },
+    "listing": {
+        "addOrder": "Bestellung anlegen"
+    },
+    "actions": {
+        "view": "Anzeigen",
+        "delete": "Löschen",
+        "cancel": "Abbrechen"
+    },
+    "dialogs": {
+        "warning": "Warnung"
+    }
+}

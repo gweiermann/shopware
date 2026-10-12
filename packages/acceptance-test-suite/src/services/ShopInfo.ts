@@ -1,0 +1,28 @@
+import { type AdminApiContext } from "./AdminApiContext";
+import { type StoreApiContext } from "./StoreApiContext";
+
+export const isSaaSInstance = async (adminApiContext: AdminApiContext): Promise<boolean> => {
+    const instanceStatus = await adminApiContext.get("./instance/status");
+    return instanceStatus.ok();
+};
+
+export const isPaaSInstance = (): boolean => {
+    return process.env.SHOPWARE_ACCEPTANCE_INSTANCE_TYPE === "paas";
+};
+
+export const isThemeCompiled = async (context: StoreApiContext, storefrontUrl: string): Promise<boolean> => {
+    const response = await context.get(storefrontUrl);
+
+    const body = (await response.body()).toString();
+
+    const matches = body.match(/.*"(https?:\/\/.*all\.css[^"]*)".*/);
+    if (matches && matches?.length > 1) {
+        const allCssUrl = matches[1];
+
+        const allCssResponse = await context.get(allCssUrl);
+
+        return allCssResponse.status() < 400;
+    }
+
+    return false;
+};

@@ -1,0 +1,24 @@
+{
+    "fields": {
+        "priority": "Priorität",
+        "name": "Name",
+        "description": "Beschreibung"
+    },
+    "buttons": {
+        "save": "Speichern",
+        "cancel": "Abbrechen",
+        "add": "Hinzufügen",
+        "addAssignment": "Zuweisung hinzufügen",
+        "createRule": "Regel erstellen"
+    },
+    "errors": {
+        "unknownRuleType": "Typ"
+    },
+    "testData": {
+        "ruleDescription": "Beschreibung"
+    },
+    "text": {
+        "ruleNotInUse": "Diese Regel wird nicht verwendet",
+        "filter": "Filter"
+    }
+}

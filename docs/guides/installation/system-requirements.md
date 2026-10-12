@@ -1,0 +1,53 @@
+---
+nav:
+  title: System Requirements
+  position: 3
+
+---
+
+# System Requirements
+
+Before setting up the Shopware 6 development environment, ensure your system meets the following requirements.
+
+:::info
+This page covers the physical machine requirements for your workstation or server. For the recommended application stack and supported versions, see the [hosting guide](../../guides/hosting/).
+:::
+
+## Hardware
+
+| Component           | Requirement                                                   |
+| ------------------- | ------------------------------------------------------------- |
+| CPU                 | Quad-core or higher recommended                               |
+| Memory (RAM)        | 8 GB minimum, 16 GB recommended (especially for Docker)       |
+| Disk space          | Approximately 10 GB free for Shopware and supporting services |
+| Internet connection | Reliable connection required for dependency downloads         |
+
+## Operating system
+
+| Platform | Requirement                                     |
+| -------- | ----------------------------------------------- |
+| macOS    | macOS 13 or newer                               |
+| Linux    | 64-bit distribution                             |
+| Windows  | Windows 10/11 Pro using WSL 2 or Docker Desktop |
+
+Only Unix-based systems are supported.
+
+## Permissions and networking
+
+| Area           | Requirement                                                             |
+| -------------- | ----------------------------------------------------------------------- |
+| Permissions    | Administrative or root privileges (if required within the organization) |
+| Firewall       | Allow internal communication between containers or local web services   |
+| Docker (Linux) | Add your user to the docker group (command below)                       |
+
+Example command:
+
+```bash
+sudo usermod -aG docker $USER
+```
+
+Once your environment meets these requirements, [installation](../../guides/installation/index.md) is possible. This installation path focuses on a Docker-based setup. If you want to install Shopware from scratch, please refer to the [software requirements and hosting guide](../../guides/hosting/) instead.
+
+:::info
+For alternative installation approaches, see the documentation on [legacy setups](./legacy-setups/index.md). These methods are no longer recommended for new projects.
+:::
